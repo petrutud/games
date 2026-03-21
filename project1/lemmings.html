@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lemmings</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center; font-family: 'Segoe UI', sans-serif; color: #fff; overflow: hidden; height: 100vh; }
+#header { display: flex; align-items: center; gap: 20px; padding: 8px 16px; background: #16213e; width: 100%; justify-content: center; flex-wrap: wrap; }
+#header .info { font-size: 14px; display: flex; gap: 16px; }
+#header .info span { background: #0f3460; padding: 4px 10px; border-radius: 4px; }
+#tools { display: flex; gap: 4px; }
+.tool-btn { background: #0f3460; border: 2px solid #333; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.15s; min-width: 70px; text-align: center; }
+.tool-btn:hover { background: #1a5276; }
+.tool-btn.active { background: #e94560; border-color: #e94560; }
+.tool-btn .count { font-size: 11px; opacity: 0.7; }
+#game-area { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; }
+canvas { border: 2px solid #0f3460; cursor: crosshair; }
+#controls { padding: 8px; display: flex; gap: 12px; }
+#controls button { background: #0f3460; border: none; color: #fff; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+#controls button:hover { background: #1a5276; }
+#message { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 36px; font-weight: bold; text-shadow: 2px 2px 8px #000; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
+</style>
+</head>
+<body>
+<div id="header">
+  <div class="info">
+    <span>Level: <b id="levelNum">1</b></span>
+    <span>Out: <b id="outCount">0</b></span>
+    <span>Saved: <b id="savedCount">0</b>/<b id="needed">0</b></span>
+    <span>Rate: <b id="releaseRate">1</b></span>
+  </div>
+  <div id="tools"></div>
+</div>
+<div id="game-area">
+  <canvas id="canvas"></canvas>
+  <div id="message"></div>
+</div>
+<div id="controls">
+  <button onclick="game.speedUp()">Speed +</button>
+  <button onclick="game.speedDown()">Speed -</button>
+  <button onclick="game.nuke()">Nuke!</button>
+  <button onclick="game.restart()">Restart</button>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = 960, H = 540;
+canvas.width = W; canvas.height = H;
+
+const TOOLS = [
+  { name: 'Climber', key: 'c', count: 10 },
+  { name: 'Floater', key: 'f', count: 10 },
+  { name: 'Bomber', key: 'b', count: 5 },
+  { name: 'Blocker', key: 'k', count: 5 },
+  { name: 'Builder', key: 'u', count: 10 },
+  { name: 'Basher', key: 'a', count: 10 },
+  { name: 'Miner', key: 'm', count: 5 },
+  { name: 'Digger', key: 'd', count: 10 },
+];
+
+const PIXEL = 2;
+const LEM_W = 5, LEM_H = 10;
+
+class Terrain {
+  constructor() {
+    this.data = new Uint8Array(W * H);
+  }
+  get(x, y) {
+    if (x < 0 || x >= W || y < 0 || y >= H) return y >= H ? 1 : 0;
+    return this.data[y * W + x];
+  }
+  set(x, y, v) {
+    if (x >= 0 && x < W && y >= 0 && y < H) this.data[y * W + x] = v;
+  }
+  isSolid(x, y) { return this.get(x, y) > 0; }
+  dig(x, y, r) {
+    let dug = false;
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++)
+        if (dx*dx + dy*dy <= r*r && this.get(x+dx, y+dy) === 1) {
+          this.set(x+dx, y+dy, 0);
+          dug = true;
+        }
+    return dug;
+  }
+  digRect(x, y, w, h) {
+    let dug = false;
+    for (let dy = 0; dy < h; dy++)
+      for (let dx = 0; dx < w; dx++)
+        if (this.get(x+dx, y+dy) === 1) {
+          this.set(x+dx, y+dy, 0);
+          dug = true;
+        }
+    return dug;
+  }
+  buildRect(x, y, w, h) {
+    for (let dy = 0; dy < h; dy++)
+      for (let dx = 0; dx < w; dx++)
+        this.set(x+dx, y+dy, 1);
+  }
+}
+
+const LEVELS = [
+  {
+    name: "Just Dig!",
+    total: 10, needed: 5, rate: 50,
+    entry: { x: 100, y: 60 },
+    exit: { x: 100, y: 460 },
+    build(t) {
+      // flat platform near top
+      t.buildRect(40, 120, 200, 16);
+      // thick floor with gap for exit
+      t.buildRect(0, 480, W, 60);
+      // pillars to dig through
+      t.buildRect(60, 136, 100, 344);
+      // small platforms
+      t.buildRect(250, 250, 150, 12);
+      t.buildRect(200, 370, 180, 12);
+    }
+  },
+  {
+    name: "Build the Bridge",
+    total: 15, needed: 8, rate: 60,
+    entry: { x: 80, y: 50 },
+    exit: { x: 820, y: 430 },
+    build(t) {
+      t.buildRect(30, 120, 180, 14);
+      t.buildRect(320, 180, 180, 14);
+      t.buildRect(600, 240, 180, 14);
+      t.buildRect(750, 400, 160, 14);
+      t.buildRect(0, 500, W, 40);
+    }
+  },
+  {
+    name: "Mine Your Way",
+    total: 20, needed: 12, rate: 45,
+    entry: { x: 480, y: 30 },
+    exit: { x: 800, y: 470 },
+    build(t) {
+      // large terrain block
+      t.buildRect(100, 100, 760, 400);
+      // carve out internal caves
+      for (let i = 0; i < 5; i++) {
+        t.dig(250 + i * 120, 250, 40);
+      }
+      // exit chamber
+      for (let dy = 0; dy < 40; dy++)
+        for (let dx = 0; dx < 60; dx++)
+          t.set(770 + dx, 460 + dy, 0);
+      t.buildRect(0, 500, W, 40);
+    }
+  },
+  {
+    name: "Combo Challenge",
+    total: 25, needed: 18, rate: 40,
+    entry: { x: 60, y: 40 },
+    exit: { x: 880, y: 460 },
+    build(t) {
+      t.buildRect(20, 100, 160, 14);
+      t.buildRect(20, 100, 14, 200);
+      t.buildRect(20, 300, 200, 14);
+      t.buildRect(300, 200, 14, 200);
+      t.buildRect(300, 200, 200, 14);
+      t.buildRect(580, 300, 200, 14);
+      t.buildRect(820, 200, 14, 280);
+      t.buildRect(820, 430, 120, 14);
+      t.buildRect(0, 500, W, 40);
+    }
+  },
+  {
+    name: "The Gauntlet",
+    total: 30, needed: 22, rate: 35,
+    entry: { x: 100, y: 20 },
+    exit: { x: 850, y: 460 },
+    build(t) {
+      // staircase terrain
+      for (let i = 0; i < 6; i++) {
+        t.buildRect(50 + i * 140, 100 + i * 60, 120, 14);
+      }
+      // walls between platforms
+      for (let i = 0; i < 5; i++) {
+        t.buildRect(160 + i * 140, 100 + i * 60, 14, 74);
+      }
+      t.buildRect(780, 430, 140, 14);
+      t.buildRect(0, 510, W, 30);
+    }
+  }
+];
+
+class Lemming {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    this.vx = 1; this.vy = 0;
+    this.state = 'falling';
+    this.fallDist = 0;
+    this.alive = true;
+    this.saved = false;
+    this.skills = {};
+    this.buildCount = 0;
+    this.bashTimer = 0;
+    this.mineTimer = 0;
+    this.bombTimer = -1;
+    this.climbProgress = 0;
+    this.floatDeploy = false;
+    this.animFrame = 0;
+  }
+}
+
+class Game {
+  constructor() {
+    this.level = 0;
+    this.lemmings = [];
+    this.terrain = new Terrain();
+    this.selectedTool = -1;
+    this.toolCounts = [];
+    this.spawnTimer = 0;
+    this.spawned = 0;
+    this.saved = 0;
+    this.running = false;
+    this.speed = 1;
+    this.particles = [];
+    this.tick = 0;
+    this.nuked = false;
+
+    this.setupTools();
+    this.loadLevel(0);
+    this.setupInput();
+    this.loop();
+  }
+
+  setupTools() {
+    const toolsEl = document.getElementById('tools');
+    TOOLS.forEach((t, i) => {
+      const btn = document.createElement('div');
+      btn.className = 'tool-btn';
+      btn.innerHTML = `${t.name}<br><span class="count" id="tc${i}">${t.count}</span> <span style="opacity:0.5;font-size:10px">[${t.key}]</span>`;
+      btn.onclick = () => this.selectTool(i);
+      toolsEl.appendChild(btn);
+    });
+  }
+
+  selectTool(i) {
+    this.selectedTool = this.selectedTool === i ? -1 : i;
+    document.querySelectorAll('.tool-btn').forEach((b, j) => b.classList.toggle('active', j === this.selectedTool));
+  }
+
+  loadLevel(n) {
+    this.level = n;
+    this.lemmings = [];
+    this.terrain = new Terrain();
+    this.spawned = 0;
+    this.saved = 0;
+    this.spawnTimer = 0;
+    this.particles = [];
+    this.nuked = false;
+    this.running = true;
+    this.tick = 0;
+
+    const lv = LEVELS[n];
+    lv.build(this.terrain);
+    this.toolCounts = TOOLS.map(t => t.count);
+    TOOLS.forEach((t, i) => document.getElementById('tc' + i).textContent = this.toolCounts[i]);
+
+    document.getElementById('levelNum').textContent = n + 1;
+    document.getElementById('needed').textContent = lv.needed;
+    document.getElementById('outCount').textContent = 0;
+    document.getElementById('savedCount').textContent = 0;
+    document.getElementById('releaseRate').textContent = this.speed;
+
+    this.hideMessage();
+  }
+
+  restart() { this.loadLevel(this.level); }
+
+  speedUp() { this.speed = Math.min(this.speed + 1, 5); document.getElementById('releaseRate').textContent = this.speed; }
+  speedDown() { this.speed = Math.max(this.speed - 1, 1); document.getElementById('releaseRate').textContent = this.speed; }
+
+  nuke() {
+    if (this.nuked) return;
+    this.nuked = true;
+    this.lemmings.forEach((l, i) => {
+      if (l.alive && !l.saved) l.bombTimer = i * 8;
+    });
+  }
+
+  setupInput() {
+    canvas.addEventListener('click', e => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) * (W / rect.width);
+      const my = (e.clientY - rect.top) * (H / rect.height);
+      if (this.selectedTool < 0) return;
+
+      let closest = null, closestD = 20;
+      for (const l of this.lemmings) {
+        if (!l.alive || l.saved) continue;
+        const d = Math.hypot(l.x - mx, l.y - my);
+        if (d < closestD) { closest = l; closestD = d; }
+      }
+      if (closest && this.toolCounts[this.selectedTool] > 0) {
+        const toolName = TOOLS[this.selectedTool].name.toLowerCase();
+        if (closest.skills[toolName]) return;
+        if (toolName === 'blocker' && closest.state === 'blocking') return;
+
+        closest.skills[toolName] = true;
+        if (toolName === 'bomber') closest.bombTimer = 40;
+        if (toolName === 'blocker') closest.state = 'blocking';
+        if (toolName === 'digger') closest.state = 'digging';
+        if (toolName === 'basher') { closest.state = 'bashing'; closest.bashTimer = 0; }
+        if (toolName === 'miner') { closest.state = 'mining'; closest.mineTimer = 0; }
+        if (toolName === 'builder') { closest.state = 'building'; closest.buildCount = 0; }
+
+        this.toolCounts[this.selectedTool]--;
+        document.getElementById('tc' + this.selectedTool).textContent = this.toolCounts[this.selectedTool];
+      }
+    });
+
+    document.addEventListener('keydown', e => {
+      const idx = TOOLS.findIndex(t => t.key === e.key);
+      if (idx >= 0) this.selectTool(idx);
+    });
+  }
+
+  spawnLemming() {
+    const lv = LEVELS[this.level];
+    this.lemmings.push(new Lemming(lv.entry.x, lv.entry.y));
+    this.spawned++;
+    document.getElementById('outCount').textContent = this.spawned;
+  }
+
+  updateLemming(l) {
+    if (!l.alive || l.saved) return;
+    const T = this.terrain;
+    l.animFrame++;
+
+    // Bomb countdown
+    if (l.bombTimer >= 0) {
+      l.bombTimer--;
+      if (l.bombTimer <= 0) {
+        l.alive = false;
+        T.dig(Math.round(l.x), Math.round(l.y), 16);
+        this.explode(l.x, l.y);
+        return;
+      }
+    }
+
+    // Check exit
+    const lv = LEVELS[this.level];
+    if (Math.hypot(l.x - lv.exit.x, l.y - lv.exit.y) < 12) {
+      l.saved = true;
+      this.saved++;
+      document.getElementById('savedCount').textContent = this.saved;
+      return;
+    }
+
+    const onGround = T.isSolid(Math.round(l.x), Math.round(l.y + 1));
+    const ix = Math.round(l.x), iy = Math.round(l.y);
+
+    // State machine
+    switch (l.state) {
+      case 'falling':
+        if (l.skills.floater && l.fallDist > 20) {
+          l.vy = 1.5;
+          l.floatDeploy = true;
+        } else {
+          l.vy = Math.min(l.vy + 0.5, 4);
+        }
+        l.y += l.vy;
+        l.fallDist += l.vy;
+
+        if (T.isSolid(Math.round(l.x), Math.round(l.y + 1))) {
+          l.y = Math.round(l.y);
+          while (T.isSolid(Math.round(l.x), Math.round(l.y))) l.y--;
+          if (l.fallDist > 60 && !l.skills.floater) {
+            l.alive = false;
+            this.explode(l.x, l.y);
+            return;
+          }
+          l.state = 'walking';
+          l.vy = 0;
+          l.fallDist = 0;
+          l.floatDeploy = false;
+        }
+
+        if (l.y > H + 10) { l.alive = false; return; }
+        break;
+
+      case 'walking':
+        if (!onGround) { l.state = 'falling'; l.vy = 0; l.fallDist = 0; break; }
+
+        let nextX = Math.round(l.x + l.vx);
+        let blocked = false;
+
+        // Check for blockers
+        for (const other of this.lemmings) {
+          if (other === l || !other.alive || other.saved || other.state !== 'blocking') continue;
+          if (Math.abs(other.x - nextX) < 6 && Math.abs(other.y - l.y) < 10) {
+            l.vx = -l.vx;
+            blocked = true;
+            break;
+          }
+        }
+
+        if (!blocked) {
+          // Check wall ahead
+          let wallH = 0;
+          for (let ch = 0; ch < 8; ch++) {
+            if (T.isSolid(nextX, iy - ch)) wallH++;
+            else break;
+          }
+
+          if (wallH >= 8) {
+            if (l.skills.climber) {
+              l.state = 'climbing';
+              l.climbProgress = 0;
+            } else {
+              l.vx = -l.vx;
+            }
+          } else {
+            l.x += l.vx;
+            // Walk up slopes
+            while (T.isSolid(Math.round(l.x), Math.round(l.y))) l.y--;
+            // Walk down slopes
+            let drops = 0;
+            while (!T.isSolid(Math.round(l.x), Math.round(l.y + 1)) && drops < 4) {
+              l.y++;
+              drops++;
+            }
+            if (drops >= 4) {
+              l.state = 'falling';
+              l.vy = 0;
+              l.fallDist = 0;
+            }
+          }
+        }
+        break;
+
+      case 'climbing':
+        l.y -= 1;
+        l.climbProgress++;
+        if (!T.isSolid(Math.round(l.x + l.vx), Math.round(l.y))) {
+          l.state = 'walking';
+          l.x += l.vx;
+        }
+        if (l.climbProgress > 100) {
+          l.vx = -l.vx;
+          l.state = 'falling';
+          l.vy = 0;
+          l.fallDist = 0;
+        }
+        break;
+
+      case 'blocking':
+        // Just stand still
+        break;
+
+      case 'digging':
+        if (!onGround) { l.state = 'falling'; l.vy = 0; l.fallDist = 0; break; }
+        if (l.animFrame % 4 === 0) {
+          let dug = T.digRect(ix - 5, iy + 1, 11, 3);
+          if (dug) {
+            l.y += 2;
+          } else {
+            l.state = 'walking';
+          }
+        }
+        break;
+
+      case 'bashing':
+        if (!onGround) { l.state = 'falling'; l.vy = 0; l.fallDist = 0; break; }
+        l.bashTimer++;
+        if (l.bashTimer % 3 === 0) {
+          let bx = ix + l.vx * 4;
+          let dug = T.digRect(bx - 1, iy - 8, 4, 10);
+          if (dug) {
+            l.x += l.vx;
+          } else {
+            l.state = 'walking';
+          }
+        }
+        break;
+
+      case 'mining':
+        if (!onGround) { l.state = 'falling'; l.vy = 0; l.fallDist = 0; break; }
+        l.mineTimer++;
+        if (l.mineTimer % 4 === 0) {
+          let mx = ix + l.vx * 3;
+          let dug = T.dig(mx, iy + 2, 5);
+          if (dug) {
+            l.x += l.vx;
+            l.y += 1;
+          } else {
+            l.state = 'walking';
+          }
+        }
+        break;
+
+      case 'building':
+        if (l.buildCount >= 12) {
+          l.state = 'walking';
+          break;
+        }
+        if (l.animFrame % 6 === 0) {
+          let bx = ix + l.vx * 3;
+          T.buildRect(bx - 1, iy, 6, 2);
+          l.x += l.vx * 3;
+          l.y -= 2;
+          l.buildCount++;
+          if (T.isSolid(Math.round(l.x + l.vx * 2), Math.round(l.y - 2))) {
+            l.state = 'walking';
+            l.vx = -l.vx;
+          }
+        }
+        break;
+    }
+  }
+
+  explode(x, y) {
+    for (let i = 0; i < 20; i++) {
+      this.particles.push({
+        x, y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6 - 2,
+        life: 30 + Math.random() * 20,
+        color: ['#e94560', '#ff6b6b', '#ffd93d', '#fff'][Math.floor(Math.random() * 4)]
+      });
+    }
+  }
+
+  update() {
+    if (!this.running) return;
+
+    const lv = LEVELS[this.level];
+    this.tick++;
+
+    // Spawn
+    const interval = Math.max(20, 80 - this.speed * 15);
+    if (this.spawned < lv.total && this.tick % interval === 0) {
+      this.spawnLemming();
+    }
+
+    // Update lemmings
+    for (const l of this.lemmings) this.updateLemming(l);
+
+    // Update particles
+    for (const p of this.particles) {
+      p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--;
+    }
+    this.particles = this.particles.filter(p => p.life > 0);
+
+    // Check win/lose
+    const allDone = this.spawned >= lv.total && this.lemmings.every(l => !l.alive || l.saved);
+    if (allDone) {
+      this.running = false;
+      if (this.saved >= lv.needed) {
+        this.showMessage(`Level Complete! ${this.saved}/${lv.total} saved!`);
+        setTimeout(() => {
+          if (this.level < LEVELS.length - 1) this.loadLevel(this.level + 1);
+          else this.showMessage('You beat all levels!');
+        }, 2500);
+      } else {
+        this.showMessage(`Need ${lv.needed}, only saved ${this.saved}. Try again!`);
+      }
+    }
+  }
+
+  render() {
+    const T = this.terrain;
+    const lv = LEVELS[this.level];
+
+    // Build terrain image
+    const imgData = ctx.createImageData(W, H);
+    const d = imgData.data;
+
+    // Background gradient
+    for (let y = 0; y < H; y++) {
+      const t = y / H;
+      const r = 10 + t * 15, g = 10 + t * 20, b = 30 + t * 30;
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        if (T.data[y * W + x]) {
+          // Terrain with slight variation
+          const v = ((x * 7 + y * 13) % 30);
+          d[i] = 80 + v;
+          d[i+1] = 140 + v;
+          d[i+2] = 60 + v;
+          d[i+3] = 255;
+        } else {
+          d[i] = r; d[i+1] = g; d[i+2] = b; d[i+3] = 255;
+        }
+      }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+
+    // Draw entry
+    ctx.fillStyle = '#4ecdc4';
+    ctx.fillRect(lv.entry.x - 8, lv.entry.y - 16, 16, 16);
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('IN', lv.entry.x, lv.entry.y - 4);
+
+    // Draw exit
+    ctx.fillStyle = '#e94560';
+    ctx.fillRect(lv.exit.x - 10, lv.exit.y - 14, 20, 14);
+    ctx.fillStyle = '#fff';
+    ctx.fillText('EXIT', lv.exit.x, lv.exit.y - 3);
+
+    // Draw lemmings
+    for (const l of this.lemmings) {
+      if (!l.alive || l.saved) continue;
+
+      const lx = Math.round(l.x), ly = Math.round(l.y);
+
+      // Body
+      let bodyColor = '#4ecdc4';
+      if (l.state === 'blocking') bodyColor = '#e94560';
+      else if (l.state === 'building') bodyColor = '#ffd93d';
+      else if (l.state === 'digging' || l.state === 'mining') bodyColor = '#ff8c42';
+      else if (l.state === 'bashing') bodyColor = '#ff6b6b';
+      else if (l.state === 'climbing') bodyColor = '#a8e6cf';
+
+      // Legs animation
+      const walk = l.state === 'walking' ? Math.sin(l.animFrame * 0.3) * 2 : 0;
+
+      // Hair
+      ctx.fillStyle = '#45b7aa';
+      ctx.fillRect(lx - 2, ly - 10, 5, 3);
+
+      // Body
+      ctx.fillStyle = bodyColor;
+      ctx.fillRect(lx - 2, ly - 7, 5, 5);
+
+      // Legs
+      ctx.fillStyle = '#2d8a7e';
+      ctx.fillRect(lx - 2, ly - 2, 2, 3 + walk);
+      ctx.fillRect(lx + 1, ly - 2, 2, 3 - walk);
+
+      // Direction indicator
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(lx + (l.vx > 0 ? 1 : -1), ly - 6, 1, 1);
+
+      // Floater umbrella
+      if (l.floatDeploy) {
+        ctx.fillStyle = '#ffd93d';
+        ctx.beginPath();
+        ctx.moveTo(lx - 8, ly - 14);
+        ctx.lineTo(lx + 8, ly - 14);
+        ctx.lineTo(lx, ly - 10);
+        ctx.fill();
+        ctx.strokeStyle = '#c9a726';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(lx, ly - 10);
+        ctx.lineTo(lx, ly - 14);
+        ctx.stroke();
+      }
+
+      // Bomb timer
+      if (l.bombTimer > 0) {
+        ctx.fillStyle = '#e94560';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(Math.ceil(l.bombTimer / 10), lx, ly - 14);
+      }
+
+      // Skill label
+      if (l.state !== 'walking' && l.state !== 'falling') {
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.font = '8px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(l.state, lx, ly - 14 - (l.bombTimer > 0 ? 10 : 0));
+      }
+    }
+
+    // Draw particles
+    for (const p of this.particles) {
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = p.life / 50;
+      ctx.fillRect(p.x - 1, p.y - 1, 3, 3);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  showMessage(text) {
+    const el = document.getElementById('message');
+    el.textContent = text;
+    el.style.opacity = 1;
+  }
+  hideMessage() {
+    document.getElementById('message').style.opacity = 0;
+  }
+
+  loop() {
+    this.update();
+    this.render();
+    requestAnimationFrame(() => this.loop());
+  }
+}
+
+const game = new Game();
+</script>
+</body>
+</html>

@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tether — Co-op Puzzle Platformer</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden;font-family:'Segoe UI',sans-serif}
+canvas{border-radius:6px;box-shadow:0 0 40px rgba(0,0,0,0.6)}
+#ui{position:absolute;top:0;left:50%;transform:translateX(-50%);width:960px;pointer-events:none}
+#hud{display:flex;justify-content:space-between;padding:6px 14px;color:#fff;font-size:13px;opacity:0.85}
+#hud .p1{color:#ffb347}#hud .p2{color:#7ec8e3}
+#controls-hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.4);font-size:11px;pointer-events:none}
+#dialogue{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);width:650px;display:none;
+  background:rgba(0,0,0,0.88);border:1px solid rgba(255,255,255,0.2);border-radius:10px;padding:14px 20px;pointer-events:auto;z-index:10}
+#dialogue .speaker{font-size:14px;font-weight:bold;margin-bottom:3px}
+#dialogue .text{color:#ddd;font-size:13px;line-height:1.5}
+#dialogue .hint{color:#666;font-size:10px;margin-top:6px}
+#title{position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#1a1a2e,#16213e);
+  display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:100;pointer-events:auto}
+#title h1{font-size:64px;color:#fff;text-shadow:0 0 30px rgba(255,255,255,0.3);letter-spacing:8px;margin-bottom:4px}
+#title .sub{color:#7ec8e3;font-size:15px;margin-bottom:30px;letter-spacing:3px}
+#title .desc{color:#aaa;font-size:13px;max-width:500px;text-align:center;line-height:1.6;margin-bottom:25px}
+#title button{padding:12px 36px;font-size:17px;background:none;color:#ffb347;border:2px solid #ffb347;
+  border-radius:8px;cursor:pointer;letter-spacing:2px;transition:all 0.2s;margin:5px}
+#title button:hover{background:rgba(255,179,71,0.15);transform:scale(1.05)}
+#title .keys{color:#555;font-size:11px;margin-top:20px;text-align:center;line-height:1.8}
+</style>
+</head>
+<body>
+<canvas id="game" width="960" height="540"></canvas>
+<div id="ui">
+  <div id="hud">
+    <div><span class="p1">P1 (Mira)</span> — WASD/Arrows: Move Both</div>
+    <div id="world-label">World 1 — Level 1</div>
+    <div><span class="p2">P2 (Knot)</span> — Mouse: Aim &amp; Abilities</div>
+  </div>
+</div>
+<div id="controls-hint">P1: WASD/Arrows = Move+Jump | P2: Left Click = Shoot, Right Click = Shield, Middle/E = Grapple</div>
+<div id="dialogue">
+  <div class="speaker" id="dlg-speaker"></div>
+  <div class="text" id="dlg-text"></div>
+  <div class="hint">[SPACE / Click to continue]</div>
+</div>
+<div id="title">
+  <h1>TETHER</h1>
+  <div class="sub">TWO MINDS, ONE JOURNEY</div>
+  <div class="desc">Mira and Knot were once one being, split by a magical accident. Connected by an unbreakable tether, they must work together to reach the Binding Stone. <b>Player 1</b> controls movement for both. <b>Player 2</b> controls abilities for both.</div>
+  <button id="btn-coop">Co-op (2 Players)</button>
+  <button id="btn-solo">Solo (Control Both)</button>
+  <div class="keys">
+    P1: WASD or Arrow Keys — Move &amp; Jump both characters<br>
+    P2: Mouse Aim — Left Click: Shoot | Right Click: Shield | Middle Click/E: Grapple
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = 960, H = 540;
+const TILE = 32;
+const COLS = 30, ROWS = 17;
+const GRAVITY = 0.42;
+const JUMP = -9;
+const SPEED = 3;
+const TETHER_MAX = TILE * 10;
+const TETHER_SEGMENTS = 20;
+
+// ═══════ STATE ═══════
+let gameRunning = false, soloMode = false;
+let frame = 0, currentWorld = 0, currentLevel = 0;
+let keys = {}, mouse = { x: W/2, y: H/2, left: false, right: false, mid: false };
+let mira, knot, tether, projectiles, shields, grapple;
+let levelGrid, particles, pegs, switches, doors, enemies, grapplePoints, exitPos;
+let dialogue = null, dialogueQueue = [];
+let cameraX = 0, cameraY = 0;
+let levelComplete = false;
+
+// ═══════ ENTITIES ═══════
+function createChar(x, y, isMira) {
+  return {
+    x: x * TILE + TILE/2, y: y * TILE + TILE/2,
+    vx: 0, vy: 0, w: 18, h: 24,
+    onGround: false, wallSlide: false,
+    isMira, alive: true, invincible: 0
+  };
+}
+
+function createTether() {
+  const segs = [];
+  for (let i = 0; i <= TETHER_SEGMENTS; i++) segs.push({ x: 0, y: 0, ox: 0, oy: 0 });
+  return segs;
+}
+
+// ═══════ LEVELS ═══════
+// . = empty, # = solid, ^ = spike, P = peg, S = switch, D = door, G = grapple point, E = exit, X = enemy
+const LEVEL_DATA = [
+  // World 1: The Split Fields (tutorial)
+  { light: [
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............G...............',
+    '..............................',
+    '.........####....####.........',
+    '..............................',
+    '..............................',
+    '####..............######..####',
+    '##############################',
+    '##############################',
+  ], spawn:[2,13], exit:[27,13],
+    dialogue:[
+      {speaker:'Mira',text:'Knot! I can feel the tether pulling us together. We have to move as one.',color:'#ffb347'},
+      {speaker:'Knot',text:'I can\'t move on my own... but I can shoot and shield us. Let\'s work together.',color:'#7ec8e3'},
+      {speaker:'Mira',text:'Player 1: Use WASD or Arrows to move us both. Player 2: Use the mouse to aim and click to use abilities!',color:'#ffb347'},
+    ]
+  },
+  { light: [
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..........S.......D...........',
+    '..........#########...........',
+    '####....................######',
+    '##############################',
+    '##############################',
+  ], spawn:[2,13], exit:[27,13],
+    dialogue:[{speaker:'Knot',text:'That switch needs to be shot! Left-click to fire a projectile at it.',color:'#7ec8e3'}]
+  },
+  { light: [
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..........G...................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '########..^^..####....########',
+    '##############################',
+    '##############################',
+    '##############################',
+  ], spawn:[2,13], exit:[27,13],
+    dialogue:[{speaker:'Knot',text:'Spikes ahead! Right-click to shield us and walk through, or use the grapple (middle-click/E) on the gold ring to swing over!',color:'#7ec8e3'}]
+  },
+  // More tutorial levels — grapple practice
+  { light: [
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '.......G..........G...........',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '#######.....########.....#####',
+    '##############################',
+    '##############################',
+    '##############################',
+  ], spawn:[2,13], exit:[27,13],
+    dialogue:[{speaker:'Mira',text:'Use the grapple to swing us across! Middle-click or E near the gold rings.',color:'#ffb347'}] },
+  { light: [
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '......X...........X...........',
+    '..............................',
+    '##############################',
+    '##############################',
+    '##############################',
+    '##############################',
+  ], spawn:[2,13], exit:[27,13],
+    dialogue:[{speaker:'Mira',text:'Enemies! I can\'t fight them — Knot, left-click to shoot!',color:'#ffb347'}]
+  },
+];
+
+// Generate more levels procedurally
+function genLevel(worldIdx, lvlIdx) {
+  const diff = worldIdx * 11 + lvlIdx;
+  const rows = [];
+  for (let r = 0; r < ROWS; r++) {
+    let row = '';
+    for (let c = 0; c < COLS; c++) {
+      if (r >= ROWS-2) { row += '#'; continue; }
+      if (r === ROWS-3) {
+        // Walkable floor with gaps
+        if (c < 4 || c > COLS-4) { row += '#'; continue; }
+        if (Math.random() < 0.15 + diff*0.005) { row += '.'; continue; }
+        row += '#';
+        continue;
+      }
+      // Mid-level platforms
+      if (r >= 8 && r <= 12 && Math.random() < 0.03 + diff*0.002) { row += '#'; continue; }
+      // Grapple points
+      if (r >= 4 && r <= 7 && Math.random() < 0.008) { row += 'G'; continue; }
+      // Enemies in later worlds
+      if (worldIdx >= 2 && r >= 6 && r <= 11 && Math.random() < 0.005 + worldIdx*0.003) { row += 'X'; continue; }
+      // Switches and doors
+      if (r === ROWS-4 && c > 8 && c < 22 && Math.random() < 0.01) { row += 'S'; continue; }
+      row += '.';
+    }
+    rows.push(row);
+  }
+  // Ensure path — solid platform bridges
+  for (let i = 0; i < 3 + worldIdx; i++) {
+    const c = 5 + Math.floor(Math.random() * (COLS-10));
+    const w = 3 + Math.floor(Math.random() * 4);
+    const r = 9 + Math.floor(Math.random() * 3);
+    for (let j = 0; j < w && c+j < COLS; j++) rows[r] = rows[r].substring(0,c+j) + '#' + rows[r].substring(c+j+1);
+  }
+  let dlg = [];
+  if (lvlIdx === 0 && worldIdx === 1) dlg = [{speaker:'Mira',text:'These caverns are deep. The tether can wrap around those pegs!',color:'#ffb347'}];
+  if (lvlIdx === 0 && worldIdx === 2) dlg = [{speaker:'Knot',text:'The Gauntlet... enemies everywhere. Stay close and keep shooting!',color:'#7ec8e3'}];
+  if (lvlIdx === 0 && worldIdx === 3) dlg = [{speaker:'Mira',text:'The Binding Core... I can feel it. We\'re almost whole again.',color:'#ffb347'},
+    {speaker:'Knot',text:'Together, Mira. Like we were meant to be.',color:'#7ec8e3'}];
+  return { light: rows, spawn:[2,ROWS-3], exit:[COLS-3,ROWS-3], dialogue: dlg };
+}
+
+// Fill levels up to 44
+while (LEVEL_DATA.length < 44) {
+  const w = Math.floor(LEVEL_DATA.length / 11);
+  const l = LEVEL_DATA.length % 11;
+  LEVEL_DATA.push(genLevel(w, l));
+}
+
+// ═══════ LEVEL LOADING ═══════
+function loadLevel(idx) {
+  if (idx >= LEVEL_DATA.length) idx = LEVEL_DATA.length - 1;
+  const data = LEVEL_DATA[idx];
+  const rows = data.light;
+  levelGrid = [];
+  pegs = []; switches = []; doors = []; enemies = []; grapplePoints = [];
+  projectiles = []; shields = []; particles = [];
+  grapple = null; levelComplete = false;
+
+  for (let r = 0; r < ROWS; r++) {
+    levelGrid[r] = [];
+    for (let c = 0; c < COLS; c++) {
+      const ch = rows[r] ? rows[r][c] : '.';
+      if (ch === '#') levelGrid[r][c] = 1;
+      else if (ch === '^') { levelGrid[r][c] = 2; }
+      else { levelGrid[r][c] = 0; }
+      if (ch === 'P') pegs.push({x:c*TILE+TILE/2, y:r*TILE+TILE/2});
+      if (ch === 'S') switches.push({x:c*TILE+TILE/2, y:r*TILE+TILE/2, on:false});
+      if (ch === 'D') doors.push({x:c*TILE, y:r*TILE, open:false});
+      if (ch === 'G') grapplePoints.push({x:c*TILE+TILE/2, y:r*TILE+TILE/2});
+      if (ch === 'X') enemies.push({x:c*TILE+TILE/2, y:r*TILE+TILE/2, vx:0.5, hp:3, w:20, h:20, hurtTimer:0});
+    }
+  }
+
+  mira = createChar(data.spawn[0], data.spawn[1], true);
+  knot = createChar(data.spawn[0] + 2, data.spawn[1], false);
+  tether = createTether();
+  exitPos = { x: data.exit[0]*TILE+TILE/2, y: data.exit[1]*TILE+TILE/2 };
+
+  currentWorld = Math.floor(idx / 11);
+  currentLevel = idx % 11;
+  const worldNames = ['The Split Fields','Tangled Caverns','The Gauntlet','The Binding Core'];
+  document.getElementById('world-label').textContent = `World ${currentWorld+1} — ${currentLevel===10?'Boss':`Level ${currentLevel+1}`}`;
+
+  if (data.dialogue && data.dialogue.length > 0) {
+    dialogueQueue = [...data.dialogue];
+    showDialogue();
+  } else {
+    dialogueQueue = []; dialogue = null;
+    document.getElementById('dialogue').style.display = 'none';
+  }
+}
+
+function showDialogue() {
+  if (dialogueQueue.length === 0) { dialogue = null; document.getElementById('dialogue').style.display = 'none'; return; }
+  dialogue = dialogueQueue.shift();
+  document.getElementById('dialogue').style.display = 'block';
+  document.getElementById('dlg-speaker').textContent = dialogue.speaker;
+  document.getElementById('dlg-speaker').style.color = dialogue.color;
+  document.getElementById('dlg-text').textContent = dialogue.text;
+}
+
+// ═══════ INPUT ═══════
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if ((e.code === 'Space' || e.code === 'Enter') && dialogue) { showDialogue(); e.preventDefault(); }
+  if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - r.left) * (W / r.width);
+  mouse.y = (e.clientY - r.top) * (H / r.height);
+});
+canvas.addEventListener('mousedown', e => {
+  e.preventDefault();
+  if (dialogue) { showDialogue(); return; }
+  if (e.button === 0) mouse.left = true;
+  if (e.button === 2) mouse.right = true;
+  if (e.button === 1) mouse.mid = true;
+});
+canvas.addEventListener('mouseup', e => {
+  if (e.button === 0) mouse.left = false;
+  if (e.button === 2) mouse.right = false;
+  if (e.button === 1) mouse.mid = false;
+});
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.setAttribute('tabindex', '0');
+
+// ═══════ PHYSICS ═══════
+function tileAt(c, r) {
+  if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return 1;
+  return levelGrid[r]?.[c] || 0;
+}
+
+function moveChar(ch) {
+  const hW = 7, hH = 10; // smaller collision box for smoother movement
+
+  // Horizontal
+  ch.x += ch.vx;
+  // Check all tiles the character overlaps
+  const left = Math.floor((ch.x - hW) / TILE);
+  const right = Math.floor((ch.x + hW) / TILE);
+  const top = Math.floor((ch.y - hH) / TILE);
+  const bot = Math.floor((ch.y + hH - 1) / TILE);
+
+  if (ch.vx > 0) {
+    for (let r = top; r <= bot; r++) {
+      if (tileAt(right, r) === 1) { ch.x = right * TILE - hW - 0.1; ch.vx = 0; break; }
+    }
+  } else if (ch.vx < 0) {
+    for (let r = top; r <= bot; r++) {
+      if (tileAt(left, r) === 1) { ch.x = (left + 1) * TILE + hW + 0.1; ch.vx = 0; break; }
+    }
+  }
+
+  // Vertical
+  ch.y += ch.vy;
+  ch.onGround = false;
+
+  const left2 = Math.floor((ch.x - hW + 1) / TILE);
+  const right2 = Math.floor((ch.x + hW - 1) / TILE);
+  const top2 = Math.floor((ch.y - hH) / TILE);
+  const bot2 = Math.floor((ch.y + hH) / TILE);
+
+  if (ch.vy >= 0) {
+    // Falling — check below
+    for (let c = left2; c <= right2; c++) {
+      if (tileAt(c, bot2) === 1) {
+        ch.y = bot2 * TILE - hH - 0.1;
+        ch.onGround = true;
+        ch.vy = 0;
+        break;
+      }
+    }
+  } else {
+    // Rising — check above
+    for (let c = left2; c <= right2; c++) {
+      if (tileAt(c, top2) === 1) {
+        ch.y = (top2 + 1) * TILE + hH + 0.1;
+        ch.vy = 0;
+        break;
+      }
+    }
+  }
+
+  // Spikes — check tile character is standing on/near
+  const pc = Math.floor(ch.x / TILE), pr = Math.floor(ch.y / TILE);
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+    if (tileAt(pc+dc, pr+dr) === 2) {
+      const sx = (pc+dc)*TILE, sy = (pr+dr)*TILE;
+      if (ch.x+hW > sx+6 && ch.x-hW < sx+TILE-6 && ch.y+hH > sy+6 && ch.y-hH < sy+TILE-6) {
+        if (ch.invincible <= 0) hurtChar(ch);
+      }
+    }
+  }
+
+  // Bounds
+  ch.x = Math.max(hW + 1, Math.min(COLS*TILE - hW - 1, ch.x));
+  if (ch.y > ROWS * TILE + 50) hurtChar(ch);
+  if (ch.invincible > 0) ch.invincible--;
+}
+
+function hurtChar(ch) {
+  ch.invincible = 60;
+  ch.vy = -6;
+  for (let i = 0; i < 10; i++) {
+    particles.push({x:ch.x, y:ch.y, vx:(Math.random()-0.5)*5, vy:(Math.random()-0.5)*5,
+      life:20, color:ch.isMira?'#ffb347':'#7ec8e3', size:3});
+  }
+}
+
+// ═══════ TETHER PHYSICS ═══════
+function updateTether() {
+  // Set endpoints
+  tether[0].x = mira.x; tether[0].y = mira.y;
+  tether[TETHER_SEGMENTS].x = knot.x; tether[TETHER_SEGMENTS].y = knot.y;
+
+  // Initialize positions
+  for (let i = 1; i < TETHER_SEGMENTS; i++) {
+    if (tether[i].ox === 0 && tether[i].oy === 0) {
+      const t = i / TETHER_SEGMENTS;
+      tether[i].x = mira.x + (knot.x - mira.x) * t;
+      tether[i].y = mira.y + (knot.y - mira.y) * t;
+      tether[i].ox = tether[i].x; tether[i].oy = tether[i].y;
+    }
+  }
+
+  // Verlet integration for middle segments
+  for (let i = 1; i < TETHER_SEGMENTS; i++) {
+    const seg = tether[i];
+    const dx = seg.x - seg.ox, dy = seg.y - seg.oy;
+    seg.ox = seg.x; seg.oy = seg.y;
+    seg.x += dx * 0.98; seg.y += dy * 0.98 + 0.15; // gravity + damping
+  }
+
+  // Constraints — keep segments at fixed distance
+  for (let iter = 0; iter < 5; iter++) {
+    for (let i = 0; i < TETHER_SEGMENTS; i++) {
+      const a = tether[i], b = tether[i+1];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const segLen = TETHER_MAX / TETHER_SEGMENTS;
+      if (dist > segLen) {
+        const diff = (dist - segLen) / dist * 0.5;
+        const mx = dx * diff, my = dy * diff;
+        if (i > 0) { a.x += mx; a.y += my; }
+        if (i+1 < TETHER_SEGMENTS) { b.x -= mx; b.y -= my; }
+      }
+    }
+    // Pin endpoints
+    tether[0].x = mira.x; tether[0].y = mira.y;
+    tether[TETHER_SEGMENTS].x = knot.x; tether[TETHER_SEGMENTS].y = knot.y;
+  }
+
+  // Max tether distance — pull characters together
+  const dx = knot.x - mira.x, dy = knot.y - mira.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist > TETHER_MAX) {
+    const pull = (dist - TETHER_MAX) * 0.05;
+    const nx = dx/dist, ny = dy/dist;
+    mira.vx += nx * pull; mira.vy += ny * pull;
+    knot.vx -= nx * pull; knot.vy -= ny * pull;
+  }
+
+  // Tether collision with tiles (simple push out)
+  for (let i = 1; i < TETHER_SEGMENTS; i++) {
+    const seg = tether[i];
+    const tc = Math.floor(seg.x / TILE), tr = Math.floor(seg.y / TILE);
+    if (tileAt(tc, tr) === 1) {
+      // Push to nearest edge
+      const cx = tc * TILE + TILE/2, cy = tr * TILE + TILE/2;
+      const sdx = seg.x - cx, sdy = seg.y - cy;
+      if (Math.abs(sdx) > Math.abs(sdy)) seg.x = sdx > 0 ? (tc+1)*TILE+1 : tc*TILE-1;
+      else seg.y = sdy > 0 ? (tr+1)*TILE+1 : tr*TILE-1;
+    }
+  }
+
+  // Tether-enemy collision (clothesline!)
+  enemies.forEach(en => {
+    if (en.hp <= 0) return;
+    for (let i = 0; i < TETHER_SEGMENTS; i++) {
+      const a = tether[i], b = tether[i+1];
+      // Simple segment-point distance
+      const ex = en.x, ey = en.y;
+      const adx = ex-a.x, ady = ey-a.y, bdx = b.x-a.x, bdy = b.y-a.y;
+      const t = Math.max(0, Math.min(1, (adx*bdx+ady*bdy)/(bdx*bdx+bdy*bdy+0.001)));
+      const closest = { x: a.x+bdx*t, y: a.y+bdy*t };
+      const d = Math.sqrt((ex-closest.x)**2 + (ey-closest.y)**2);
+      if (d < 15) {
+        en.hp--;
+        en.hurtTimer = 15;
+        en.vx *= -1;
+        particles.push({x:en.x,y:en.y,vx:(Math.random()-0.5)*3,vy:-2,life:15,color:'#f88',size:4});
+        break;
+      }
+    }
+  });
+}
+
+// ═══════ UPDATE ═══════
+function update() {
+  if (!gameRunning || dialogue || levelComplete) return;
+  frame++;
+
+  // ── P1: Movement (controls BOTH characters) ──
+  let mx = 0;
+  if (keys['ArrowLeft'] || keys['KeyA']) mx = -SPEED;
+  if (keys['ArrowRight'] || keys['KeyD']) mx = SPEED;
+  const jump = keys['ArrowUp'] || keys['KeyW'] || keys['Space'];
+
+  // Mira movement
+  mira.vx = mx;
+  mira.vy += GRAVITY;
+  if (jump && mira.onGround) { mira.vy = JUMP; mira.onGround = false; }
+
+  // Knot follows same input but slightly delayed/heavier
+  knot.vx = mx * 0.85;
+  knot.vy += GRAVITY * 1.1;
+  if (jump && knot.onGround) { knot.vy = JUMP * 0.9; knot.onGround = false; }
+
+  moveChar(mira);
+  moveChar(knot);
+
+  // ── Tether ──
+  updateTether();
+
+  // ── P2: Abilities ──
+  // Shoot (left click)
+  if (mouse.left) {
+    mouse.left = false;
+    // Fire from closest character to mouse aim direction
+    const shooter = closerTo(mouse.x, mouse.y);
+    const ang = Math.atan2(mouse.y - shooter.y, mouse.x - shooter.x);
+    projectiles.push({
+      x: shooter.x, y: shooter.y,
+      vx: Math.cos(ang) * 8, vy: Math.sin(ang) * 8,
+      life: 60, fromMira: shooter.isMira
+    });
+    particles.push({x:shooter.x,y:shooter.y,vx:Math.cos(ang)*2,vy:Math.sin(ang)*2,life:10,color:'#fff',size:3});
+  }
+
+  // Shield (right click)
+  if (mouse.right) {
+    mouse.right = false;
+    const target = closerTo(mouse.x, mouse.y);
+    shields.push({ x: target.x, y: target.y, life: 120, radius: 30, char: target });
+  }
+
+  // Grapple (middle click or E key)
+  if (mouse.mid || keys['KeyE']) {
+    mouse.mid = false; keys['KeyE'] = false;
+    if (!grapple) {
+      // Find closest grapple point
+      let best = null, bestDist = 250;
+      const shooter = closerTo(mouse.x, mouse.y);
+      grapplePoints.forEach(gp => {
+        const d = Math.sqrt((gp.x-mouse.x)**2 + (gp.y-mouse.y)**2);
+        if (d < bestDist) { bestDist = d; best = gp; }
+      });
+      if (best) {
+        grapple = { point: best, char: shooter, timer: 180 };
+        particles.push({x:best.x,y:best.y,vx:0,vy:0,life:20,color:'#ffd700',size:6});
+      }
+    } else {
+      grapple = null; // release
+    }
+  }
+
+  // Grapple physics
+  if (grapple) {
+    grapple.timer--;
+    if (grapple.timer <= 0) { grapple = null; }
+    else {
+      const ch = grapple.char;
+      const dx = grapple.point.x - ch.x, dy = grapple.point.y - ch.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist > 20) {
+        const force = 0.3;
+        ch.vx += (dx/dist) * force;
+        ch.vy += (dy/dist) * force;
+      }
+    }
+  }
+
+  // ── Projectiles ──
+  for (let i = projectiles.length-1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.x += p.vx; p.y += p.vy; p.life--;
+    if (p.life <= 0) { projectiles.splice(i,1); continue; }
+
+    const tc = Math.floor(p.x/TILE), tr = Math.floor(p.y/TILE);
+    if (tileAt(tc,tr) === 1) {
+      particles.push({x:p.x,y:p.y,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,life:12,color:'#fff',size:3});
+      projectiles.splice(i,1); continue;
+    }
+
+    // Hit switches
+    switches.forEach(sw => {
+      if (!sw.on && Math.abs(p.x-sw.x)<15 && Math.abs(p.y-sw.y)<15) {
+        sw.on = true;
+        doors.forEach(d => d.open = true);
+        // Open door tiles
+        doors.forEach(d => {
+          const dc = Math.floor(d.x/TILE), dr = Math.floor(d.y/TILE);
+          if (levelGrid[dr]) levelGrid[dr][dc] = 0;
+        });
+        particles.push({x:sw.x,y:sw.y,vx:0,vy:-2,life:25,color:'#4f4',size:6});
+        projectiles.splice(i,1);
+      }
+    });
+
+    // Hit enemies
+    enemies.forEach(en => {
+      if (en.hp <= 0) return;
+      if (Math.abs(p.x-en.x)<15 && Math.abs(p.y-en.y)<15) {
+        en.hp--; en.hurtTimer = 15;
+        for (let j=0;j<5;j++) particles.push({x:en.x,y:en.y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4,life:15,color:'#f88',size:3});
+        p.life = 0;
+      }
+    });
+  }
+
+  // ── Shields ──
+  shields.forEach(s => {
+    s.life--;
+    if (s.char) { s.x = s.char.x; s.y = s.char.y; }
+  });
+  shields = shields.filter(s => s.life > 0);
+
+  // Shield blocks spikes for character
+  [mira,knot].forEach(ch => {
+    const hasShield = shields.some(s => Math.abs(s.x-ch.x)<s.radius && Math.abs(s.y-ch.y)<s.radius);
+    if (hasShield) ch.invincible = Math.max(ch.invincible, 2);
+  });
+
+  // ── Enemies ──
+  enemies.forEach(en => {
+    if (en.hp <= 0) return;
+    en.x += en.vx;
+    // Simple patrol
+    const ec = Math.floor(en.x/TILE);
+    if (tileAt(ec + (en.vx>0?1:-1), Math.floor(en.y/TILE)) === 1) en.vx *= -1;
+    if (tileAt(ec, Math.floor(en.y/TILE)+1) !== 1) en.vx *= -1; // don't walk off edges
+    if (en.hurtTimer > 0) en.hurtTimer--;
+
+    // Hurt characters
+    [mira,knot].forEach(ch => {
+      if (ch.invincible <= 0 && Math.abs(ch.x-en.x)<18 && Math.abs(ch.y-en.y)<18) hurtChar(ch);
+    });
+  });
+  enemies = enemies.filter(en => {
+    if (en.hp <= 0) {
+      for (let i=0;i<12;i++) particles.push({x:en.x,y:en.y,vx:(Math.random()-0.5)*5,vy:(Math.random()-0.5)*5,life:20,color:'#f44',size:3});
+      return false;
+    }
+    return true;
+  });
+
+  // ── Exit check ──
+  if (Math.abs(mira.x-exitPos.x)<20 && Math.abs(mira.y-exitPos.y)<20 &&
+      Math.abs(knot.x-exitPos.x)<20 && Math.abs(knot.y-exitPos.y)<20) {
+    levelComplete = true;
+    for (let i=0;i<25;i++) particles.push({x:exitPos.x,y:exitPos.y,vx:(Math.random()-0.5)*5,vy:(Math.random()-0.5)*5,life:30,color:'#ffd700',size:4});
+    setTimeout(() => {
+      const nextIdx = currentWorld * 11 + currentLevel + 1;
+      if (nextIdx < LEVEL_DATA.length) loadLevel(nextIdx);
+      else {
+        dialogue = {speaker:'Mira & Knot',text:'We are one again. The tether dissolves... but our bond remains. Thank you for playing.',color:'#ffd700'};
+        document.getElementById('dialogue').style.display='block';
+        document.getElementById('dlg-speaker').textContent=dialogue.speaker;
+        document.getElementById('dlg-text').textContent=dialogue.text;
+      }
+    }, 600);
+  }
+
+  // ── Particles ──
+  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.life--; p.size *= 0.96; });
+  particles = particles.filter(p => p.life > 0);
+}
+
+function closerTo(tx, ty) {
+  const dm = (mira.x-tx)**2 + (mira.y-ty)**2;
+  const dk = (knot.x-tx)**2 + (knot.y-ty)**2;
+  return dm < dk ? mira : knot;
+}
+
+// ═══════ DRAW ═══════
+function draw() {
+  ctx.save();
+
+  // BG
+  const worldColors = [
+    ['#e8dcc8','#d4c4a8'], // Split Fields
+    ['#3d3552','#2d2542'], // Tangled Caverns
+    ['#4a3030','#3a2020'], // The Gauntlet
+    ['#2a2a4a','#1a1a3a'], // Binding Core
+  ];
+  const [bgA, bgB] = worldColors[currentWorld] || worldColors[0];
+  const grd = ctx.createLinearGradient(0,0,0,H);
+  grd.addColorStop(0, bgA); grd.addColorStop(1, bgB);
+  ctx.fillStyle = grd;
+  ctx.fillRect(0,0,W,H);
+
+  // ── Tiles ──
+  const tileColors = [null, ['#8b7355','#7a6448'], null, null];
+  const tc = tileColors[currentWorld] || ['#8b7355','#7a6448'];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const t = levelGrid[r]?.[c];
+      const x = c*TILE, y = r*TILE;
+      if (t === 1) {
+        ctx.fillStyle = (r+c)%2===0 ? tc[0] : tc[1];
+        ctx.fillRect(x,y,TILE,TILE);
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth=1; ctx.strokeRect(x+0.5,y+0.5,TILE-1,TILE-1);
+      } else if (t === 2) {
+        ctx.fillStyle = '#e04050';
+        ctx.beginPath();
+        ctx.moveTo(x+2,y+TILE); ctx.lineTo(x+TILE/2,y+4); ctx.lineTo(x+TILE-2,y+TILE);
+        ctx.fill();
+      }
+    }
+  }
+
+  // ── Doors ──
+  doors.forEach(d => {
+    if (!d.open) {
+      ctx.fillStyle = '#654';
+      ctx.fillRect(d.x, d.y, TILE, TILE);
+      ctx.strokeStyle = '#432'; ctx.lineWidth=2; ctx.strokeRect(d.x+2,d.y+2,TILE-4,TILE-4);
+    }
+  });
+
+  // ── Switches ──
+  switches.forEach(sw => {
+    ctx.fillStyle = sw.on ? '#4f4' : '#f44';
+    ctx.shadowColor = sw.on ? '#0f0' : '#f00'; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(sw.x, sw.y, 8, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+
+  // ── Grapple points ──
+  grapplePoints.forEach(gp => {
+    const pulse = Math.sin(frame*0.06)*3;
+    ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2;
+    ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(gp.x, gp.y, 8+pulse, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,215,0,0.3)';
+    ctx.beginPath(); ctx.arc(gp.x, gp.y, 6, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+
+  // ── Exit portal ──
+  const ePulse = Math.sin(frame*0.08)*4;
+  ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 15+ePulse;
+  ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(exitPos.x, exitPos.y, 16+ePulse, 0, Math.PI*2); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,215,0,0.12)';
+  ctx.beginPath(); ctx.arc(exitPos.x, exitPos.y, 14+ePulse, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // ── Enemies ──
+  enemies.forEach(en => {
+    if (en.hp <= 0) return;
+    const shake = en.hurtTimer > 0 ? (Math.random()-0.5)*4 : 0;
+    ctx.fillStyle = en.hurtTimer > 0 ? '#faa' : '#c0392b';
+    ctx.beginPath(); ctx.arc(en.x+shake, en.y, 10, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath(); ctx.arc(en.x+shake, en.y, 6, 0, Math.PI*2); ctx.fill();
+    // Eyes
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(en.x+shake + en.vx*4 - 3, en.y-2, 2.5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(en.x+shake + en.vx*4 + 3, en.y-2, 2.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(en.x+shake + en.vx*5 - 3, en.y-2, 1, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(en.x+shake + en.vx*5 + 3, en.y-2, 1, 0, Math.PI*2); ctx.fill();
+  });
+
+  // ── Tether ──
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#fff'; ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.moveTo(tether[0].x, tether[0].y);
+  for (let i = 1; i <= TETHER_SEGMENTS; i++) ctx.lineTo(tether[i].x, tether[i].y);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Tether glow based on stretch
+  const td = Math.sqrt((knot.x-mira.x)**2+(knot.y-mira.y)**2);
+  const stretch = td / TETHER_MAX;
+  if (stretch > 0.7) {
+    ctx.strokeStyle = `rgba(255,${Math.floor(200*(1-stretch))},0,${stretch})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(tether[0].x, tether[0].y);
+    for (let i = 1; i <= TETHER_SEGMENTS; i++) ctx.lineTo(tether[i].x, tether[i].y);
+    ctx.stroke();
+  }
+
+  // ── Grapple line ──
+  if (grapple) {
+    ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(grapple.char.x, grapple.char.y);
+    ctx.lineTo(grapple.point.x, grapple.point.y); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ── Shields ──
+  shields.forEach(s => {
+    const alpha = s.life / 120;
+    ctx.strokeStyle = `rgba(126,200,227,${alpha})`;
+    ctx.fillStyle = `rgba(126,200,227,${alpha*0.15})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.radius, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+  });
+
+  // ── Projectiles ──
+  projectiles.forEach(p => {
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = p.fromMira ? '#ffb347' : '#7ec8e3';
+    ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+
+  // ── Characters ──
+  drawChar(mira);
+  drawChar(knot);
+
+  // ── Particles ──
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life/25;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(0.5,p.size), 0, Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // ── Aim cursor (P2) ──
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 12, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(mouse.x-6,mouse.y); ctx.lineTo(mouse.x+6,mouse.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(mouse.x,mouse.y-6); ctx.lineTo(mouse.x,mouse.y+6); ctx.stroke();
+
+  // Vignette
+  const vig = ctx.createRadialGradient(W/2,H/2,H*0.35,W/2,H/2,H*0.85);
+  vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(0,0,0,0.3)');
+  ctx.fillStyle = vig; ctx.fillRect(0,0,W,H);
+
+  ctx.restore();
+}
+
+function drawChar(ch) {
+  if (!ch.alive) return;
+  const flash = ch.invincible > 0 && Math.floor(ch.invincible/3)%2;
+  if (flash) return; // blink when hurt
+
+  const cx = ch.x, cy = ch.y;
+  const primary = ch.isMira ? '#ffb347' : '#7ec8e3';
+  const secondary = ch.isMira ? '#ff8c00' : '#3a8fb7';
+  const dark = ch.isMira ? '#cc6600' : '#2c6f8c';
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath(); ctx.ellipse(cx, cy+ch.h/2+2, 10, 3, 0, 0, Math.PI*2); ctx.fill();
+
+  // Body
+  ctx.fillStyle = primary;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy+2, 9, 12, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = primary;
+  ctx.beginPath(); ctx.arc(cx, cy-10, 8, 0, Math.PI*2); ctx.fill();
+
+  // Inner glow
+  ctx.fillStyle = ch.isMira ? '#ffe0b0' : '#b0dff0';
+  ctx.beginPath(); ctx.arc(cx-2, cy-12, 3, 0, Math.PI*2); ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#fff';
+  const exDir = ch.vx > 0.5 ? 1.5 : ch.vx < -0.5 ? -1.5 : 0;
+  ctx.beginPath(); ctx.arc(cx-3+exDir, cy-11, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+3+exDir, cy-11, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.arc(cx-3+exDir*1.2, cy-11, 1.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+3+exDir*1.2, cy-11, 1.2, 0, Math.PI*2); ctx.fill();
+
+  // Legs animation
+  const legAnim = ch.onGround ? Math.sin(frame*0.12+ch.x*0.1) * (Math.abs(ch.vx)>0.5 ? 5 : 0) : 3;
+  ctx.strokeStyle = dark; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx-4, cy+10); ctx.lineTo(cx-4+legAnim, cy+ch.h/2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx+4, cy+10); ctx.lineTo(cx+4-legAnim, cy+ch.h/2); ctx.stroke();
+
+  // Label
+  ctx.fillStyle = primary; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(ch.isMira ? 'MIRA' : 'KNOT', cx, cy - 22);
+}
+
+// ═══════ LOOP ═══════
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ═══════ START ═══════
+function startGame(solo) {
+  soloMode = solo;
+  document.getElementById('title').style.display = 'none';
+  canvas.focus();
+  gameRunning = true;
+  loadLevel(0);
+  loop();
+}
+
+document.getElementById('btn-coop').addEventListener('click', () => startGame(false));
+document.getElementById('btn-solo').addEventListener('click', () => startGame(true));
+</script>
+</body>
+</html>

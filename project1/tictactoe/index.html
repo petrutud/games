@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tic-Tac-Toe</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <h1>Tic-Tac-Toe</h1>
+    <div id="mode-screen" class="screen">
+      <p>Two players or vs computer?</p>
+      <div class="btn-row">
+        <button type="button" class="btn" data-mode="2p">Two players</button>
+        <button type="button" class="btn" data-mode="cpu">Vs computer</button>
+      </div>
+    </div>
+    <div id="game-screen" class="screen hidden">
+      <p id="turn-msg" class="turn-msg"></p>
+      <div id="board" class="board" aria-label="Tic-tac-toe board">
+        <button type="button" class="cell" data-idx="0"></button>
+        <button type="button" class="cell" data-idx="1"></button>
+        <button type="button" class="cell" data-idx="2"></button>
+        <button type="button" class="cell" data-idx="3"></button>
+        <button type="button" class="cell" data-idx="4"></button>
+        <button type="button" class="cell" data-idx="5"></button>
+        <button type="button" class="cell" data-idx="6"></button>
+        <button type="button" class="cell" data-idx="7"></button>
+        <button type="button" class="cell" data-idx="8"></button>
+      </div>
+      <div id="result" class="result hidden"></div>
+      <div id="again-row" class="btn-row hidden">
+        <button type="button" class="btn" id="btn-again">Play again</button>
+        <button type="button" class="btn" id="btn-change-mode">Change mode</button>
+      </div>
+    </div>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>

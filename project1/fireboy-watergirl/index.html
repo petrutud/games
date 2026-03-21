@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fireboy & Watergirl</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <h1>Fireboy <span>&</span> Watergirl</h1>
+    <p class="hint">
+      <strong>Fireboy</strong> (red): Arrow keys — avoid water! &nbsp;|&nbsp;
+      <strong>Watergirl</strong> (blue): WASD — avoid lava!
+    </p>
+    <p class="level-line">Level <strong id="level-num">1</strong> — Both must reach their doors!</p>
+    <div class="canvas-wrap">
+      <canvas id="game" width="800" height="480"></canvas>
+      <div id="overlay" class="overlay hidden">
+        <p id="overlay-msg" class="overlay-msg"></p>
+        <button type="button" class="btn" id="btn-retry">Retry</button>
+        <button type="button" class="btn" id="btn-next">Next level</button>
+      </div>
+    </div>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>

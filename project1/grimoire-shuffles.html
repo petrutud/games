@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Grimoire Shuffles</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1008;font-family:'Segoe UI',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;overflow:hidden;color:#e8d5b0}
+#game{width:960px;height:600px;position:relative;background:#1a1008;border-radius:8px;box-shadow:0 0 40px rgba(0,0,0,0.8);overflow:hidden}
+
+/* Title */
+#title{position:absolute;inset:0;background:linear-gradient(180deg,#1a1008,#2a1a0a);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:100}
+#title h1{font-size:48px;color:#ffd700;text-shadow:0 0 30px rgba(255,215,0,0.4);letter-spacing:6px;margin-bottom:4px}
+#title .sub{color:#a08050;font-size:14px;letter-spacing:3px;margin-bottom:30px}
+#title .affinities{display:flex;gap:12px;margin-bottom:20px}
+.aff-btn{padding:12px 20px;background:rgba(255,255,255,0.05);border:2px solid #555;border-radius:8px;color:#e8d5b0;cursor:pointer;text-align:center;transition:all 0.2s;min-width:100px}
+.aff-btn:hover{border-color:#ffd700;transform:scale(1.05)}
+.aff-btn.selected{border-color:#ffd700;background:rgba(255,215,0,0.1);box-shadow:0 0 15px rgba(255,215,0,0.2)}
+.aff-btn .icon{font-size:28px}
+.aff-btn .name{font-size:12px;margin-top:4px}
+#start-btn{padding:12px 40px;font-size:16px;background:none;color:#ffd700;border:2px solid #ffd700;border-radius:8px;cursor:pointer;letter-spacing:2px;margin-top:10px;transition:all 0.2s}
+#start-btn:hover{background:rgba(255,215,0,0.15);transform:scale(1.05)}
+
+/* Map */
+#map-screen{position:absolute;inset:0;background:linear-gradient(180deg,#1a1008,#1e140c);display:none;flex-direction:column;align-items:center;padding:20px;z-index:50}
+#map-screen h2{color:#ffd700;margin-bottom:10px;font-size:20px}
+#map-canvas{border-radius:6px;background:#12100a;border:1px solid #3a2a1a}
+#map-info{color:#a08050;font-size:12px;margin-top:8px}
+
+/* Combat */
+#combat{position:absolute;inset:0;display:none;flex-direction:column;z-index:40}
+#combat-top{display:flex;justify-content:space-between;padding:8px 16px;background:rgba(0,0,0,0.4)}
+#enemy-area{flex:1;display:flex;justify-content:center;align-items:center;padding:20px}
+#player-area{padding:8px 16px;background:rgba(0,0,0,0.3)}
+#hand{display:flex;gap:6px;justify-content:center;padding:8px;min-height:140px;flex-wrap:wrap}
+#combo-area{display:flex;gap:10px;justify-content:center;align-items:center;padding:6px;min-height:50px}
+#action-bar{display:flex;justify-content:center;gap:10px;padding:6px}
+.btn{padding:8px 20px;background:rgba(255,215,0,0.1);border:1px solid #ffd700;color:#ffd700;border-radius:6px;cursor:pointer;font-size:13px;transition:all 0.15s}
+.btn:hover{background:rgba(255,215,0,0.25);transform:scale(1.05)}
+.btn:disabled{opacity:0.3;cursor:default;transform:none}
+
+/* Cards */
+.card{width:80px;height:110px;border-radius:6px;border:2px solid #555;background:linear-gradient(180deg,#2a1a0a,#1a1008);
+  cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:all 0.15s;position:relative;flex-shrink:0}
+.card:hover{transform:translateY(-8px);border-color:#ffd700;z-index:5}
+.card.selected{border-color:#ffd700;box-shadow:0 0 15px rgba(255,215,0,0.4);transform:translateY(-12px)}
+.card .card-icon{font-size:28px}
+.card .card-name{font-size:9px;color:#a08050;margin-top:2px;text-align:center}
+.card .card-cost{position:absolute;top:3px;right:5px;font-size:10px;color:#7ec8e3;font-weight:bold}
+.card .card-type{position:absolute;top:3px;left:5px;font-size:8px;color:#a08050}
+.card.fire{border-color:#c0392b;background:linear-gradient(180deg,#3a1a0a,#1a0a08)}
+.card.ice{border-color:#2980b9;background:linear-gradient(180deg,#0a1a2a,#081018)}
+.card.nature{border-color:#27ae60;background:linear-gradient(180deg,#0a2a1a,#081a10)}
+.card.shield{border-color:#7f8c8d;background:linear-gradient(180deg,#2a2a2a,#1a1a1a)}
+.card.arcane{border-color:#8e44ad;background:linear-gradient(180deg,#2a0a3a,#1a0820)}
+.card-sm{width:60px;height:80px}.card-sm .card-icon{font-size:20px}.card-sm .card-name{font-size:7px}
+
+/* Enemy */
+.enemy-display{text-align:center;padding:10px}
+.enemy-sprite{font-size:60px;display:block;margin-bottom:6px}
+.enemy-name{color:#e8d5b0;font-size:16px;font-weight:bold}
+.enemy-intent{color:#f39c12;font-size:12px;margin-top:4px}
+.hp-bar{width:200px;height:10px;background:#333;border-radius:5px;margin:6px auto;overflow:hidden}
+.hp-fill{height:100%;background:linear-gradient(90deg,#c0392b,#e74c3c);border-radius:5px;transition:width 0.3s}
+
+/* Event/Shop/Rest screens */
+.overlay-screen{position:absolute;inset:0;background:rgba(10,8,4,0.95);display:none;flex-direction:column;justify-content:center;align-items:center;z-index:45;padding:30px}
+.overlay-screen h2{color:#ffd700;font-size:24px;margin-bottom:12px}
+.overlay-screen p{color:#a08050;font-size:14px;margin-bottom:8px;text-align:center;max-width:500px;line-height:1.5}
+.reward-cards{display:flex;gap:10px;margin:15px 0;flex-wrap:wrap;justify-content:center}
+
+/* HUD */
+.stat{display:inline-block;margin:0 8px;font-size:13px}
+.stat .label{color:#a08050}.stat .val{color:#ffd700;font-weight:bold}
+#combat-log{position:absolute;right:10px;top:50px;width:180px;max-height:200px;overflow-y:auto;font-size:10px;color:#806040;line-height:1.4;pointer-events:none}
+#particles-canvas{position:absolute;inset:0;pointer-events:none;z-index:44}
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="particles-canvas" width="960" height="600"></canvas>
+
+  <!-- Title -->
+  <div id="title">
+    <h1>GRIMOIRE SHUFFLES</h1>
+    <div class="sub">DECK-BUILDING ROGUELIKE</div>
+    <p style="color:#806040;font-size:13px;max-width:450px;text-align:center;line-height:1.5;margin-bottom:20px">
+      The Library's grimoires have revolted. Combine spell cards to create powerful combos and fight your way to The Index.
+    </p>
+    <p style="color:#a08050;font-size:13px;margin-bottom:10px">Choose your starting affinity:</p>
+    <div class="affinities" id="affinities"></div>
+    <button id="start-btn">BEGIN RUN</button>
+  </div>
+
+  <!-- Map -->
+  <div id="map-screen">
+    <h2>Floor <span id="floor-num">1</span> — <span id="floor-name">The Shelves</span></h2>
+    <canvas id="map-canvas" width="800" height="350"></canvas>
+    <div id="map-info">Click a connected room to enter</div>
+  </div>
+
+  <!-- Combat -->
+  <div id="combat">
+    <div id="combat-top">
+      <div>
+        <span class="stat"><span class="label">HP:</span> <span class="val" id="player-hp">50/50</span></span>
+        <span class="stat"><span class="label">Mana:</span> <span class="val" id="player-mana">5/5</span></span>
+        <span class="stat"><span class="label">Floor:</span> <span class="val" id="hud-floor">1</span></span>
+      </div>
+      <div>
+        <span class="stat"><span class="label">Deck:</span> <span class="val" id="deck-count">8</span></span>
+        <span class="stat"><span class="label">Discard:</span> <span class="val" id="discard-count">0</span></span>
+      </div>
+    </div>
+    <div id="enemy-area"></div>
+    <div id="combat-log"></div>
+    <div id="player-area">
+      <div id="combo-area"></div>
+      <div id="hand"></div>
+      <div id="action-bar">
+        <button class="btn" id="cast-btn" disabled onclick="castCombo()">Cast Combo</button>
+        <button class="btn" onclick="endTurn()">End Turn</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reward -->
+  <div class="overlay-screen" id="reward-screen">
+    <h2>Victory!</h2>
+    <p id="reward-text">Choose a card to add to your deck:</p>
+    <div class="reward-cards" id="reward-cards"></div>
+    <button class="btn" onclick="skipReward()">Skip</button>
+  </div>
+
+  <!-- Shop -->
+  <div class="overlay-screen" id="shop-screen">
+    <h2>The Librarian</h2>
+    <p>"Interesting collection you have... I can help you refine it."</p>
+    <div class="reward-cards" id="shop-cards"></div>
+    <button class="btn" onclick="closeShop()">Leave</button>
+  </div>
+
+  <!-- Rest -->
+  <div class="overlay-screen" id="rest-screen">
+    <h2>Rest Site</h2>
+    <p>A quiet alcove between the shelves. The dust settles.</p>
+    <div style="display:flex;gap:12px;margin-top:15px">
+      <button class="btn" onclick="restHeal()">Heal (30% HP)</button>
+      <button class="btn" onclick="restRemove()">Remove a Card</button>
+    </div>
+    <div class="reward-cards" id="remove-cards" style="margin-top:15px"></div>
+  </div>
+
+  <!-- Event -->
+  <div class="overlay-screen" id="event-screen">
+    <h2 id="event-title">Strange Encounter</h2>
+    <p id="event-text"></p>
+    <div id="event-choices" style="display:flex;gap:10px;margin-top:15px;flex-wrap:wrap;justify-content:center"></div>
+  </div>
+
+  <!-- Game Over -->
+  <div class="overlay-screen" id="gameover-screen">
+    <h2 id="go-title" style="color:#c0392b">Defeat</h2>
+    <p id="go-text">The Library consumes you...</p>
+    <p id="go-stats" style="color:#806040;font-size:12px"></p>
+    <button class="btn" onclick="location.reload()">Try Again</button>
+  </div>
+</div>
+
+<script>
+// ══════════ CONSTANTS ══════════
+const ELEMENTS = ['fire','ice','nature','shield','arcane'];
+const ELEM_ICONS = {fire:'🔥',ice:'❄️',nature:'🌿',shield:'🛡️',arcane:'✨'};
+const ELEM_COLORS = {fire:'#e74c3c',ice:'#3498db',nature:'#2ecc71',shield:'#95a5a6',arcane:'#9b59b6'};
+
+// ══════════ CARD DEFINITIONS ══════════
+const CARD_DEFS = {
+  fire_bolt:   {name:'Fire Bolt',   elem:'fire',   icon:'🔥', cost:1, desc:'Basic fire attack'},
+  ice_shard:   {name:'Ice Shard',   elem:'ice',    icon:'❄️', cost:1, desc:'Basic ice attack'},
+  vine_whip:   {name:'Vine Whip',   elem:'nature', icon:'🌿', cost:1, desc:'Basic nature attack'},
+  guard:       {name:'Guard',       elem:'shield', icon:'🛡️', cost:1, desc:'Basic defense'},
+  spark:       {name:'Spark',       elem:'arcane', icon:'✨', cost:1, desc:'Arcane energy'},
+  flame_lance: {name:'Flame Lance', elem:'fire',   icon:'🔥', cost:2, desc:'Strong fire attack'},
+  frost_wave:  {name:'Frost Wave',  elem:'ice',    icon:'❄️', cost:2, desc:'Strong ice attack'},
+  thorns:      {name:'Thorns',      elem:'nature', icon:'🌿', cost:2, desc:'Nature + damage'},
+  iron_wall:   {name:'Iron Wall',   elem:'shield', icon:'🛡️', cost:2, desc:'Heavy defense'},
+  rift:        {name:'Rift',        elem:'arcane', icon:'✨', cost:2, desc:'Arcane power'},
+  inferno:     {name:'Inferno',     elem:'fire',   icon:'🔥', cost:3, desc:'Devastating fire'},
+  avalanche:   {name:'Avalanche',   elem:'ice',    icon:'❄️', cost:3, desc:'Devastating ice'},
+  world_tree:  {name:'World Tree',  elem:'nature', icon:'🌿', cost:3, desc:'Massive heal'},
+  bastion:     {name:'Bastion',     elem:'shield', icon:'🛡️', cost:3, desc:'Ultimate defense'},
+  void_tear:   {name:'Void Tear',   elem:'arcane', icon:'✨', cost:3, desc:'Reality warps'},
+};
+
+// ══════════ COMBO TABLE ══════════
+// key: "elemA_elemB" (sorted alphabetically) → result
+const COMBOS = {
+  'fire_fire':     {name:'Fireball',     icon:'☄️', dmg:14, block:0, heal:0, effect:'burn',    desc:'High single-target damage + burn'},
+  'fire_ice':      {name:'Steam Cloud',  icon:'♨️', dmg:8,  block:0, heal:0, effect:'blind',   desc:'Area damage + enemy misses next turn'},
+  'fire_nature':   {name:'Wildfire',     icon:'🔥', dmg:10, block:0, heal:0, effect:'dot',     desc:'Damage + burn over 3 turns'},
+  'fire_shield':   {name:'Flame Armor',  icon:'🔶', dmg:0,  block:8, heal:0, effect:'thorns',  desc:'Block + thorns damage'},
+  'arcane_fire':   {name:'Meteor',       icon:'☄️', dmg:20, block:0, heal:0, effect:'selfhurt',desc:'Massive damage but costs 3 HP'},
+  'ice_ice':       {name:'Blizzard',     icon:'🌨️', dmg:12, block:0, heal:0, effect:'slow',    desc:'Area damage + enemy slowed'},
+  'ice_nature':    {name:'Frost Vine',   icon:'🌱', dmg:6,  block:0, heal:0, effect:'root',    desc:'Root enemy + damage over time'},
+  'ice_shield':    {name:'Ice Wall',     icon:'🧊', dmg:0,  block:15,heal:0, effect:null,      desc:'Massive block for 1 turn'},
+  'arcane_ice':    {name:'Frozen Time',  icon:'⏳', dmg:8,  block:5, heal:0, effect:'stun',    desc:'Damage + stun enemy 1 turn'},
+  'nature_nature': {name:'Overgrowth',   icon:'🌳', dmg:0,  block:0, heal:12,effect:'regen',   desc:'Heal + regen 3 HP for 3 turns'},
+  'nature_shield': {name:'Bark Skin',    icon:'🪵', dmg:0,  block:10,heal:5, effect:null,      desc:'Block + heal'},
+  'arcane_nature': {name:'Life Drain',   icon:'💀', dmg:8,  block:0, heal:8, effect:null,      desc:'Steal enemy HP'},
+  'shield_shield': {name:'Fortify',      icon:'🏰', dmg:0,  block:20,heal:0, effect:'fortify', desc:'Huge block for 2 turns'},
+  'arcane_shield': {name:'Mana Shield',  icon:'🔮', dmg:0,  block:12,heal:0, effect:'manashield',desc:'Block + gain 1 mana next turn'},
+  'arcane_arcane': {name:'Void Rift',    icon:'🕳️', dmg:15, block:0, heal:0, effect:'random',  desc:'High damage + random bonus effect'},
+};
+
+function getComboKey(a, b) { return [a,b].sort().join('_'); }
+function getCombo(a, b) { return COMBOS[getComboKey(a, b)]; }
+
+// ══════════ ENEMIES ══════════
+const ENEMY_DEFS = [
+  // Floor 1
+  {name:'Fire Bolt',    icon:'🔥',hp:25, atk:6,  def:0, floor:1,loot:['fire_bolt','flame_lance']},
+  {name:'Ice Shard',    icon:'❄️',hp:20, atk:5,  def:2, floor:1,loot:['ice_shard','frost_wave']},
+  {name:'Vine Creep',   icon:'🌿',hp:30, atk:4,  def:0, floor:1,loot:['vine_whip','thorns']},
+  {name:'Shield Charm', icon:'🛡️',hp:35, atk:3,  def:5, floor:1,loot:['guard','iron_wall']},
+  // Floor 2
+  {name:'Flame Wraith', icon:'👻',hp:45, atk:9,  def:3, floor:2,loot:['flame_lance','inferno']},
+  {name:'Frost Golem',  icon:'🗿',hp:55, atk:7,  def:8, floor:2,loot:['frost_wave','avalanche']},
+  {name:'Thorn Beast',  icon:'🦔',hp:40, atk:8,  def:2, floor:2,loot:['thorns','world_tree']},
+  {name:'Arcane Eye',   icon:'👁️',hp:35, atk:10, def:0, floor:2,loot:['spark','rift']},
+  // Floor 3
+  {name:'Ember Dragon', icon:'🐉',hp:70, atk:12, def:5, floor:3,loot:['inferno','flame_lance']},
+  {name:'Blizzard Worm',icon:'🐛',hp:60, atk:10, def:6, floor:3,loot:['avalanche','frost_wave']},
+  {name:'Ancient Oak',  icon:'🌲',hp:80, atk:8,  def:10,floor:3,loot:['world_tree','thorns']},
+  {name:'Void Phantom', icon:'💀',hp:50, atk:14, def:0, floor:3,loot:['void_tear','rift']},
+  // Floor 4
+  {name:'Spell Lord',   icon:'🧙',hp:90, atk:15, def:8, floor:4,loot:['inferno','avalanche','void_tear']},
+];
+
+const BOSS_DEFS = [
+  {name:'The Bookmark',   icon:'📑',hp:60,  atk:8,  def:3,  floor:1},
+  {name:'The Margin Note', icon:'📝',hp:100, atk:12, def:5,  floor:2},
+  {name:'The Errata',     icon:'📕',hp:140, atk:15, def:8,  floor:3},
+  {name:'The Index',      icon:'📖',hp:200, atk:18, def:10, floor:4},
+];
+
+// ══════════ RELICS ══════════
+const RELICS = [
+  {name:'Ember Quill',      icon:'🪶', desc:'Fire combos deal +3 damage', effect:'fire_dmg'},
+  {name:'Frost Lens',       icon:'🔍', desc:'Ice combos deal +3 damage', effect:'ice_dmg'},
+  {name:'Living Bookmark',  icon:'📌', desc:'Draw 1 extra card each turn', effect:'extra_draw'},
+  {name:'Ink Well',         icon:'🫗', desc:'+1 max mana', effect:'max_mana'},
+  {name:'Gilded Page',      icon:'📄', desc:'First combo each combat costs 0', effect:'free_first'},
+  {name:'Thorned Binding',  icon:'📕', desc:'Deal 2 damage when hit', effect:'auto_thorns'},
+  {name:'Healing Salve',    icon:'🧴', desc:'Heal 3 HP at end of combat', effect:'end_heal'},
+  {name:'Mana Crystal',     icon:'💎', desc:'Gain 1 mana when playing arcane cards', effect:'arcane_mana'},
+];
+
+// ══════════ EVENTS ══════════
+const EVENTS = [
+  {title:'Dusty Tome', text:'You find a dusty tome wedged between shelves. It hums with energy.',
+    choices:[
+      {text:'Read it (+random card)', action:'gain_card'},
+      {text:'Leave it', action:'nothing'}
+    ]},
+  {title:'Whispering Pages', text:'Pages flutter around you, whispering secrets. They offer knowledge... for a price.',
+    choices:[
+      {text:'Listen (-5 HP, +1 relic)', action:'hurt_relic'},
+      {text:'Ignore them', action:'nothing'}
+    ]},
+  {title:'Ink Fountain', text:'A fountain of magical ink bubbles in an alcove.',
+    choices:[
+      {text:'Drink (heal 15 HP)', action:'heal_15'},
+      {text:'Dip a card (upgrade random card)', action:'upgrade'},
+      {text:'Walk away', action:'nothing'}
+    ]},
+  {title:'The Librarian\'s Cache', text:'"I left this here for someone brave enough to find it."',
+    choices:[
+      {text:'Open it (+relic)', action:'gain_relic'},
+      {text:'It might be a trap...', action:'nothing'}
+    ]},
+];
+
+// ══════════ STATE ══════════
+let state = {
+  hp: 50, maxHp: 50, gold: 0, mana: 5, maxMana: 5,
+  deck: [], drawPile: [], discardPile: [], hand: [],
+  relics: [], floor: 1, room: 0,
+  affinity: 'fire', comboHistory: {},
+  selectedCards: [], enemy: null, enemyBlock: 0, playerBlock: 0,
+  turnEffects: {burn:0, regen:0, slow:false, stun:false, root:false, thorns:0, fortify:0, manashield:false},
+  firstCombo: true, mapNodes: [], mapCurrent: -1,
+};
+
+// ══════════ PARTICLES ══════════
+const pCanvas = document.getElementById('particles-canvas');
+const pCtx = pCanvas.getContext('2d');
+let parts = [];
+function spawnParts(x,y,color,count,spread) {
+  for(let i=0;i<count;i++) parts.push({x,y,vx:(Math.random()-0.5)*spread,vy:(Math.random()-0.5)*spread-1,life:25+Math.random()*20,color,size:2+Math.random()*4});
+}
+function updateParts() {
+  pCtx.clearRect(0,0,960,600);
+  parts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.life--;p.size*=0.97;
+    pCtx.globalAlpha=Math.max(0,p.life/40);pCtx.fillStyle=p.color;
+    pCtx.beginPath();pCtx.arc(p.x,p.y,Math.max(0.5,p.size),0,Math.PI*2);pCtx.fill();
+  });
+  pCtx.globalAlpha=1;
+  parts=parts.filter(p=>p.life>0);
+  requestAnimationFrame(updateParts);
+}
+updateParts();
+
+// ══════════ DECK BUILDING ══════════
+function buildStarterDeck(affinity) {
+  const deck = [];
+  const addCard = (id, n) => { for(let i=0;i<n;i++) deck.push(id); };
+  addCard(affinity === 'fire' ? 'fire_bolt' : affinity === 'ice' ? 'ice_shard' : affinity === 'nature' ? 'vine_whip' : 'spark', 3);
+  addCard('guard', 2);
+  addCard(affinity === 'fire' ? 'fire_bolt' : 'ice_shard', 1);
+  addCard('vine_whip', 1);
+  addCard('spark', 1);
+  return deck;
+}
+
+function shuffleDeck() {
+  state.drawPile = [...state.deck];
+  for(let i=state.drawPile.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[state.drawPile[i],state.drawPile[j]]=[state.drawPile[j],state.drawPile[i]];}
+  state.discardPile = [];
+}
+
+function drawCards(n) {
+  const extra = state.relics.some(r=>r.effect==='extra_draw') ? 1 : 0;
+  n += extra;
+  for(let i=0;i<n;i++){
+    if(state.drawPile.length===0){
+      state.drawPile=[...state.discardPile];
+      state.discardPile=[];
+      for(let j=state.drawPile.length-1;j>0;j--){const k=Math.floor(Math.random()*(j+1));[state.drawPile[j],state.drawPile[k]]=[state.drawPile[k],state.drawPile[j]];}
+    }
+    if(state.drawPile.length>0) state.hand.push(state.drawPile.pop());
+  }
+}
+
+// ══════════ MAP GENERATION ══════════
+function generateMap(floor) {
+  const nodes = [];
+  const types = ['combat','combat','combat','elite','shop','rest','event','treasure'];
+  const rows = 4;
+  const cols = 4;
+  let id = 0;
+  for(let r=0;r<rows;r++){
+    const rowNodes=[];
+    const numInRow = r===0?1:(r===rows-1?1:(2+Math.floor(Math.random()*2)));
+    for(let i=0;i<numInRow;i++){
+      let type;
+      if(r===0) type='start';
+      else if(r===rows-1) type='boss';
+      else type=types[Math.floor(Math.random()*types.length)];
+      const x = 100 + (i/(numInRow-1||1))*(600) + (Math.random()-0.5)*40;
+      const y = 40 + r*(280/(rows-1));
+      nodes.push({id:id++, row:r, x, y, type, visited:false, connections:[]});
+    }
+  }
+  // Connect rows
+  for(let r=0;r<rows-1;r++){
+    const thisRow=nodes.filter(n=>n.row===r);
+    const nextRow=nodes.filter(n=>n.row===r+1);
+    thisRow.forEach(n=>{
+      // Connect to 1-2 nodes in next row
+      const shuffled=[...nextRow].sort(()=>Math.random()-0.5);
+      const count=Math.min(shuffled.length, 1+Math.floor(Math.random()*2));
+      for(let i=0;i<count;i++){
+        n.connections.push(shuffled[i].id);
+      }
+    });
+    // Ensure all next row nodes have at least 1 incoming
+    nextRow.forEach(nn=>{
+      if(!thisRow.some(n=>n.connections.includes(nn.id))){
+        const rand=thisRow[Math.floor(Math.random()*thisRow.length)];
+        rand.connections.push(nn.id);
+      }
+    });
+  }
+  return nodes;
+}
+
+function drawMap() {
+  const mc = document.getElementById('map-canvas');
+  const mctx = mc.getContext('2d');
+  mctx.clearRect(0,0,800,350);
+  const nodes = state.mapNodes;
+
+  // Draw connections
+  mctx.strokeStyle='#3a2a1a';mctx.lineWidth=2;
+  nodes.forEach(n=>{
+    n.connections.forEach(cid=>{
+      const target=nodes.find(nn=>nn.id===cid);
+      if(target){mctx.beginPath();mctx.moveTo(n.x,n.y);mctx.lineTo(target.x,target.y);mctx.stroke();}
+    });
+  });
+
+  // Highlight available
+  const available = getAvailableNodes();
+
+  // Draw nodes
+  nodes.forEach(n=>{
+    const isAvail = available.includes(n.id);
+    const isCurrent = n.id === state.mapCurrent;
+    const icons = {start:'📍',combat:'⚔️',elite:'💀',shop:'🛒',rest:'🏕️',event:'❓',treasure:'🎁',boss:'👑'};
+    const r = isCurrent ? 18 : (isAvail ? 16 : 14);
+    // Glow
+    if(isAvail){mctx.shadowColor='#ffd700';mctx.shadowBlur=12;}
+    mctx.fillStyle = n.visited ? '#2a1a0a' : (isAvail ? '#3a2a1a' : '#1a1008');
+    mctx.strokeStyle = isCurrent ? '#ffd700' : (isAvail ? '#a08050' : '#3a2a1a');
+    mctx.lineWidth = isCurrent ? 3 : (isAvail ? 2 : 1);
+    mctx.beginPath();mctx.arc(n.x,n.y,r,0,Math.PI*2);mctx.fill();mctx.stroke();
+    mctx.shadowBlur=0;
+    // Icon
+    mctx.font=`${r}px serif`;mctx.textAlign='center';mctx.textBaseline='middle';
+    mctx.fillText(icons[n.type]||'?',n.x,n.y);
+    // Label
+    mctx.fillStyle='#806040';mctx.font='9px sans-serif';
+    mctx.fillText(n.type,n.x,n.y+r+10);
+  });
+}
+
+function getAvailableNodes(){
+  if(state.mapCurrent===-1) return state.mapNodes.filter(n=>n.row===0).map(n=>n.id);
+  const current=state.mapNodes.find(n=>n.id===state.mapCurrent);
+  return current?current.connections:[];
+}
+
+// ══════════ COMBAT ══════════
+function startCombat(enemyDef) {
+  state.enemy = {...enemyDef, maxHp:enemyDef.hp, block:0};
+  state.enemyBlock = 0;
+  state.playerBlock = 0;
+  state.turnEffects = {burn:0,regen:0,slow:false,stun:false,root:false,thorns:0,fortify:0,manashield:false};
+  state.firstCombo = true;
+  state.selectedCards = [];
+  state.hand = [];
+  shuffleDeck();
+  state.mana = state.maxMana;
+  drawCards(5);
+  state.enemy.intent = rollIntent();
+  document.getElementById('combat').style.display='flex';
+  document.getElementById('map-screen').style.display='none';
+  renderCombat();
+}
+
+function rollIntent(){
+  const r=Math.random();
+  if(r<0.6) return {type:'attack',value:state.enemy.atk+Math.floor(Math.random()*4)};
+  if(r<0.8) return {type:'defend',value:state.enemy.def+Math.floor(Math.random()*5)};
+  return {type:'buff',value:0};
+}
+
+function renderCombat(){
+  // Enemy
+  const ea=document.getElementById('enemy-area');
+  const e=state.enemy;
+  const hpPct=Math.max(0,e.hp/e.maxHp*100);
+  let intentStr='';
+  if(e.intent.type==='attack') intentStr=`⚔️ Attack for ${e.intent.value}`;
+  else if(e.intent.type==='defend') intentStr=`🛡️ Defend for ${e.intent.value}`;
+  else intentStr='✨ Buffing...';
+
+  ea.innerHTML=`<div class="enemy-display">
+    <span class="enemy-sprite">${e.icon}</span>
+    <div class="enemy-name">${e.name}</div>
+    <div class="hp-bar"><div class="hp-fill" style="width:${hpPct}%"></div></div>
+    <div style="font-size:12px;color:#a08050">HP: ${e.hp}/${e.maxHp}${state.enemyBlock>0?' | Block: '+state.enemyBlock:''}</div>
+    <div class="enemy-intent">${state.turnEffects.stun?'💫 STUNNED':intentStr}</div>
+    ${state.turnEffects.burn>0?'<div style="color:#e74c3c;font-size:11px">🔥 Burning ('+state.turnEffects.burn+' turns)</div>':''}
+    ${state.turnEffects.root?'<div style="color:#2ecc71;font-size:11px">🌱 Rooted</div>':''}
+  </div>`;
+
+  // Hand
+  const hand=document.getElementById('hand');
+  hand.innerHTML='';
+  state.hand.forEach((cardId,i)=>{
+    const def=CARD_DEFS[cardId];
+    if(!def) return;
+    const sel=state.selectedCards.includes(i);
+    const div=document.createElement('div');
+    div.className=`card ${def.elem}${sel?' selected':''}`;
+    div.innerHTML=`<span class="card-type">${def.elem}</span><span class="card-cost">${def.cost}💧</span><span class="card-icon">${def.icon}</span><span class="card-name">${def.name}</span>`;
+    div.onclick=()=>selectCard(i);
+    hand.appendChild(div);
+  });
+
+  // Combo preview
+  const ca=document.getElementById('combo-area');
+  if(state.selectedCards.length===2){
+    const c1=CARD_DEFS[state.hand[state.selectedCards[0]]];
+    const c2=CARD_DEFS[state.hand[state.selectedCards[1]]];
+    const combo=getCombo(c1.elem,c2.elem);
+    if(combo){
+      const cost=c1.cost+c2.cost;
+      const freeFirst=state.firstCombo&&state.relics.some(r=>r.effect==='free_first');
+      const actualCost=freeFirst?0:cost;
+      ca.innerHTML=`<div style="text-align:center;color:#ffd700;font-size:14px">
+        ${combo.icon} <b>${combo.name}</b> — ${combo.desc}<br>
+        <span style="font-size:11px;color:#7ec8e3">Cost: ${actualCost}💧 | DMG: ${combo.dmg} | Block: ${combo.block} | Heal: ${combo.heal}</span>
+      </div>`;
+    } else ca.innerHTML='<div style="color:#806040">No combo found</div>';
+  } else if(state.selectedCards.length===1){
+    ca.innerHTML='<div style="color:#806040">Select a second card for combo...</div>';
+  } else ca.innerHTML='';
+
+  document.getElementById('cast-btn').disabled=state.selectedCards.length!==2;
+  document.getElementById('player-hp').textContent=`${state.hp}/${state.maxHp}`;
+  document.getElementById('player-mana').textContent=`${state.mana}/${state.maxMana}`;
+  document.getElementById('deck-count').textContent=state.drawPile.length;
+  document.getElementById('discard-count').textContent=state.discardPile.length;
+}
+
+function selectCard(i){
+  const idx=state.selectedCards.indexOf(i);
+  if(idx>=0) state.selectedCards.splice(idx,1);
+  else if(state.selectedCards.length<2) state.selectedCards.push(i);
+  renderCombat();
+}
+
+function castCombo(){
+  if(state.selectedCards.length!==2) return;
+  const i1=state.selectedCards[0], i2=state.selectedCards[1];
+  const c1=CARD_DEFS[state.hand[i1]], c2=CARD_DEFS[state.hand[i2]];
+  const combo=getCombo(c1.elem,c2.elem);
+  if(!combo) return;
+
+  const freeFirst=state.firstCombo&&state.relics.some(r=>r.effect==='free_first');
+  const cost=freeFirst?0:c1.cost+c2.cost;
+  if(cost>state.mana){logCombat('Not enough mana!');return;}
+
+  state.mana-=cost;
+  state.firstCombo=false;
+
+  // Track combo usage for The Index
+  const key=getComboKey(c1.elem,c2.elem);
+  state.comboHistory[key]=(state.comboHistory[key]||0)+1;
+
+  // Calculate damage with relics
+  let dmg=combo.dmg;
+  if(c1.elem==='fire'||c2.elem==='fire') dmg+=state.relics.filter(r=>r.effect==='fire_dmg').length*3;
+  if(c1.elem==='ice'||c2.elem==='ice') dmg+=state.relics.filter(r=>r.effect==='ice_dmg').length*3;
+
+  // Apply combo
+  if(dmg>0){
+    const blocked=Math.min(dmg,state.enemyBlock);
+    state.enemyBlock-=blocked;
+    const actual=dmg-blocked;
+    if(actual>0) state.enemy.hp-=actual;
+    logCombat(`${combo.icon} ${combo.name}: ${actual} damage!`);
+    spawnParts(480,200,ELEM_COLORS[c1.elem]||'#ffd700',15,6);
+  }
+  if(combo.block>0){
+    state.playerBlock+=combo.block;
+    logCombat(`Gained ${combo.block} block`);
+  }
+  if(combo.heal>0){
+    state.hp=Math.min(state.maxHp,state.hp+combo.heal);
+    logCombat(`Healed ${combo.heal} HP`);
+    spawnParts(480,450,'#2ecc71',10,4);
+  }
+
+  // Effects
+  if(combo.effect==='burn') state.turnEffects.burn=3;
+  if(combo.effect==='dot') state.turnEffects.burn=3;
+  if(combo.effect==='slow') state.turnEffects.slow=true;
+  if(combo.effect==='stun') state.turnEffects.stun=true;
+  if(combo.effect==='root') state.turnEffects.root=true;
+  if(combo.effect==='blind') state.turnEffects.stun=true; // blind = skip turn
+  if(combo.effect==='thorns') state.turnEffects.thorns=5;
+  if(combo.effect==='fortify') state.turnEffects.fortify=2;
+  if(combo.effect==='regen') state.turnEffects.regen=3;
+  if(combo.effect==='selfhurt'){state.hp-=3;logCombat('Arcane backlash: -3 HP');}
+  if(combo.effect==='manashield') state.turnEffects.manashield=true;
+  if(combo.effect==='random'){
+    const bonuses=['burn','stun','regen'];
+    const b=bonuses[Math.floor(Math.random()*bonuses.length)];
+    if(b==='burn') state.turnEffects.burn=2;
+    if(b==='stun') state.turnEffects.stun=true;
+    if(b==='regen') state.turnEffects.regen=2;
+    logCombat(`Void randomness: ${b}!`);
+  }
+
+  // Arcane mana relic
+  if((c1.elem==='arcane'||c2.elem==='arcane')&&state.relics.some(r=>r.effect==='arcane_mana')){
+    state.mana=Math.min(state.maxMana,state.mana+1);
+    logCombat('+1 mana from Mana Crystal');
+  }
+
+  // Discard played cards
+  const toDiscard=[state.hand[i1],state.hand[i2]];
+  state.hand=state.hand.filter((_,i)=>i!==i1&&i!==i2);
+  state.discardPile.push(...toDiscard);
+  state.selectedCards=[];
+
+  // Check enemy death
+  if(state.enemy.hp<=0){
+    winCombat();
+    return;
+  }
+  renderCombat();
+}
+
+function endTurn(){
+  // Discard hand
+  state.discardPile.push(...state.hand);
+  state.hand=[];
+  state.selectedCards=[];
+
+  // Enemy turn
+  enemyTurn();
+
+  // Start of player turn effects
+  if(state.turnEffects.burn>0){
+    state.enemy.hp-=4;
+    state.turnEffects.burn--;
+    logCombat(`🔥 Burn deals 4 damage`);
+    if(state.enemy.hp<=0){winCombat();return;}
+  }
+  if(state.turnEffects.regen>0){
+    state.hp=Math.min(state.maxHp,state.hp+3);
+    state.turnEffects.regen--;
+    logCombat('🌿 Regen heals 3 HP');
+  }
+  if(state.turnEffects.fortify>0) state.turnEffects.fortify--;
+  if(state.turnEffects.manashield){state.maxMana=Math.min(state.maxMana,state.mana+1);state.turnEffects.manashield=false;}
+
+  state.turnEffects.slow=false;
+  state.turnEffects.root=false;
+
+  // New turn
+  state.mana=state.maxMana+(state.relics.some(r=>r.effect==='max_mana')?1:0);
+  state.playerBlock=state.turnEffects.fortify>0?Math.floor(state.playerBlock*0.5):0;
+  state.enemyBlock=0;
+  state.enemy.intent=rollIntent();
+  drawCards(5);
+  renderCombat();
+}
+
+function enemyTurn(){
+  const e=state.enemy;
+  if(state.turnEffects.stun){
+    logCombat(`💫 ${e.name} is stunned!`);
+    state.turnEffects.stun=false;
+    return;
+  }
+
+  const intent=e.intent;
+  if(intent.type==='attack'){
+    let dmg=intent.value;
+    if(state.turnEffects.slow) dmg=Math.floor(dmg*0.6);
+    const blocked=Math.min(dmg,state.playerBlock);
+    state.playerBlock-=blocked;
+    const actual=dmg-blocked;
+    if(actual>0){
+      state.hp-=actual;
+      logCombat(`${e.icon} ${e.name} attacks for ${actual}!`);
+      spawnParts(480,450,'#e74c3c',10,5);
+      // Auto thorns
+      if(state.relics.some(r=>r.effect==='auto_thorns')){e.hp-=2;logCombat('Thorned Binding: 2 damage');}
+      if(state.turnEffects.thorns>0){e.hp-=state.turnEffects.thorns;logCombat(`Thorns: ${state.turnEffects.thorns} damage`);state.turnEffects.thorns=0;}
+    } else logCombat(`Blocked ${dmg} damage!`);
+  } else if(intent.type==='defend'){
+    state.enemyBlock+=intent.value;
+    logCombat(`${e.name} defends for ${intent.value}`);
+  } else {
+    e.atk+=2;
+    logCombat(`${e.name} powers up! (+2 atk)`);
+  }
+
+  if(state.hp<=0) gameOver();
+}
+
+function winCombat(){
+  document.getElementById('combat').style.display='none';
+  // End heal relic
+  if(state.relics.some(r=>r.effect==='end_heal')){state.hp=Math.min(state.maxHp,state.hp+3);logCombat('Healing Salve: +3 HP');}
+
+  // Show reward
+  const loot=state.enemy.loot||Object.keys(CARD_DEFS);
+  const rewards=[];
+  for(let i=0;i<3;i++){
+    const pool=loot.length>0?loot:Object.keys(CARD_DEFS);
+    rewards.push(pool[Math.floor(Math.random()*pool.length)]);
+  }
+  const rc=document.getElementById('reward-cards');
+  rc.innerHTML='';
+  rewards.forEach(cardId=>{
+    const def=CARD_DEFS[cardId];
+    if(!def) return;
+    const div=document.createElement('div');
+    div.className=`card ${def.elem}`;
+    div.innerHTML=`<span class="card-type">${def.elem}</span><span class="card-cost">${def.cost}💧</span><span class="card-icon">${def.icon}</span><span class="card-name">${def.name}</span>`;
+    div.onclick=()=>{
+      if(state.deck.length<20){state.deck.push(cardId);logCombat(`Added ${def.name} to deck`);}
+      document.getElementById('reward-screen').style.display='none';
+      showMap();
+    };
+    rc.appendChild(div);
+  });
+  document.getElementById('reward-screen').style.display='flex';
+}
+
+function skipReward(){
+  document.getElementById('reward-screen').style.display='none';
+  showMap();
+}
+
+function logCombat(msg){
+  const log=document.getElementById('combat-log');
+  log.innerHTML=`<div>${msg}</div>`+log.innerHTML;
+  if(log.children.length>20) log.removeChild(log.lastChild);
+}
+
+// ══════════ NON-COMBAT ROOMS ══════════
+function enterShop(){
+  const cards=[];
+  const pool=Object.keys(CARD_DEFS);
+  for(let i=0;i<4;i++) cards.push(pool[Math.floor(Math.random()*pool.length)]);
+  const sc=document.getElementById('shop-cards');
+  sc.innerHTML='';
+  cards.forEach(cardId=>{
+    const def=CARD_DEFS[cardId];
+    const div=document.createElement('div');
+    div.className=`card ${def.elem}`;
+    div.innerHTML=`<span class="card-type">${def.elem}</span><span class="card-cost">${def.cost}💧</span><span class="card-icon">${def.icon}</span><span class="card-name">${def.name}</span>`;
+    div.onclick=()=>{
+      if(state.deck.length<20){state.deck.push(cardId);}
+      div.style.opacity='0.3';div.style.pointerEvents='none';
+    };
+    sc.appendChild(div);
+  });
+  document.getElementById('shop-screen').style.display='flex';
+}
+function closeShop(){document.getElementById('shop-screen').style.display='none';showMap();}
+
+function enterRest(){
+  document.getElementById('rest-screen').style.display='flex';
+  document.getElementById('remove-cards').innerHTML='';
+}
+function restHeal(){
+  state.hp=Math.min(state.maxHp,state.hp+Math.floor(state.maxHp*0.3));
+  document.getElementById('rest-screen').style.display='none';showMap();
+}
+function restRemove(){
+  const rc=document.getElementById('remove-cards');
+  rc.innerHTML='';
+  state.deck.forEach((cardId,i)=>{
+    const def=CARD_DEFS[cardId];if(!def)return;
+    const div=document.createElement('div');
+    div.className=`card card-sm ${def.elem}`;
+    div.innerHTML=`<span class="card-icon">${def.icon}</span><span class="card-name">${def.name}</span>`;
+    div.onclick=()=>{
+      state.deck.splice(i,1);
+      document.getElementById('rest-screen').style.display='none';showMap();
+    };
+    rc.appendChild(div);
+  });
+}
+
+function enterEvent(){
+  const evt=EVENTS[Math.floor(Math.random()*EVENTS.length)];
+  document.getElementById('event-title').textContent=evt.title;
+  document.getElementById('event-text').textContent=evt.text;
+  const ec=document.getElementById('event-choices');
+  ec.innerHTML='';
+  evt.choices.forEach(ch=>{
+    const btn=document.createElement('button');
+    btn.className='btn';btn.textContent=ch.text;
+    btn.onclick=()=>{
+      if(ch.action==='gain_card'){const pool=Object.keys(CARD_DEFS);const c=pool[Math.floor(Math.random()*pool.length)];if(state.deck.length<20)state.deck.push(c);}
+      if(ch.action==='heal_15'){state.hp=Math.min(state.maxHp,state.hp+15);}
+      if(ch.action==='hurt_relic'){state.hp-=5;gainRelic();}
+      if(ch.action==='gain_relic'){gainRelic();}
+      if(ch.action==='upgrade'){/* simplified: add a strong card */if(state.deck.length<20)state.deck.push(['inferno','avalanche','world_tree','void_tear'][Math.floor(Math.random()*4)]);}
+      document.getElementById('event-screen').style.display='none';showMap();
+    };
+    ec.appendChild(btn);
+  });
+  document.getElementById('event-screen').style.display='flex';
+}
+
+function enterTreasure(){
+  gainRelic();
+  showMap();
+}
+
+function gainRelic(){
+  const available=RELICS.filter(r=>!state.relics.some(rr=>rr.name===r.name));
+  if(available.length===0)return;
+  const relic=available[Math.floor(Math.random()*available.length)];
+  state.relics.push(relic);
+  if(relic.effect==='max_mana') state.maxMana++;
+  alert(`Found relic: ${relic.icon} ${relic.name} — ${relic.desc}`);
+}
+
+function gameOver(){
+  document.getElementById('combat').style.display='none';
+  document.getElementById('gameover-screen').style.display='flex';
+  document.getElementById('go-stats').textContent=`Floor ${state.floor} | Deck: ${state.deck.length} cards | Relics: ${state.relics.length}`;
+}
+
+// ══════════ MAP NAVIGATION ══════════
+function showMap(){
+  document.getElementById('map-screen').style.display='flex';
+  const floorNames=['The Shelves','The Archives','The Restricted Section','The Index Chamber'];
+  document.getElementById('floor-num').textContent=state.floor;
+  document.getElementById('floor-name').textContent=floorNames[state.floor-1]||'Unknown';
+  drawMap();
+}
+
+document.getElementById('map-canvas').addEventListener('click',e=>{
+  const r=document.getElementById('map-canvas').getBoundingClientRect();
+  const mx=(e.clientX-r.left)*(800/r.width), my=(e.clientY-r.top)*(350/r.height);
+  const available=getAvailableNodes();
+  for(const node of state.mapNodes){
+    if(!available.includes(node.id)) continue;
+    if(Math.abs(mx-node.x)<20 && Math.abs(my-node.y)<20){
+      enterNode(node);
+      break;
+    }
+  }
+});
+
+function enterNode(node){
+  node.visited=true;
+  state.mapCurrent=node.id;
+  document.getElementById('map-screen').style.display='none';
+
+  if(node.type==='combat'||node.type==='elite'){
+    const enemies=ENEMY_DEFS.filter(e=>e.floor<=state.floor);
+    const pool=node.type==='elite'?enemies.filter(e=>e.floor===state.floor):enemies;
+    const def=pool[Math.floor(Math.random()*pool.length)]||enemies[0];
+    const scaled={...def,hp:def.hp+state.floor*5,atk:def.atk+state.floor};
+    startCombat(scaled);
+  }
+  else if(node.type==='boss'){
+    const bossDef=BOSS_DEFS[state.floor-1]||BOSS_DEFS[0];
+    // The Index adapts!
+    if(state.floor===4){
+      const topCombo=Object.entries(state.comboHistory).sort((a,b)=>b[1]-a[1])[0];
+      if(topCombo) bossDef.def+=5; // Resist most-used combo
+    }
+    startCombat({...bossDef,loot:Object.keys(CARD_DEFS)});
+  }
+  else if(node.type==='shop') enterShop();
+  else if(node.type==='rest') enterRest();
+  else if(node.type==='event') enterEvent();
+  else if(node.type==='treasure') enterTreasure();
+  else showMap();
+}
+
+// Boss defeat → next floor
+const origWinCombat=winCombat;
+winCombat=function(){
+  const node=state.mapNodes.find(n=>n.id===state.mapCurrent);
+  if(node&&node.type==='boss'){
+    document.getElementById('combat').style.display='none';
+    if(state.floor>=4){
+      // Game complete!
+      document.getElementById('gameover-screen').style.display='flex';
+      document.getElementById('go-title').textContent='VICTORY!';
+      document.getElementById('go-title').style.color='#ffd700';
+      document.getElementById('go-text').textContent='You defeated The Index! The Library is saved. The grimoires rest once more.';
+      document.getElementById('go-stats').textContent=`Deck: ${state.deck.length} cards | Relics: ${state.relics.length}`;
+      spawnParts(480,300,'#ffd700',40,10);
+    } else {
+      state.floor++;
+      state.mapNodes=generateMap(state.floor);
+      state.mapCurrent=-1;
+      showMap();
+    }
+    return;
+  }
+  origWinCombat();
+};
+
+// ══════════ START ══════════
+// Build affinity buttons
+const affDiv=document.getElementById('affinities');
+[{id:'fire',icon:'🔥',name:'Fire'},{id:'ice',icon:'❄️',name:'Ice'},{id:'nature',icon:'🌿',name:'Nature'},{id:'arcane',icon:'✨',name:'Arcane'}].forEach(a=>{
+  const btn=document.createElement('div');
+  btn.className='aff-btn'+(a.id==='fire'?' selected':'');
+  btn.innerHTML=`<div class="icon">${a.icon}</div><div class="name">${a.name}</div>`;
+  btn.onclick=()=>{
+    document.querySelectorAll('.aff-btn').forEach(b=>b.classList.remove('selected'));
+    btn.classList.add('selected');
+    state.affinity=a.id;
+  };
+  affDiv.appendChild(btn);
+});
+
+document.getElementById('start-btn').addEventListener('click',()=>{
+  document.getElementById('title').style.display='none';
+  state.deck=buildStarterDeck(state.affinity);
+  state.floor=1;
+  state.mapNodes=generateMap(1);
+  state.mapCurrent=-1;
+  showMap();
+});
+</script>
+</body>
+</html>

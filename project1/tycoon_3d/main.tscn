@@ -1,0 +1,92 @@
+[gd_scene load_steps=7 format=2]
+
+[sub_resource type="BoxShape" id=1]
+extents = Vector3(50, 0.5, 50)
+
+[sub_resource type="CubeMesh" id=2]
+size = Vector3(100, 1, 100)
+
+[sub_resource type="SpatialMaterial" id=3]
+albedo_color = Color(0.22, 0.35, 0.22, 1)
+roughness = 0.9
+metallic = 0.0
+
+[sub_resource type="Environment" id=4]
+background_mode = 2
+ambient_light_color = Color(0.4, 0.45, 0.55, 1)
+ambient_light_energy = 0.6
+
+[ext_resource path="res://game_manager.gd" type="Script" id=5]
+[ext_resource path="res://scenes/buildable_machine.tscn" type="PackedScene" id=6]
+
+[node name="Main" type="Spatial"]
+script = ExtResource(5)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource(4)
+
+[node name="DirectionalLight" type="DirectionalLight" parent="."]
+transform = Transform(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 20, 15)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="Ground" type="StaticBody" parent="."]
+transform = Transform(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape" type="CollisionShape" parent="Ground"]
+shape = SubResource(1)
+
+[node name="MeshInstance" type="MeshInstance" parent="Ground"]
+mesh = SubResource(2)
+surface_material_override/0 = SubResource(3)
+
+[node name="Buildings" type="Spatial" parent="."]
+
+[node name="Camera" type="Camera" parent="."]
+transform = Transform(0.866025, -0.25, 0.433013, 0, 0.866025, -0.5, -0.5, 0.433013, 0.75, 25, 30, 25)
+
+[node name="PlacementPreview" type="MeshInstance" parent="."]
+visible = false
+mesh = SubResource(2)
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="Panel" type="Panel" parent="UI"]
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_top = 0.0
+anchor_bottom = 1.0
+margin_left = -320.0
+margin_top = 20.0
+margin_right = -20.0
+margin_bottom = -500.0
+
+[node name="VBox" type="VBoxContainer" parent="UI/Panel"]
+rect_min_size = Vector2(280, 0)
+margin_left = 12.0
+margin_top = 12.0
+margin_right = -12.0
+margin_bottom = -12.0
+theme_constants/separation = 10
+
+[node name="MoneyLabel" type="Label" parent="UI/Panel/VBox"]
+text = "$ 10,000"
+
+[node name="HSeparator" type="HSeparator" parent="UI/Panel/VBox"]
+
+[node name="BuildLabel" type="Label" parent="UI/Panel/VBox"]
+text = "Build:"
+
+[node name="BuildMachine" type="Button" parent="UI/Panel/VBox"]
+text = "Machine ($500)"
+
+[node name="BuildConveyor" type="Button" parent="UI/Panel/VBox"]
+text = "Conveyor ($300)"
+
+[node name="HSeparator2" type="HSeparator" parent="UI/Panel/VBox"]
+
+[node name="Hint" type="Label" parent="UI/Panel/VBox"]
+text = "Click ground to place. ESC to cancel."
+
+[connection signal="pressed" from="UI/Panel/VBox/BuildMachine" to="." method="_on_build_machine_pressed"]
+[connection signal="pressed" from="UI/Panel/VBox/BuildConveyor" to="." method="_on_build_conveyor_pressed"]

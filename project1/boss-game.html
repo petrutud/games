@@ -1,0 +1,3163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Boss Flip — You Are The Boss</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+  canvas { border: 2px solid rgba(255,60,60,0.3); border-radius: 8px; box-shadow: 0 0 40px rgba(255,40,40,0.15), 0 0 80px rgba(0,0,0,0.8); }
+  #ui-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; justify-content: center; align-items: center;
+    pointer-events: none; z-index: 10;
+  }
+  #ui-overlay.active { pointer-events: all; background: rgba(0,0,0,0.6); }
+  #menu {
+    display: none; text-align: center; color: #fff;
+    background: rgba(20,20,40,0.95); padding: 40px 60px; border-radius: 16px;
+    border: 2px solid #f44;
+  }
+  #menu h1 { font-size: 36px; color: #f66; margin-bottom: 8px; }
+  #menu h2 { font-size: 18px; color: #aaa; margin-bottom: 24px; font-weight: normal; }
+  #menu p { color: #ccc; margin-bottom: 6px; font-size: 14px; }
+  #menu button {
+    margin-top: 20px; padding: 12px 32px; font-size: 18px;
+    background: #d33; color: #fff; border: none; border-radius: 8px; cursor: pointer;
+  }
+  #menu button:hover { background: #f44; }
+  #hud {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    color: #ddd; font-size: 13px; z-index: 5; display: flex; gap: 24px;
+    background: linear-gradient(180deg, rgba(20,0,0,0.8), rgba(0,0,0,0.7));
+    padding: 10px 24px; border-radius: 10px;
+    border: 1px solid rgba(255,80,80,0.3);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    font-family: 'Segoe UI', sans-serif; letter-spacing: 0.5px;
+  }
+  .hud-item span { color: #f66; font-weight: bold; text-shadow: 0 0 8px rgba(255,80,80,0.4); }
+  #abilities-bar {
+    display: none !important;
+  }
+  .ability-slot {
+    width: 52px; height: 52px; background: rgba(0,0,0,0.7); border: 2px solid #555;
+    border-radius: 8px; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; color: #fff; font-size: 10px; position: relative;
+  }
+  .ability-slot.active { border-color: #f44; background: rgba(180,30,30,0.5); }
+  .ability-slot.locked { opacity: 0.3; }
+  .ability-slot .key { font-size: 11px; color: #ff8; font-weight: bold; }
+  .ability-slot .icon { font-size: 20px; }
+  .ability-slot .cooldown-overlay {
+    position: absolute; bottom: 0; left: 0; width: 100%;
+    background: rgba(0,0,0,0.7); transition: height 0.1s;
+  }
+  #phase-announce {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    color: #f44; font-size: 48px; font-weight: bold; z-index: 20;
+    text-shadow: 0 0 20px #f00, 0 0 60px #900, 0 0 100px #600;
+    letter-spacing: 4px; display: none;
+    animation: pulse 0.5s ease-in-out infinite alternate;
+  }
+  @keyframes pulse { from { transform: translate(-50%,-50%) scale(1); } to { transform: translate(-50%,-50%) scale(1.1); } }
+
+  /* Side buttons */
+  .side-buttons {
+    position: absolute;
+    display: none; flex-direction: row; flex-wrap: wrap; gap: 6px; z-index: 6;
+    justify-content: center;
+  }
+  .side-buttons.left {
+    bottom: 12px; left: 12px;
+  }
+  .side-buttons.right {
+    bottom: 12px; left: 50%; transform: translateX(-50%);
+    max-width: 90vw;
+  }
+  .side-btn {
+    width: 50px; height: 50px; border-radius: 10px; border: 2px solid rgba(255,80,80,0.3);
+    background: linear-gradient(180deg, rgba(40,10,10,0.85), rgba(20,0,0,0.9));
+    color: #fff; font-size: 18px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none; -webkit-user-select: none;
+    transition: all 0.15s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .side-btn:hover { border-color: rgba(255,100,100,0.6); transform: scale(1.05); }
+  .side-btn:active, .side-btn.pressed {
+    background: linear-gradient(180deg, rgba(200,40,40,0.8), rgba(120,20,20,0.9));
+    border-color: #f44; transform: scale(0.95);
+    box-shadow: 0 0 15px rgba(255,60,60,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+  }
+  .side-btn .btn-label { font-size: 10px; color: #aaa; margin-top: 2px; }
+  .side-btn.locked { opacity: 0.25; pointer-events: none; }
+  .side-btn .btn-cd {
+    position: absolute; bottom: 0; left: 0; width: 100%;
+    background: rgba(0,0,0,0.7); border-radius: 0 0 12px 12px;
+    pointer-events: none;
+  }
+  .side-btn { position: relative; overflow: hidden; }
+  #surrender-btn {
+    position: absolute; top: 12px; right: 12px; z-index: 6;
+    display: none; padding: 8px 16px; font-size: 13px;
+    background: linear-gradient(180deg, rgba(80,10,10,0.85), rgba(40,0,0,0.9));
+    color: #f88; border: 1px solid rgba(255,80,80,0.3); border-radius: 8px;
+    cursor: pointer; font-family: 'Segoe UI', sans-serif;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    transition: all 0.15s ease;
+  }
+  #surrender-btn:hover { background: rgba(150,20,20,0.9); color: #fff; border-color: #f44; transform: scale(1.05); }
+</style>
+</head>
+<body>
+
+<canvas id="game" width="800" height="500"></canvas>
+
+<div id="hud" style="display:none">
+  <div class="hud-item">Phase: <span id="hud-phase">1</span></div>
+  <div class="hud-item">Boss HP: <span id="hud-boss-hp">100</span></div>
+  <div class="hud-item">Hero HP: <span id="hud-hero-hp">50</span></div>
+  <div class="hud-item">Hero Defeated: <span id="hud-kills">0</span>x</div>
+  <div class="hud-item">Lives: <span id="hud-lives">20</span></div>
+</div>
+
+<div id="abilities-bar" style="display:none"></div>
+<div id="phase-announce"></div>
+<button id="surrender-btn">🏳️ I Surrender</button>
+<button id="demon-army-btn" style="display:none; position:absolute; top:12px; right:160px; z-index:6;
+  padding:8px 16px; font-size:13px; cursor:pointer; font-family:'Segoe UI',sans-serif;
+  background:linear-gradient(180deg, rgba(100,0,30,0.9), rgba(50,0,10,0.95));
+  color:#f44; border:1px solid rgba(255,40,40,0.5); border-radius:8px;
+  box-shadow:0 2px 15px rgba(255,0,0,0.3); transition:all 0.15s ease;">
+  👹 Summon Demon Army
+</button>
+<button id="hero-surrender-btn" style="display:none; position:absolute; top:12px; right:340px; z-index:6;
+  padding:8px 16px; font-size:13px; cursor:pointer; font-family:'Segoe UI',sans-serif;
+  background:linear-gradient(180deg, rgba(10,30,100,0.9), rgba(0,10,50,0.95));
+  color:#8cf; border:1px solid rgba(80,150,255,0.5); border-radius:8px;
+  box-shadow:0 2px 15px rgba(0,100,255,0.3); transition:all 0.15s ease;">
+  ⚔️ Hero Surrenders
+</button>
+<button id="summon-wizard-btn" style="display:none; position:absolute; top:12px; right:160px; z-index:6;
+  padding:8px 16px; font-size:13px; cursor:pointer; font-family:'Segoe UI',sans-serif;
+  background:linear-gradient(180deg, rgba(40,10,100,0.9), rgba(20,0,60,0.95));
+  color:#c8f; border:1px solid rgba(160,80,255,0.5); border-radius:8px;
+  box-shadow:0 2px 15px rgba(100,0,255,0.3); transition:all 0.15s ease;">
+  🧙 Summon Wizard
+</button>
+
+<!-- Left side: movement buttons -->
+<div class="side-buttons left" id="move-buttons">
+  <div class="side-btn" data-key="w" id="btn-jump">⬆<div class="btn-label">Jump</div></div>
+  <div class="side-btn" data-key="a" id="btn-left">⬅<div class="btn-label">Left</div></div>
+  <div class="side-btn" data-key="d" id="btn-right">➡<div class="btn-label">Right</div></div>
+</div>
+
+<!-- Right side: ability buttons -->
+<div class="side-buttons right" id="ability-buttons">
+  <div class="side-btn" data-ability="Punch" data-key="j" id="abtn-Punch">👊<div class="btn-label">Punch</div><div class="btn-cd" id="bcd-Punch"></div></div>
+  <div class="side-btn locked" data-ability="Fireball" data-key="k" id="abtn-Fireball">🔥<div class="btn-label">Fireball</div><div class="btn-cd" id="bcd-Fireball"></div></div>
+  <div class="side-btn locked" data-ability="Stomp" data-key="l" id="abtn-Stomp">💥<div class="btn-label">Stomp</div><div class="btn-cd" id="bcd-Stomp"></div></div>
+  <div class="side-btn locked" data-ability="Dark Beam" data-key=";" id="abtn-Dark Beam">⚡<div class="btn-label">Beam</div><div class="btn-cd" id="bcd-Dark Beam"></div></div>
+  <div class="side-btn locked" data-ability="Ice Spike" data-key="1" id="abtn-Ice Spike">🧊<div class="btn-label">Ice</div><div class="btn-cd" id="bcd-Ice Spike"></div></div>
+  <div class="side-btn locked" data-ability="Teleport" data-key="2" id="abtn-Teleport">🌀<div class="btn-label">Tele</div><div class="btn-cd" id="bcd-Teleport"></div></div>
+  <div class="side-btn locked" data-ability="Meteor" data-key="3" id="abtn-Meteor">☄️<div class="btn-label">Meteor</div><div class="btn-cd" id="bcd-Meteor"></div></div>
+  <div class="side-btn locked" data-ability="Black Hole" data-key="4" id="abtn-Black Hole">🕳️<div class="btn-label">B.Hole</div><div class="btn-cd" id="bcd-Black Hole"></div></div>
+  <div class="side-btn locked" data-ability="Lightning" data-key="5" id="abtn-Lightning">🌩️<div class="btn-label">Zap</div><div class="btn-cd" id="bcd-Lightning"></div></div>
+  <div class="side-btn locked" data-ability="Poison Cloud" data-key="6" id="abtn-Poison Cloud">☠️<div class="btn-label">Poison</div><div class="btn-cd" id="bcd-Poison Cloud"></div></div>
+  <div class="side-btn locked" data-ability="Clone" data-key="7" id="abtn-Clone">👥<div class="btn-label">Clone</div><div class="btn-cd" id="bcd-Clone"></div></div>
+  <div class="side-btn locked" data-ability="Earthquake" data-key="8" id="abtn-Earthquake">🌋<div class="btn-label">Quake</div><div class="btn-cd" id="bcd-Earthquake"></div></div>
+  <div class="side-btn locked" data-ability="Shield" data-key="9" id="abtn-Shield">🛡️<div class="btn-label">Shield</div><div class="btn-cd" id="bcd-Shield"></div></div>
+  <div class="side-btn locked" data-ability="Soul Drain" data-key="0" id="abtn-Soul Drain">💀<div class="btn-label">Drain</div><div class="btn-cd" id="bcd-Soul Drain"></div></div>
+  <div class="side-btn locked" data-ability="Tornado" data-key="q" id="abtn-Tornado">🌪️<div class="btn-label">Tornado</div><div class="btn-cd" id="bcd-Tornado"></div></div>
+  <div class="side-btn locked" data-ability="Laser Rain" data-key="e" id="abtn-Laser Rain">🔻<div class="btn-label">Lasers</div><div class="btn-cd" id="bcd-Laser Rain"></div></div>
+  <div class="side-btn locked" data-ability="Time Slow" data-key="r" id="abtn-Time Slow">⏳<div class="btn-label">Slow</div><div class="btn-cd" id="bcd-Time Slow"></div></div>
+  <div class="side-btn locked" data-ability="Explosion" data-key="f" id="abtn-Explosion">💣<div class="btn-label">Bomb</div><div class="btn-cd" id="bcd-Explosion"></div></div>
+  <div class="side-btn locked" data-ability="Dragon Breath" data-key="g" id="abtn-Dragon Breath">🐉<div class="btn-label">Dragon</div><div class="btn-cd" id="bcd-Dragon Breath"></div></div>
+  <div class="side-btn locked" data-ability="Final Wrath" data-key="h" id="abtn-Final Wrath">👹<div class="btn-label">Wrath</div><div class="btn-cd" id="bcd-Final Wrath"></div></div>
+</div>
+
+<!-- Game Over overlay -->
+<div id="gameover-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:30; display:none; justify-content:center; align-items:center;">
+  <div id="gameover-box" style="text-align:center; color:#fff; background:rgba(20,20,40,0.95); padding:40px 60px; border-radius:16px; border:2px solid #f44;">
+    <h1 id="gameover-title" style="font-size:36px; color:#f66; margin-bottom:8px;"></h1>
+    <p id="gameover-text" style="color:#ccc; margin-bottom:6px; font-size:16px;"></p>
+    <p id="gameover-stats" style="color:#aaa; font-size:14px; margin-bottom:16px;"></p>
+    <button id="restart-btn" style="margin-top:20px; padding:12px 32px; font-size:18px; background:#d33; color:#fff; border:none; border-radius:8px; cursor:pointer;">PLAY AGAIN</button>
+  </div>
+</div>
+
+<div id="ui-overlay" class="active">
+  <div id="menu" style="display:block">
+    <h1>BOSS FLIP</h1>
+    <h2>You Are The Boss.</h2>
+    <p>A brave AI hero keeps coming to defeat you.</p>
+    <p>Beat them — but they get stronger each time.</p>
+    <p>If they defeat YOU, enter a new phase with new powers!</p>
+    <br>
+    <p><b>Move:</b> A/D or Arrow Keys &nbsp; <b>Jump:</b> W or Up</p>
+    <p><b>Punch:</b> J &nbsp; <b>Abilities:</b> K, L, ;, 1, 2, 3, 4 (unlock in later phases)</p>
+    <p>You have 20 lives. Stand still too long and the hero quits!</p>
+    <button id="start-btn">👹 Play as Boss</button>
+    <button id="start-hero-btn" style="margin-top:10px; padding:12px 32px; font-size:18px;
+      background:#26a; color:#fff; border:none; border-radius:8px; cursor:pointer; display:block; margin-left:auto; margin-right:auto;">
+      ⚔️ Play as Hero</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const GROUND = H - 60;
+const GRAVITY = 0.6;
+
+// ── State ──
+let gameRunning = false;
+let phase = 1;
+let heroDefeats = 0; // how many times boss defeated the hero
+let boss, hero, particles, projectiles, shockwaves;
+let keys = {};
+let phaseTransitioning = false;
+let playMode = 'boss'; // 'boss' or 'hero'
+let bossDeaths = 0;
+const MAX_BOSS_DEATHS = 20;
+let bossIdleTime = 0; // frames boss hasn't moved
+const AFK_QUIT_TIME = 600; // ~10 seconds at 60fps
+let heroQuitting = false;
+let heroQuitTimer = 0;
+let screenShake = 0;
+let screenShakeX = 0;
+let screenShakeY = 0;
+let hitFlash = 0;
+let comboCount = 0;
+let comboTimer = 0;
+let embers = [];
+let frameCount = 0;
+
+// ── Cutscene System ──
+let cutscene = null; // { lines: [{speaker, text, color}], current: 0, charIdx: 0, timer: 0, onDone: fn }
+
+function startCutscene(lines, onDone) {
+  cutscene = { lines, current: 0, charIdx: 0, timer: 0, waitTimer: 0, onDone: onDone || null };
+  phaseTransitioning = true;
+}
+
+function updateCutscene() {
+  if (!cutscene) return;
+  let line = cutscene.lines[cutscene.current];
+  if (cutscene.waitTimer > 0) {
+    cutscene.waitTimer--;
+    if (cutscene.waitTimer <= 0) {
+      cutscene.current++;
+      if (cutscene.current >= cutscene.lines.length) {
+        let done = cutscene.onDone;
+        cutscene = null;
+        phaseTransitioning = false;
+        if (done) done();
+        return;
+      }
+      cutscene.charIdx = 0;
+      cutscene.timer = 0;
+    }
+    return;
+  }
+  cutscene.timer++;
+  if (cutscene.timer % 2 === 0 && cutscene.charIdx < line.text.length) {
+    cutscene.charIdx++;
+  }
+  // Auto advance when fully typed
+  if (cutscene.charIdx >= line.text.length) {
+    if (cutscene.waitTimer <= 0) cutscene.waitTimer = line.wait || 80;
+  }
+  // Skip on click/key
+  if (keys[' '] || keys['enter']) {
+    if (cutscene.charIdx < line.text.length) {
+      cutscene.charIdx = line.text.length;
+    } else {
+      cutscene.waitTimer = 1;
+    }
+    keys[' '] = false;
+    keys['enter'] = false;
+  }
+}
+
+function drawCutscene() {
+  if (!cutscene) return;
+  let line = cutscene.lines[cutscene.current];
+  let displayText = line.text.substring(0, cutscene.charIdx);
+
+  // Dark overlay
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Dialogue box
+  let boxH = 80;
+  let boxY = H - boxH - 20;
+  ctx.fillStyle = 'rgba(10,5,20,0.92)';
+  ctx.strokeStyle = line.color || '#f44';
+  ctx.lineWidth = 2;
+  roundRect(ctx, 30, boxY, W - 60, boxH, 12);
+  ctx.fill();
+  ctx.stroke();
+
+  // Speaker name
+  ctx.fillStyle = line.color || '#f44';
+  ctx.font = 'bold 14px "Segoe UI", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.shadowColor = line.color || '#f44';
+  ctx.shadowBlur = 8;
+  ctx.fillText(line.speaker, 50, boxY + 22);
+  ctx.shadowBlur = 0;
+
+  // Dialogue text with typewriter
+  ctx.fillStyle = '#eee';
+  ctx.font = '15px "Segoe UI", sans-serif';
+  ctx.fillText(displayText, 50, boxY + 48);
+
+  // Skip hint
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('[SPACE to skip]', W - 45, boxY + 68);
+  ctx.textAlign = 'left';
+}
+
+// Init embers
+for (let i = 0; i < 50; i++) {
+  embers.push({
+    x: Math.random() * 800, y: Math.random() * 500,
+    vx: (Math.random() - 0.5) * 0.5, vy: -0.5 - Math.random() * 1.5,
+    size: 1 + Math.random() * 3, life: Math.random() * 200,
+    maxLife: 100 + Math.random() * 200,
+    color: Math.random() < 0.5 ? '#f80' : (Math.random() < 0.5 ? '#f44' : '#fa0')
+  });
+}
+
+// ── Abilities Definition ──
+const ABILITIES = [
+  { name: 'Punch', icon: '👊', key: 'j', description: 'Melee punch', phase: 1, cooldown: 400 },
+  { name: 'Fireball', icon: '🔥', key: 'k', description: 'Ranged fireball', phase: 2, cooldown: 1200 },
+  { name: 'Stomp', icon: '💥', key: 'l', description: 'Ground shockwave', phase: 3, cooldown: 2000 },
+  { name: 'Dark Beam', icon: '⚡', key: ';', description: 'Piercing beam', phase: 4, cooldown: 2500 },
+  { name: 'Ice Spike', icon: '🧊', key: '1', description: 'Freeze + damage', phase: 5, cooldown: 1800 },
+  { name: 'Teleport', icon: '🌀', key: '2', description: 'Teleport behind hero', phase: 6, cooldown: 3000 },
+  { name: 'Meteor', icon: '☄️', key: '3', description: 'Meteor from sky', phase: 7, cooldown: 3500 },
+  { name: 'Black Hole', icon: '🕳️', key: '4', description: 'Pull hero in + damage', phase: 8, cooldown: 4000 },
+  { name: 'Lightning', icon: '🌩️', key: '5', description: 'Lightning strikes hero', phase: 9, cooldown: 1500 },
+  { name: 'Poison Cloud', icon: '☠️', key: '6', description: 'Toxic cloud zone', phase: 10, cooldown: 3000 },
+  { name: 'Clone', icon: '👥', key: '7', description: 'Spawn a clone that punches', phase: 11, cooldown: 5000 },
+  { name: 'Earthquake', icon: '🌋', key: '8', description: 'Screen-wide ground shake', phase: 12, cooldown: 4000 },
+  { name: 'Shield', icon: '🛡️', key: '9', description: 'Block next hit', phase: 13, cooldown: 6000 },
+  { name: 'Soul Drain', icon: '💀', key: '0', description: 'Steal hero HP', phase: 14, cooldown: 3500 },
+  { name: 'Tornado', icon: '🌪️', key: 'q', description: 'Spinning projectile', phase: 15, cooldown: 2800 },
+  { name: 'Laser Rain', icon: '🔻', key: 'e', description: 'Lasers from above', phase: 16, cooldown: 3200 },
+  { name: 'Time Slow', icon: '⏳', key: 'r', description: 'Slow hero down', phase: 17, cooldown: 5000 },
+  { name: 'Explosion', icon: '💣', key: 'f', description: 'Huge area blast', phase: 18, cooldown: 4500 },
+  { name: 'Dragon Breath', icon: '🐉', key: 'g', description: 'Cone of fire', phase: 19, cooldown: 3000 },
+  { name: 'Final Wrath', icon: '👹', key: 'h', description: 'Ultimate nuke attack', phase: 20, cooldown: 8000 },
+];
+
+function getUnlockedAbilities() {
+  return ABILITIES.filter(a => a.phase <= phase);
+}
+
+// ── Entity Factories ──
+function createBoss() {
+  return {
+    x: 400, y: GROUND - 64, w: 48, h: 64,
+    vx: 0, vy: 0, onGround: false, facing: 1,
+    hp: 150 + (phase - 1) * 60,
+    maxHp: 150 + (phase - 1) * 60,
+    cooldowns: {},
+    punchAnim: 0,
+    hurtTimer: 0,
+    invincible: 120, // 2 seconds of invincibility after spawn
+    color: '#d33',
+  };
+}
+
+function createHero() {
+  let str = 1 + heroDefeats * 0.35;
+  let baseHp = 50 + heroDefeats * 20;
+  return {
+    x: 50, y: GROUND - 52, w: 40, h: 52,
+    vx: 0, vy: 0, onGround: false, facing: 1,
+    hp: baseHp, maxHp: baseHp,
+    speed: 1.6 + heroDefeats * 0.15,
+    damage: 4 + heroDefeats * 1,
+    jumpForce: -10 - heroDefeats * 0.15,
+    attackCooldown: 0,
+    attackRange: 55,
+    str: str,
+    color: '#38f',
+    hurtTimer: 0,
+    aiState: 'approach',
+    aiTimer: 0,
+    dodgeTimer: 0,
+    comboCount: 0,
+    frozen: 0,
+    spawnDelay: 120, // 2 seconds before hero starts fighting
+  };
+}
+
+function init() {
+  boss = createBoss();
+  hero = createHero();
+  particles = [];
+  projectiles = [];
+  shockwaves = [];
+}
+
+// ── Input ──
+window.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+// Click/tap on canvas to punch
+canvas.addEventListener('mousedown', e => {
+  if (!gameRunning) return;
+  keys['j'] = true;
+  setTimeout(() => { keys['j'] = false; }, 120);
+});
+canvas.addEventListener('touchstart', e => {
+  if (!gameRunning) return;
+  keys['j'] = true;
+  setTimeout(() => { keys['j'] = false; }, 120);
+});
+
+function startGame(mode) {
+  playMode = mode;
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('ui-overlay').classList.remove('active');
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('abilities-bar').style.display = 'flex';
+  document.getElementById('move-buttons').style.display = 'flex';
+  document.getElementById('ability-buttons').style.display = mode === 'boss' ? 'flex' : 'none';
+  document.getElementById('surrender-btn').style.display = mode === 'boss' ? 'block' : 'none';
+  document.getElementById('demon-army-btn').style.display = mode === 'boss' ? 'block' : 'none';
+  document.getElementById('hero-surrender-btn').style.display = mode === 'boss' ? 'block' : 'none';
+  document.getElementById('summon-wizard-btn').style.display = mode === 'hero' ? 'block' : 'none';
+  init();
+  if (mode === 'hero') {
+    hero.x = 50;
+    boss.x = 600;
+  }
+  gameRunning = true;
+  updateAbilitiesBar();
+  updateSideButtons();
+  loop();
+
+  if (mode === 'boss') {
+    startCutscene([
+      { speaker: 'NARRATOR', text: 'Deep in the infernal throne room, the Demon Lord awaits...', color: '#aaa', wait: 70 },
+      { speaker: 'DEMON LORD (You)', text: 'Another hero dares to challenge me? How amusing.', color: '#f44', wait: 70 },
+      { speaker: 'HERO', text: 'Your reign of terror ends today, demon!', color: '#4af', wait: 70 },
+      { speaker: 'DEMON LORD (You)', text: 'Then come... and face your doom.', color: '#f44', wait: 60 },
+      { speaker: 'NARRATOR', text: 'The battle begins! Defeat the hero — but beware, he grows stronger each time...', color: '#aaa', wait: 80 },
+    ]);
+  } else {
+    startCutscene([
+      { speaker: 'NARRATOR', text: 'A brave hero enters the demon\'s lair...', color: '#aaa', wait: 70 },
+      { speaker: 'HERO (You)', text: 'Your evil ends here, demon! I will save this kingdom!', color: '#4af', wait: 70 },
+      { speaker: 'DEMON LORD', text: 'Ha! You think you can defeat ME? Come then, little hero.', color: '#f44', wait: 70 },
+      { speaker: 'NARRATOR', text: 'Defeat the Demon Lord! Use your sword and call upon allies!', color: '#aaa', wait: 80 },
+    ]);
+  }
+}
+
+document.getElementById('start-btn').addEventListener('click', () => startGame('boss'));
+document.getElementById('start-hero-btn').addEventListener('click', () => startGame('hero'));
+
+// Surrender button
+document.getElementById('surrender-btn').addEventListener('click', () => {
+  if (!gameRunning) return;
+  document.getElementById('surrender-btn').style.display = 'none';
+  boss.vx = 0; boss.vy = 0;
+  spawnParticles(boss.x + boss.w/2, boss.y + boss.h/2, '#88f', 15);
+
+  startCutscene([
+    { speaker: 'DEMON LORD (You)', text: '...I yield. You are too strong, hero.', color: '#f44', wait: 70 },
+    { speaker: 'HERO', text: 'It is over. The realm is free once more!', color: '#4af', wait: 70 },
+    { speaker: 'NARRATOR', text: 'The Demon Lord kneels. The kingdom is saved.', color: '#aaa', wait: 70 },
+    { speaker: 'NARRATOR', text: 'But at what cost? The hero looks upon the fallen demon with pity...', color: '#aaa', wait: 80 },
+  ], () => {
+    showGameOver('YOU SURRENDERED', 'The demon boss knelt before the hero. The realm is saved... by the hero.',
+      `Phase: ${phase} | Hero defeated: ${heroDefeats}x | Deaths: ${bossDeaths}`);
+  });
+});
+
+// Hero Surrenders button
+document.getElementById('hero-surrender-btn').addEventListener('click', () => {
+  if (!gameRunning) return;
+  document.getElementById('hero-surrender-btn').style.display = 'none';
+  hero.aiState = 'idle'; hero.vx = 0;
+  screenShake = 12;
+  spawnParticles(hero.x + hero.w/2, hero.y, '#8cf', 15);
+
+  startCutscene([
+    { speaker: 'DEMON LORD (You)', text: 'KNEEL BEFORE ME, HERO!', color: '#f44', wait: 60 },
+    { speaker: 'HERO', text: '...I... I cannot go on. You are too powerful.', color: '#4af', wait: 70 },
+    { speaker: 'DEMON LORD (You)', text: 'Your kingdom belongs to me now. Guards, take him away!', color: '#f44', wait: 70 },
+    { speaker: 'NARRATOR', text: 'The hero drops his sword and falls to his knees...', color: '#aaa', wait: 70 },
+    { speaker: 'HERO', text: 'Forgive me, kingdom... I have failed you.', color: '#4af', wait: 80 },
+    { speaker: 'DEMON LORD (You)', text: 'This world... is MINE.', color: '#f44', wait: 70 },
+  ], () => {
+    hero.vx = hero.x < W/2 ? -1 : 1;
+    hero.aiState = 'surrendered';
+    setTimeout(() => {
+      showGameOver('THE HERO SURRENDERED!', 'The brave hero has fallen to his knees. The demon rules forever. Total victory!',
+        `Phase: ${phase} | Hero defeated: ${heroDefeats}x | You forced the hero to surrender!`);
+    }, 2000);
+  });
+});
+
+// Summon Wizard button (hero mode)
+document.getElementById('summon-wizard-btn').addEventListener('click', () => {
+  if (!gameRunning || wizardSpawned) return;
+  document.getElementById('summon-wizard-btn').style.display = 'none';
+  spawnWizard();
+});
+
+// Demon Army button
+let demonArmy = [];
+let demonArmyActive = false;
+let demonArmyMessages = [];
+let heroRefuseTimer = 0;
+
+document.getElementById('demon-army-btn').addEventListener('click', () => {
+  if (!gameRunning || demonArmyActive) return;
+  document.getElementById('demon-army-btn').style.display = 'none';
+  screenShake = 20;
+
+  startCutscene([
+    { speaker: 'DEMON LORD (You)', text: 'Enough! I summon my DEMON ARMY!', color: '#f44', wait: 60 },
+    { speaker: 'DEMON LORD (You)', text: 'You will kneel before us! We will throw you in a cell for all eternity!', color: '#f44', wait: 80 },
+    { speaker: 'DEMON LORD (You)', text: 'SURRENDER NOW, HERO!', color: '#f44', wait: 60 },
+    { speaker: 'HERO', text: '...', color: '#4af', wait: 40 },
+    { speaker: 'HERO', text: 'I will NEVER surrender! No matter how many demons you throw at me!', color: '#4af', wait: 70 },
+    { speaker: 'NARRATOR', text: 'The ground trembles as demons pour from the underworld...', color: '#aaa', wait: 70 },
+  ], () => {
+    demonArmyActive = true;
+    screenShake = 15;
+    // Spawn demon army soldiers over time
+    for (let i = 0; i < 12; i++) {
+      setTimeout(() => {
+        if (!gameRunning) return;
+        let side = Math.random() < 0.5 ? -40 : W + 40;
+        demonArmy.push({
+          x: side, y: GROUND - 44, w: 32, h: 44,
+          vx: 0, vy: 0, hp: 45 + phase * 10, maxHp: 45 + phase * 10,
+          facing: side < 0 ? 1 : -1,
+          speed: 2.2 + Math.random() * 1.8,
+          attackCooldown: 0, hurtTimer: 0,
+          damage: 10 + phase * 3
+        });
+        spawnParticles(side < 0 ? 30 : W - 30, GROUND - 30, '#f40', 8);
+        screenShake = 5;
+      }, i * 500);
+    }
+    // Hero power boost
+    hero.hp = hero.maxHp;
+    spawnParticles(hero.x + hero.w/2, hero.y, '#4af', 15);
+  });
+});
+
+function updateDemonArmy() {
+  if (!demonArmyActive) return;
+
+  for (let i = demonArmy.length - 1; i >= 0; i--) {
+    let d = demonArmy[i];
+    // Chase hero
+    let dx = hero.x - d.x;
+    let dir = dx > 0 ? 1 : -1;
+    d.facing = dir;
+    d.vx = dir * d.speed;
+    d.x += d.vx;
+    d.vy += GRAVITY;
+    d.y += d.vy;
+    if (d.y + d.h > GROUND) { d.y = GROUND - d.h; d.vy = 0; }
+    if (d.x < -60) d.x = -60;
+    if (d.x + d.w > W + 60) d.x = W + 60;
+    if (d.hurtTimer > 0) d.hurtTimer--;
+    if (d.attackCooldown > 0) d.attackCooldown--;
+
+    // Attack hero if close
+    if (Math.abs(dx) < 35 && d.attackCooldown <= 0) {
+      damageHero(d.damage, dir * 3);
+      d.attackCooldown = 40;
+      spawnParticles(hero.x + hero.w/2, hero.y + hero.h/2, '#f80', 4);
+    }
+
+    // Hero fights back — hero attacks nearby demons
+    let heroDist = Math.abs(hero.x + hero.w/2 - d.x - d.w/2);
+    if (heroDist < 50 && hero.attackCooldown <= 0) {
+      // Hero hits this demon
+    }
+
+    // Remove dead demons
+    if (d.hp <= 0) {
+      spawnParticles(d.x + d.w/2, d.y + d.h/2, '#f40', 12);
+      demonArmy.splice(i, 1);
+    }
+  }
+
+  // Let the hero attack demons (simulate hero fighting them too)
+  if (hero.x > -100 && frameCount % 20 === 0) {
+    for (let d of demonArmy) {
+      let dist = Math.abs(hero.x + hero.w/2 - d.x - d.w/2);
+      if (dist < 55) {
+        d.hp -= hero.damage * 0.3;
+        d.hurtTimer = 8;
+        spawnParticles(d.x + d.w/2, d.y + d.h/2, '#8cf', 4);
+      }
+    }
+  }
+}
+
+function drawDemonArmy() {
+  for (let d of demonArmy) {
+    let shake = d.hurtTimer > 0 ? (Math.random()-0.5)*3 : 0;
+    let dx = d.x + shake;
+    let dy = d.y;
+    let dcx = dx + d.w/2;
+    let skinCol = d.hurtTimer > 0 ? '#faa' : '#6a1010';
+    let darkCol = '#400';
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(dcx, GROUND + 2, d.w/2 + 2, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body
+    ctx.fillStyle = skinCol;
+    ctx.beginPath();
+    ctx.moveTo(dcx - 10, dy + 14);
+    ctx.lineTo(dcx + 10, dy + 14);
+    ctx.lineTo(dcx + 8, dy + 34);
+    ctx.lineTo(dcx - 8, dy + 34);
+    ctx.closePath();
+    ctx.fill();
+
+    // Head
+    ctx.beginPath();
+    ctx.arc(dcx, dy + 10, 9, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Small horns
+    ctx.fillStyle = darkCol;
+    ctx.beginPath();
+    ctx.moveTo(dcx - 6, dy + 4);
+    ctx.lineTo(dcx - 9, dy - 4);
+    ctx.lineTo(dcx - 3, dy + 5);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(dcx + 6, dy + 4);
+    ctx.lineTo(dcx + 9, dy - 4);
+    ctx.lineTo(dcx + 3, dy + 5);
+    ctx.fill();
+
+    // Eyes — glowing
+    ctx.fillStyle = '#f80';
+    ctx.shadowColor = '#f40';
+    ctx.shadowBlur = 5;
+    ctx.beginPath();
+    ctx.arc(dcx - 3, dy + 9, 2, 0, Math.PI * 2);
+    ctx.arc(dcx + 3, dy + 9, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Legs
+    ctx.strokeStyle = skinCol;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    let legWalk = Math.sin(Date.now()/100 + d.x) * 4;
+    ctx.beginPath();
+    ctx.moveTo(dcx - 4, dy + 34);
+    ctx.lineTo(dcx - 4 + legWalk, dy + d.h);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(dcx + 4, dy + 34);
+    ctx.lineTo(dcx + 4 - legWalk, dy + d.h);
+    ctx.stroke();
+
+    // Arms
+    ctx.beginPath();
+    ctx.moveTo(dcx - 10, dy + 16);
+    ctx.lineTo(dcx - 14 + Math.sin(Date.now()/150 + d.x)*3, dy + 26);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(dcx + 10, dy + 16);
+    ctx.lineTo(dcx + 14 - Math.sin(Date.now()/150 + d.x)*3, dy + 26);
+    ctx.stroke();
+
+    // Mini HP bar
+    if (d.hp < d.maxHp) {
+      let pct = Math.max(0, d.hp / d.maxHp);
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(dcx - 12, dy - 6, 24, 3);
+      ctx.fillStyle = '#f44';
+      ctx.fillRect(dcx - 12, dy - 6, 24 * pct, 3);
+    }
+  }
+}
+
+// ── Wizard Ally ──
+let wizard = null;
+let wizardSpawned = false;
+let wizardSpellTimer = 0;
+let wizardAnnounceTimer = 0;
+
+function spawnWizard() {
+  if (wizardSpawned) return;
+  wizardSpawned = true;
+  wizardAnnounceTimer = 180;
+
+  let side = hero.x < W / 2 ? 0 : W;
+  wizard = {
+    x: side, y: GROUND - 56, w: 36, h: 56,
+    vx: 0, vy: 0, onGround: true, facing: side === 0 ? 1 : -1,
+    hp: 35 + phase * 5, maxHp: 35 + phase * 5,
+    hurtTimer: 0,
+    spellCooldown: 0,
+    orbAngle: 0
+  };
+
+  spawnParticles(wizard.x + wizard.w / 2, wizard.y + wizard.h / 2, '#a0f', 15);
+  spawnParticles(wizard.x + wizard.w / 2, wizard.y + wizard.h / 2, '#fff', 10);
+  screenShake = 8;
+
+  startCutscene([
+    { speaker: 'NARRATOR', text: 'A magical presence stirs in the air...', color: '#aaa', wait: 60 },
+    { speaker: 'WIZARD', text: 'Hero! I have come to aid you! My spells shall weaken this demon!', color: '#c8f', wait: 70 },
+    { speaker: 'HERO', text: 'Wizard! Together we can defeat him!', color: '#4af', wait: 60 },
+    { speaker: 'DEMON LORD (You)', text: 'A mere wizard? You will burn alongside the hero!', color: '#f44', wait: 60 },
+  ]);
+}
+
+function updateWizard() {
+  if (!wizard || wizard.hp <= 0) return;
+
+  // Float toward a position between hero and boss, staying behind hero
+  let targetX = hero.x - hero.facing * 80;
+  let dx = targetX - wizard.x;
+  wizard.vx = Math.sign(dx) * Math.min(Math.abs(dx) * 0.04, 2);
+  wizard.x += wizard.vx;
+  wizard.facing = boss.x > wizard.x ? 1 : -1;
+
+  wizard.vy += GRAVITY;
+  wizard.y += wizard.vy;
+  if (wizard.y + wizard.h > GROUND) { wizard.y = GROUND - wizard.h; wizard.vy = 0; wizard.onGround = true; }
+  if (wizard.x < 0) wizard.x = 0;
+  if (wizard.x + wizard.w > W) wizard.x = W - wizard.w;
+
+  if (wizard.hurtTimer > 0) wizard.hurtTimer--;
+  wizard.orbAngle += 0.05;
+
+  // Cast spells
+  if (wizard.spellCooldown > 0) { wizard.spellCooldown--; return; }
+
+  // Pick target — prefer demon army, else boss
+  let target = null;
+  let minDist = Infinity;
+
+  for (let d of demonArmy) {
+    let dist = Math.abs(d.x - wizard.x);
+    if (dist < minDist) { minDist = dist; target = d; }
+  }
+  if (!target || minDist > 300) {
+    target = boss;
+  }
+
+  if (target) {
+    let tx = target.x + (target.w || 48) / 2;
+    let ty = target.y + (target.h || 64) / 2;
+    let wx = wizard.x + wizard.w / 2;
+    let wy = wizard.y + 15;
+
+    // Choose spell type randomly
+    let spellType = Math.random();
+
+    if (spellType < 0.4) {
+      // Magic bolt
+      let angle = Math.atan2(ty - wy, tx - wx);
+      projectiles.push({
+        x: wx, y: wy, vx: Math.cos(angle) * 5, vy: Math.sin(angle) * 5,
+        w: 10, h: 10, damage: 3 + Math.floor(phase * 0.5),
+        color: '#c4f', life: 80, type: 'wizardbolt', owner: 'wizard'
+      });
+      spawnParticles(wx, wy, '#c4f', 4);
+    } else if (spellType < 0.7) {
+      // Arcane explosion at target
+      projectiles.push({
+        x: tx, y: ty, vx: 0, vy: 0, w: 0, h: 0, damage: 0,
+        color: '#a0f', life: 25, type: 'arcane_explosion', owner: 'wizard',
+        cx: tx, cy: ty, maxRadius: 60, radius: 0
+      });
+      // Damage in area
+      let dmg = 3 + Math.floor(phase * 0.5);
+      if (Math.abs(boss.x + boss.w/2 - tx) < 60 && Math.abs(boss.y + boss.h/2 - ty) < 60) {
+        damageBoss(dmg);
+      }
+      for (let d of demonArmy) {
+        if (Math.abs(d.x + d.w/2 - tx) < 60 && Math.abs(d.y + d.h/2 - ty) < 60) {
+          d.hp -= dmg;
+          d.hurtTimer = 8;
+          spawnParticles(d.x + d.w/2, d.y + d.h/2, '#c4f', 4);
+        }
+      }
+      spawnParticles(tx, ty, '#a0f', 10);
+    } else {
+      // Heal hero
+      if (hero.hp < hero.maxHp * 0.4) {
+        let healAmt = 3 + Math.floor(phase * 0.5);
+        hero.hp = Math.min(hero.maxHp, hero.hp + healAmt);
+        spawnParticles(hero.x + hero.w/2, hero.y + hero.h/2, '#0f0', 8);
+        // Heal line
+        projectiles.push({
+          x: wx, y: wy, tx: hero.x + hero.w/2, ty: hero.y + hero.h/2,
+          vx: 0, vy: 0, w: 0, h: 0, damage: 0,
+          color: '#0f0', life: 15, type: 'drainline', owner: 'wizard'
+        });
+      }
+    }
+
+    wizard.spellCooldown = 90 + Math.random() * 60;
+  }
+}
+
+function drawWizard() {
+  if (!wizard || wizard.hp <= 0) return;
+  let t = Date.now();
+  let w = wizard;
+  let hurt = w.hurtTimer > 0;
+  let shake = hurt ? (Math.random()-0.5)*4 : 0;
+  let wx = w.x + shake;
+  let wy = w.y;
+  let wcx = wx + w.w / 2;
+  let f = w.facing;
+  let breathe = Math.sin(t / 400) * 1.5;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(wcx, GROUND + 2, w.w / 2 + 4, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Robe
+  ctx.fillStyle = hurt ? '#ddf' : '#3030a0';
+  ctx.beginPath();
+  ctx.moveTo(wcx - 14, wy + 20);
+  ctx.lineTo(wcx + 14, wy + 20);
+  ctx.lineTo(wcx + 16, wy + w.h);
+  ctx.lineTo(wcx - 16, wy + w.h);
+  ctx.closePath();
+  ctx.fill();
+  // Robe trim
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(wcx - 16, wy + w.h);
+  ctx.lineTo(wcx + 16, wy + w.h);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(wcx, wy + 22);
+  ctx.lineTo(wcx, wy + w.h - 5);
+  ctx.stroke();
+
+  // Head
+  ctx.fillStyle = hurt ? '#fdd' : '#f5c5a3';
+  ctx.beginPath();
+  ctx.ellipse(wcx, wy + 14, 10, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Wizard hat
+  ctx.fillStyle = '#2020a0';
+  ctx.beginPath();
+  ctx.moveTo(wcx - 13, wy + 8);
+  ctx.lineTo(wcx, wy - 20);
+  ctx.lineTo(wcx + 13, wy + 8);
+  ctx.closePath();
+  ctx.fill();
+  // Hat brim
+  ctx.fillStyle = '#2020a0';
+  ctx.beginPath();
+  ctx.ellipse(wcx, wy + 8, 16, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Hat star
+  ctx.fillStyle = '#ffd700';
+  ctx.font = '8px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('★', wcx, wy - 4);
+
+  // Beard
+  ctx.fillStyle = '#ddd';
+  ctx.beginPath();
+  ctx.moveTo(wcx - 4, wy + 18);
+  ctx.quadraticCurveTo(wcx, wy + 32 + breathe, wcx + 4, wy + 18);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(wcx + f * 2 - 3, wy + 13, 2.5, 2, 0, 0, Math.PI * 2);
+  ctx.ellipse(wcx + f * 2 + 3, wy + 13, 2.5, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#40a';
+  ctx.beginPath();
+  ctx.arc(wcx + f * 3 - 3, wy + 13, 1.2, 0, Math.PI * 2);
+  ctx.arc(wcx + f * 3 + 3, wy + 13, 1.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Staff — right hand
+  let staffX = wcx + f * 16;
+  ctx.strokeStyle = '#654';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(staffX, wy + 18);
+  ctx.lineTo(staffX, wy + w.h + 2);
+  ctx.stroke();
+  // Staff orb
+  ctx.fillStyle = `rgba(180, 60, 255, ${0.6 + Math.sin(t/150)*0.3})`;
+  ctx.shadowColor = '#a0f';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.arc(staffX, wy + 15, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(staffX - 1, wy + 13, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Floating arcane orbs around wizard
+  for (let i = 0; i < 3; i++) {
+    let orbA = w.orbAngle + i * (Math.PI * 2 / 3);
+    let orbX = wcx + Math.cos(orbA) * 22;
+    let orbY = wy + 25 + Math.sin(orbA) * 10;
+    ctx.fillStyle = `rgba(160, 80, 255, ${0.4 + Math.sin(t/200 + i)*0.2})`;
+    ctx.shadowColor = '#a0f';
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.arc(orbX, orbY, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // Left arm (robe sleeve)
+  ctx.fillStyle = hurt ? '#ddf' : '#3030a0';
+  ctx.beginPath();
+  ctx.moveTo(wcx - 12, wy + 22);
+  ctx.lineTo(wcx - 18 + Math.sin(t/300)*3, wy + 34 + breathe);
+  ctx.lineTo(wcx - 12 + Math.sin(t/300)*3, wy + 36 + breathe);
+  ctx.lineTo(wcx - 8, wy + 24);
+  ctx.fill();
+  // Hand
+  ctx.fillStyle = hurt ? '#fdd' : '#f5c5a3';
+  ctx.beginPath();
+  ctx.arc(wcx - 16 + Math.sin(t/300)*3, wy + 35 + breathe, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Label
+  ctx.fillStyle = '#c8f';
+  ctx.shadowColor = '#a0f';
+  ctx.shadowBlur = 6;
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('WIZARD', wcx, wy - 22);
+  ctx.shadowBlur = 0;
+
+  // HP bar
+  drawHPBar(w, '#a0f');
+}
+
+// ── Side Button Handlers ──
+function setupSideButtons() {
+  // Movement buttons (hold to move)
+  document.querySelectorAll('#move-buttons .side-btn').forEach(btn => {
+    let key = btn.dataset.key;
+
+    btn.addEventListener('mousedown', e => { e.preventDefault(); keys[key] = true; btn.classList.add('pressed'); });
+    btn.addEventListener('mouseup', e => { keys[key] = false; btn.classList.remove('pressed'); });
+    btn.addEventListener('mouseleave', e => { keys[key] = false; btn.classList.remove('pressed'); });
+
+    btn.addEventListener('touchstart', e => { e.preventDefault(); keys[key] = true; btn.classList.add('pressed'); });
+    btn.addEventListener('touchend', e => { e.preventDefault(); keys[key] = false; btn.classList.remove('pressed'); });
+    btn.addEventListener('touchcancel', e => { keys[key] = false; btn.classList.remove('pressed'); });
+  });
+
+  // Ability buttons (press to fire)
+  document.querySelectorAll('#ability-buttons .side-btn').forEach(btn => {
+    let key = btn.dataset.key;
+
+    function fireAbility(e) {
+      e.preventDefault();
+      keys[key] = true;
+      btn.classList.add('pressed');
+      setTimeout(() => { keys[key] = false; btn.classList.remove('pressed'); }, 120);
+    }
+
+    btn.addEventListener('mousedown', fireAbility);
+    btn.addEventListener('touchstart', fireAbility);
+  });
+}
+setupSideButtons();
+
+function updateSideButtons() {
+  for (let ab of ABILITIES) {
+    let btn = document.getElementById('abtn-' + ab.name);
+    if (!btn) continue;
+    if (ab.phase <= phase) {
+      btn.classList.remove('locked');
+    } else {
+      btn.classList.add('locked');
+    }
+  }
+}
+
+function updateSideButtonCooldowns() {
+  let now = Date.now();
+  for (let ab of ABILITIES) {
+    let el = document.getElementById('bcd-' + ab.name);
+    if (!el) continue;
+    let cd = boss.cooldowns[ab.name];
+    if (cd && now < cd) {
+      let pct = (cd - now) / ab.cooldown;
+      el.style.height = (pct * 100) + '%';
+    } else {
+      el.style.height = '0%';
+    }
+  }
+}
+
+// ── Boss Movement ──
+function updateBoss(dt) {
+  if (phaseTransitioning) return;
+
+  if (playMode === 'boss') {
+    // Player controls boss
+    let anyInput = keys['a'] || keys['d'] || keys['w'] || keys['arrowleft'] || keys['arrowright'] || keys['arrowup'] || keys['j'] || keys['k'] || keys['l'] || keys[';'] || keys['1'] || keys['2'] || keys['3'] || keys['4'] || keys['5'] || keys['6'] || keys['7'] || keys['8'] || keys['9'] || keys['0'] || keys['q'] || keys['e'] || keys['r'] || keys['f'] || keys['g'] || keys['h'];
+    if (anyInput) { bossIdleTime = 0; } else {
+      bossIdleTime++;
+      if (bossIdleTime >= AFK_QUIT_TIME && !heroQuitting && hero.x > -100) heroQuits();
+    }
+
+    let speed = 4;
+    if (keys['a'] || keys['arrowleft']) { boss.vx = -speed; boss.facing = -1; }
+    else if (keys['d'] || keys['arrowright']) { boss.vx = speed; boss.facing = 1; }
+    else { boss.vx = 0; }
+    if ((keys['w'] || keys['arrowup']) && boss.onGround) { boss.vy = -12; boss.onGround = false; }
+
+    let now = Date.now();
+    let unlocked = getUnlockedAbilities();
+    for (let ab of unlocked) {
+      if (keys[ab.key] && (!boss.cooldowns[ab.name] || now > boss.cooldowns[ab.name])) {
+        useAbility(ab, now);
+      }
+    }
+  } else {
+    // AI controls boss in hero mode
+    updateBossAI();
+  }
+
+  boss.vy += GRAVITY;
+  boss.x += boss.vx;
+  boss.y += boss.vy;
+
+  if (boss.y + boss.h > GROUND) { boss.y = GROUND - boss.h; boss.vy = 0; boss.onGround = true; }
+  if (boss.x < 0) boss.x = 0;
+  if (boss.x + boss.w > W) boss.x = W - boss.w;
+
+  if (boss.hurtTimer > 0) boss.hurtTimer--;
+  if (boss.punchAnim > 0) boss.punchAnim--;
+  if (boss.invincible && boss.invincible > 0) boss.invincible--;
+  if (boss.shield && boss.shieldTimer > 0) { boss.shieldTimer--; if (boss.shieldTimer <= 0) boss.shield = false; }
+}
+
+// ── Boss AI (for hero mode) ──
+function updateBossAI() {
+  if (!boss.aiTimer) boss.aiTimer = 0;
+  if (!boss.aiState) boss.aiState = 'idle';
+  if (!boss.armyTimer) boss.armyTimer = 0;
+  boss.aiTimer--;
+
+  // Boss AI spawns demon army after some time in hero mode
+  if (!demonArmyActive && playMode === 'hero') {
+    boss.armyTimer++;
+    if (boss.armyTimer > 600 + Math.random() * 300) { // ~10-15 seconds
+      demonArmyActive = true;
+      screenShake = 10;
+      let ann = document.getElementById('phase-announce');
+      ann.style.display = 'block';
+      ann.style.fontSize = '20px';
+      ann.style.color = '#f44';
+      ann.textContent = '"RISE, MY DEMON ARMY!"';
+      setTimeout(() => { if (gameRunning) { ann.style.display = 'none'; ann.style.color = '#f44'; ann.style.fontSize = '48px'; } }, 2000);
+      for (let i = 0; i < 8; i++) {
+        setTimeout(() => {
+          if (!gameRunning) return;
+          let side = Math.random() < 0.5 ? -40 : W + 40;
+          demonArmy.push({
+            x: side, y: GROUND - 44, w: 32, h: 44,
+            vx: 0, vy: 0, hp: 45 + phase * 10, maxHp: 45 + phase * 10,
+            facing: side < 0 ? 1 : -1, speed: 2.2 + Math.random() * 1.8,
+            attackCooldown: 0, hurtTimer: 0, damage: 10 + phase * 3
+          });
+          spawnParticles(side < 0 ? 30 : W - 30, GROUND - 30, '#f40', 6);
+        }, i * 500);
+      }
+      boss.armyTimer = -9999; // don't spawn again
+    }
+  }
+
+  let dx = hero.x - boss.x;
+  let dist = Math.abs(dx);
+  let dir = dx > 0 ? 1 : -1;
+  boss.facing = dir;
+
+  if (boss.aiTimer <= 0) {
+    if (dist < 80) {
+      boss.aiState = Math.random() < 0.5 ? 'attack' : 'retreat';
+    } else if (dist < 250) {
+      boss.aiState = Math.random() < 0.6 ? 'approach' : 'ability';
+    } else {
+      boss.aiState = 'approach';
+    }
+    boss.aiTimer = 30 + Math.random() * 40;
+  }
+
+  let speed = 3;
+  switch (boss.aiState) {
+    case 'approach':
+      boss.vx = dir * speed;
+      if (boss.onGround && Math.random() < 0.02) { boss.vy = -10; boss.onGround = false; }
+      break;
+    case 'attack':
+      boss.vx = dir * speed * 0.5;
+      let now = Date.now();
+      let unlocked = getUnlockedAbilities();
+      // Use punch
+      let punch = unlocked.find(a => a.name === 'Punch');
+      if (punch && (!boss.cooldowns[punch.name] || now > boss.cooldowns[punch.name])) {
+        if (dist < 60) useAbility(punch, now);
+      }
+      break;
+    case 'ability':
+      boss.vx = dir * speed * 0.3;
+      let now2 = Date.now();
+      let abilities = getUnlockedAbilities().filter(a => a.name !== 'Punch' && (!boss.cooldowns[a.name] || now2 > boss.cooldowns[a.name]));
+      if (abilities.length > 0 && Math.random() < 0.05) {
+        let ab = abilities[Math.floor(Math.random() * abilities.length)];
+        useAbility(ab, now2);
+      }
+      break;
+    case 'retreat':
+      boss.vx = -dir * speed * 1.2;
+      if (boss.onGround && Math.random() < 0.08) { boss.vy = -11; boss.onGround = false; }
+      break;
+    default:
+      boss.vx = 0;
+  }
+}
+
+// ── Abilities ──
+function useAbility(ab, now) {
+  boss.cooldowns[ab.name] = now + ab.cooldown;
+
+  if (ab.name === 'Punch') {
+    boss.punchAnim = 10;
+    let punchX = boss.x + (boss.facing === 1 ? boss.w : -30);
+    let punchY = boss.y + 15;
+    let dmg = 15 + (phase - 1) * 5;
+    if (rectsOverlap(punchX, punchY, 30, 30, hero.x, hero.y, hero.w, hero.h)) {
+      damageHero(dmg, boss.facing * 6);
+    }
+    // Punch can also hit wizard
+    if (wizard && wizard.hp > 0 && rectsOverlap(punchX, punchY, 30, 30, wizard.x, wizard.y, wizard.w, wizard.h)) {
+      damageWizard(dmg);
+    }
+    spawnParticles(punchX + 15, punchY + 15, '#ff0', 6);
+  }
+
+  if (ab.name === 'Fireball') {
+    projectiles.push({
+      x: boss.x + boss.w / 2, y: boss.y + 20,
+      vx: boss.facing * 7, vy: 0,
+      w: 20, h: 14, damage: 20 + phase * 3,
+      color: '#f80', life: 120, type: 'fireball', owner: 'boss'
+    });
+    spawnParticles(boss.x + boss.w / 2, boss.y + 20, '#f80', 4);
+  }
+
+  if (ab.name === 'Stomp') {
+    if (boss.onGround) {
+      shockwaves.push({ x: boss.x + boss.w / 2, y: GROUND, radius: 0, maxRadius: 200, damage: 25 + phase * 4, speed: 6, owner: 'boss', hit: false });
+      spawnParticles(boss.x + boss.w / 2, GROUND, '#fa0', 12);
+      boss.vy = -5; // small hop
+    }
+  }
+
+  if (ab.name === 'Dark Beam') {
+    let bx = boss.x + (boss.facing === 1 ? boss.w : 0);
+    let by = boss.y + 20;
+    // Beam hits everything in a line
+    let beamLen = 350;
+    let beamX = boss.facing === 1 ? bx : bx - beamLen;
+    if (rectsOverlap(beamX, by - 8, beamLen, 16, hero.x, hero.y, hero.w, hero.h)) {
+      damageHero(35 + phase * 5, boss.facing * 10);
+    }
+    // Visual
+    projectiles.push({
+      x: beamX, y: by - 8, vx: 0, vy: 0,
+      w: beamLen, h: 16, damage: 0,
+      color: '#c4f', life: 12, type: 'beam', owner: 'boss'
+    });
+    spawnParticles(bx, by, '#c4f', 8);
+  }
+
+  if (ab.name === 'Ice Spike') {
+    // Shoots a slow ice spike that freezes the hero on hit
+    projectiles.push({
+      x: boss.x + boss.w / 2, y: boss.y + 15,
+      vx: boss.facing * 5, vy: -2,
+      w: 16, h: 16, damage: 18 + phase * 2,
+      color: '#4ef', life: 100, type: 'ice', owner: 'boss'
+    });
+    spawnParticles(boss.x + boss.w / 2, boss.y + 15, '#4ef', 5);
+  }
+
+  if (ab.name === 'Teleport') {
+    // Teleport behind the hero and auto-punch
+    spawnParticles(boss.x + boss.w / 2, boss.y + boss.h / 2, '#a0f', 12);
+    let behindX = hero.x + (hero.facing * 60);
+    boss.x = Math.max(0, Math.min(W - boss.w, behindX));
+    boss.y = hero.y;
+    boss.facing = hero.x > boss.x ? 1 : -1;
+    spawnParticles(boss.x + boss.w / 2, boss.y + boss.h / 2, '#a0f', 12);
+    // Auto-punch after teleport
+    let punchX = boss.x + (boss.facing === 1 ? boss.w : -30);
+    if (rectsOverlap(punchX, boss.y + 15, 30, 30, hero.x, hero.y, hero.w, hero.h)) {
+      damageHero(25 + phase * 3, boss.facing * 8);
+    }
+    boss.punchAnim = 10;
+  }
+
+  if (ab.name === 'Meteor') {
+    // Drop 3 meteors from the sky near the hero
+    for (let m = 0; m < 3; m++) {
+      let mx = hero.x + (m - 1) * 80 + (Math.random() - 0.5) * 40;
+      projectiles.push({
+        x: mx, y: -30 - m * 40,
+        vx: 0, vy: 5 + Math.random() * 2,
+        w: 24, h: 24, damage: 22 + phase * 3,
+        color: '#f60', life: 150, type: 'meteor', owner: 'boss'
+      });
+    }
+    spawnParticles(boss.x + boss.w / 2, boss.y, '#f60', 8);
+  }
+
+  if (ab.name === 'Black Hole') {
+    // Creates a black hole at boss position that pulls hero in and damages
+    let bhx = boss.x + boss.w / 2;
+    let bhy = boss.y + boss.h / 2;
+    projectiles.push({
+      x: bhx - 30, y: bhy - 30,
+      vx: 0, vy: 0,
+      w: 60, h: 60, damage: 5,
+      color: '#000', life: 90, type: 'blackhole', owner: 'boss',
+      cx: bhx, cy: bhy
+    });
+    spawnParticles(bhx, bhy, '#808', 10);
+  }
+
+  if (ab.name === 'Lightning') {
+    // Instant lightning strike on hero's position
+    let lx = hero.x + hero.w / 2;
+    projectiles.push({
+      x: lx - 4, y: 0, vx: 0, vy: 0,
+      w: 8, h: GROUND, damage: 0,
+      color: '#ff0', life: 15, type: 'lightning', owner: 'boss'
+    });
+    if (Math.abs(boss.x + boss.w/2 - lx) < 300) {
+      if (Math.abs(hero.x + hero.w/2 - lx) < 30) {
+        damageHero(28 + phase * 3, 0);
+      }
+    }
+    spawnParticles(lx, hero.y, '#ff0', 10);
+    spawnParticles(lx, 40, '#ff0', 6);
+  }
+
+  if (ab.name === 'Poison Cloud') {
+    // Places a poison zone that damages hero over time
+    let px = hero.x + (Math.random() - 0.5) * 60;
+    projectiles.push({
+      x: px - 40, y: GROUND - 70, vx: 0, vy: 0,
+      w: 80, h: 70, damage: 3,
+      color: '#0a0', life: 180, type: 'poison', owner: 'boss',
+      cx: px, cy: GROUND - 35
+    });
+    spawnParticles(px, GROUND - 40, '#0f0', 8);
+  }
+
+  if (ab.name === 'Clone') {
+    // Spawn a clone that runs at hero and punches
+    let cloneX = boss.x + (boss.facing === 1 ? -60 : boss.w + 20);
+    projectiles.push({
+      x: cloneX, y: boss.y, vx: 0, vy: 0,
+      w: boss.w, h: boss.h, damage: 20 + phase * 2,
+      color: '#d33', life: 180, type: 'clone', owner: 'boss',
+      cloneHit: false
+    });
+    spawnParticles(cloneX + 24, boss.y + 32, '#f0f', 8);
+  }
+
+  if (ab.name === 'Earthquake') {
+    // Damages hero if on ground, multiple shockwaves
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => {
+        if (!gameRunning) return;
+        shockwaves.push({ x: boss.x + boss.w/2, y: GROUND, radius: i * 40, maxRadius: 400, damage: 15 + phase * 2, speed: 4, owner: 'boss', hit: false });
+      }, i * 150);
+    }
+    spawnParticles(boss.x + boss.w/2, GROUND, '#a60', 15);
+    boss.vy = -6;
+  }
+
+  if (ab.name === 'Shield') {
+    // Boss gets a shield that blocks next hit
+    boss.shield = true;
+    boss.shieldTimer = 300; // 5 seconds
+    spawnParticles(boss.x + boss.w/2, boss.y + boss.h/2, '#0ff', 10);
+  }
+
+  if (ab.name === 'Soul Drain') {
+    // Steal HP from hero
+    let dist = Math.abs(boss.x - hero.x);
+    if (dist < 200) {
+      let drain = Math.min(hero.hp, 30 + phase * 2);
+      hero.hp -= drain;
+      boss.hp = Math.min(boss.maxHp, boss.hp + drain);
+      hero.hurtTimer = 10;
+      spawnParticles(hero.x + hero.w/2, hero.y + hero.h/2, '#a0f', 8);
+      spawnParticles(boss.x + boss.w/2, boss.y + boss.h/2, '#0f0', 8);
+      // Visual drain line
+      projectiles.push({
+        x: hero.x + hero.w/2, y: hero.y + hero.h/2,
+        tx: boss.x + boss.w/2, ty: boss.y + boss.h/2,
+        vx: 0, vy: 0, w: 0, h: 0, damage: 0,
+        color: '#a0f', life: 20, type: 'drainline', owner: 'boss'
+      });
+      if (hero.hp <= 0) heroDefeated();
+    }
+  }
+
+  if (ab.name === 'Tornado') {
+    // Spinning projectile that bounces off walls
+    projectiles.push({
+      x: boss.x + boss.w/2, y: boss.y + 20,
+      vx: boss.facing * 4, vy: -2,
+      w: 22, h: 22, damage: 18 + phase * 2,
+      color: '#8df', life: 200, type: 'tornado', owner: 'boss',
+      bounces: 3, angle: 0
+    });
+    spawnParticles(boss.x + boss.w/2, boss.y + 20, '#8df', 6);
+  }
+
+  if (ab.name === 'Laser Rain') {
+    // 6 lasers drop from random positions above
+    for (let i = 0; i < 6; i++) {
+      let lx = Math.random() * W;
+      setTimeout(() => {
+        if (!gameRunning) return;
+        projectiles.push({
+          x: lx - 3, y: 0, vx: 0, vy: 0,
+          w: 6, h: GROUND, damage: 0,
+          color: '#f00', life: 8, type: 'laser', owner: 'boss'
+        });
+        if (Math.abs(hero.x + hero.w/2 - lx) < 20) {
+          damageHero(15 + phase * 2, 0);
+        }
+        spawnParticles(lx, hero.y, '#f44', 4);
+      }, i * 120);
+    }
+  }
+
+  if (ab.name === 'Time Slow') {
+    // Slow the hero for 3 seconds
+    hero.slowed = 180;
+    spawnParticles(hero.x + hero.w/2, hero.y + hero.h/2, '#ff0', 10);
+    projectiles.push({
+      x: hero.x - 10, y: hero.y - 10, vx: 0, vy: 0,
+      w: hero.w + 20, h: hero.h + 20, damage: 0,
+      color: '#ff0', life: 25, type: 'timefield', owner: 'boss'
+    });
+  }
+
+  if (ab.name === 'Explosion') {
+    // Huge explosion centered on boss
+    let ex = boss.x + boss.w/2;
+    let ey = boss.y + boss.h/2;
+    let radius = 150;
+    let dx = hero.x + hero.w/2 - ex;
+    let dy = hero.y + hero.h/2 - ey;
+    let dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < radius) {
+      damageHero(40 + phase * 4, dx > 0 ? 12 : -12);
+    }
+    projectiles.push({
+      x: ex, y: ey, vx: 0, vy: 0,
+      w: 0, h: 0, damage: 0,
+      color: '#f80', life: 30, type: 'explosion', owner: 'boss',
+      cx: ex, cy: ey, maxRadius: radius
+    });
+    spawnParticles(ex, ey, '#f80', 20);
+    spawnParticles(ex, ey, '#ff0', 15);
+    boss.vy = -8;
+  }
+
+  if (ab.name === 'Dragon Breath') {
+    // Cone of fire in facing direction
+    let bx = boss.x + (boss.facing === 1 ? boss.w : 0);
+    let by = boss.y + 15;
+    for (let i = 0; i < 8; i++) {
+      projectiles.push({
+        x: bx, y: by,
+        vx: boss.facing * (5 + Math.random() * 3),
+        vy: (Math.random() - 0.5) * 4,
+        w: 10, h: 10, damage: 8 + phase,
+        color: '#f60', life: 40 + Math.random() * 20, type: 'dragonfire', owner: 'boss'
+      });
+    }
+    spawnParticles(bx, by, '#f80', 10);
+  }
+
+  if (ab.name === 'Final Wrath') {
+    // Screen nuke — meteors + lightning + explosion combined
+    spawnParticles(boss.x + boss.w/2, boss.y, '#f00', 25);
+    // Lightning everywhere
+    for (let i = 0; i < 5; i++) {
+      let lx = Math.random() * W;
+      setTimeout(() => {
+        if (!gameRunning) return;
+        projectiles.push({
+          x: lx - 5, y: 0, vx: 0, vy: 0,
+          w: 10, h: GROUND, damage: 0,
+          color: '#f0f', life: 12, type: 'lightning', owner: 'boss'
+        });
+        if (Math.abs(hero.x + hero.w/2 - lx) < 30) damageHero(20 + phase * 2, 0);
+        spawnParticles(lx, hero.y, '#f0f', 6);
+      }, i * 100);
+    }
+    // Meteors
+    for (let i = 0; i < 5; i++) {
+      let mx = hero.x + (Math.random() - 0.5) * 200;
+      projectiles.push({
+        x: mx, y: -30 - i * 50, vx: 0, vy: 6,
+        w: 24, h: 24, damage: 25 + phase * 3,
+        color: '#f0f', life: 150, type: 'meteor', owner: 'boss'
+      });
+    }
+    // Big explosion after
+    setTimeout(() => {
+      if (!gameRunning) return;
+      let ex = hero.x + hero.w/2;
+      let ey = hero.y + hero.h/2;
+      let dx = hero.x + hero.w/2 - ex;
+      let dy = hero.y + hero.h/2 - ey;
+      let dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 200) damageHero(30 + phase * 3, 0);
+      projectiles.push({
+        x: ex, y: ey, vx: 0, vy: 0, w: 0, h: 0, damage: 0,
+        color: '#f0f', life: 35, type: 'explosion', owner: 'boss',
+        cx: ex, cy: ey, maxRadius: 200
+      });
+      spawnParticles(ex, ey, '#f0f', 30);
+    }, 700);
+    boss.vy = -10;
+  }
+}
+
+// ── Hero AI ──
+function updateHero(dt) {
+  if (heroQuitting) return; // hero is leaving
+
+  // Hero surrendered — just walk off screen
+  if (hero.aiState === 'surrendered') {
+    hero.x += hero.vx;
+    hero.vy += GRAVITY;
+    hero.y += hero.vy;
+    if (hero.y + hero.h > GROUND) { hero.y = GROUND - hero.h; hero.vy = 0; }
+    return;
+  }
+  if (hero.aiState === 'idle') {
+    hero.vx = 0;
+    hero.vy += GRAVITY;
+    hero.y += hero.vy;
+    if (hero.y + hero.h > GROUND) { hero.y = GROUND - hero.h; hero.vy = 0; }
+    return;
+  }
+
+  if (phaseTransitioning) return;
+
+  // Spawn delay — hero waits before fighting
+  if (hero.spawnDelay && hero.spawnDelay > 0) {
+    hero.spawnDelay--;
+    hero.vx = 0;
+    hero.vy += GRAVITY;
+    hero.y += hero.vy;
+    if (hero.y + hero.h > GROUND) { hero.y = GROUND - hero.h; hero.vy = 0; hero.onGround = true; }
+    return;
+  }
+
+  // Freeze support
+  if (hero.frozen && hero.frozen > 0) {
+    hero.frozen--;
+    hero.vx = 0;
+    hero.vy += GRAVITY;
+    hero.y += hero.vy;
+    if (hero.y + hero.h > GROUND) { hero.y = GROUND - hero.h; hero.vy = 0; hero.onGround = true; }
+    if (hero.hurtTimer > 0) hero.hurtTimer--;
+    return;
+  }
+
+  // Wizard spawning — works in both modes
+  if (!wizardSpawned && (heroDefeats >= 3 || demonArmyActive || (playMode === 'hero' && phase >= 2))) {
+    if (Math.random() < 0.008 || (demonArmyActive && hero.hp < hero.maxHp * 0.5)) {
+      spawnWizard();
+    }
+  }
+
+  if (playMode === 'hero') {
+    // Player controls hero
+    let speed = hero.speed;
+    if (keys['a'] || keys['arrowleft']) { hero.vx = -speed; hero.facing = -1; }
+    else if (keys['d'] || keys['arrowright']) { hero.vx = speed; hero.facing = 1; }
+    else { hero.vx = 0; }
+
+    if ((keys['w'] || keys['arrowup']) && hero.onGround) { hero.vy = hero.jumpForce; hero.onGround = false; }
+
+    // Attack with J or click
+    if (keys['j'] && hero.attackCooldown <= 0) {
+      let atkX = hero.x + (hero.facing === 1 ? hero.w : -25);
+      if (rectsOverlap(atkX, hero.y + 10, 25, 30, boss.x, boss.y, boss.w, boss.h)) {
+        damageBoss(hero.damage);
+        comboCount++;
+        comboTimer = 90;
+      }
+      hero.attackCooldown = 20;
+      spawnParticles(atkX + 12, hero.y + 25, '#8cf', 4);
+      keys['j'] = false;
+    }
+  } else {
+    // AI controls hero
+    let dx = boss.x - hero.x;
+    let dist = Math.abs(dx);
+    let dir = dx > 0 ? 1 : -1;
+    hero.facing = dir;
+
+    hero.aiTimer--;
+    if (hero.aiTimer <= 0) {
+      if (dist < 70) {
+        hero.aiState = Math.random() < 0.4 + heroDefeats * 0.05 ? 'attack' : 'dodge';
+      } else if (dist < 200) {
+        hero.aiState = Math.random() < 0.6 ? 'approach' : 'circle';
+      } else {
+        hero.aiState = 'approach';
+      }
+      hero.aiTimer = 20 + Math.random() * 30;
+    }
+
+    let dangerProjectile = projectiles.find(p => p.owner === 'boss' && Math.abs(p.x - hero.x) < 100 && Math.abs(p.y - hero.y) < 60);
+    if (dangerProjectile && hero.dodgeTimer <= 0) { hero.aiState = 'dodge'; hero.dodgeTimer = 30; }
+    if (hero.dodgeTimer > 0) hero.dodgeTimer--;
+
+    let dangerShock = shockwaves.find(s => s.owner === 'boss' && Math.abs(s.x - hero.x) < s.radius + 50 && !s.hit);
+    if (dangerShock && hero.onGround) { hero.vy = hero.jumpForce; hero.onGround = false; }
+
+    switch (hero.aiState) {
+      case 'approach':
+        hero.vx = dir * hero.speed;
+        if (dist < hero.attackRange + 20 && hero.onGround && Math.random() < 0.02) { hero.vy = hero.jumpForce * 0.7; hero.onGround = false; }
+        break;
+      case 'attack':
+        if (dist > hero.attackRange) {
+          hero.vx = dir * hero.speed;
+        } else {
+          hero.vx = dir * hero.speed * 0.3;
+          if (hero.attackCooldown <= 0) {
+            let atkX = hero.x + (hero.facing === 1 ? hero.w : -25);
+            if (rectsOverlap(atkX, hero.y + 10, 25, 30, boss.x, boss.y, boss.w, boss.h)) {
+              damageBoss(hero.damage);
+              hero.comboCount++;
+            }
+            hero.attackCooldown = Math.max(15, 30 - heroDefeats * 2);
+            spawnParticles(atkX + 12, hero.y + 25, '#8cf', 4);
+          }
+        }
+        break;
+      case 'dodge':
+        hero.vx = -dir * hero.speed * 1.3;
+        if (hero.onGround && Math.random() < 0.15) { hero.vy = hero.jumpForce; hero.onGround = false; }
+        break;
+      case 'circle':
+        hero.vx = (Math.random() < 0.5 ? 1 : -1) * hero.speed * 0.8;
+        if (hero.onGround && Math.random() < 0.03) { hero.vy = hero.jumpForce * 0.8; hero.onGround = false; }
+        break;
+    }
+  }
+
+  if (hero.attackCooldown > 0) hero.attackCooldown--;
+  if (hero.slowed && hero.slowed > 0) { hero.slowed--; hero.vx *= 0.35; }
+
+  hero.vy += GRAVITY;
+  hero.x += hero.vx;
+  hero.y += hero.vy;
+
+  if (hero.y + hero.h > GROUND) { hero.y = GROUND - hero.h; hero.vy = 0; hero.onGround = true; }
+  if (hero.x < 0) hero.x = 0;
+  if (hero.x + hero.w > W) hero.x = W - hero.w;
+
+  if (hero.hurtTimer > 0) hero.hurtTimer--;
+
+  // Collision physics — push hero and boss apart so they can't overlap
+  if (rectsOverlap(hero.x, hero.y, hero.w, hero.h, boss.x, boss.y, boss.w, boss.h)) {
+    let heroCX = hero.x + hero.w / 2;
+    let bossCX = boss.x + boss.w / 2;
+    let overlapX = (hero.w / 2 + boss.w / 2) - Math.abs(heroCX - bossCX);
+    let heroCY = hero.y + hero.h / 2;
+    let bossCY = boss.y + boss.h / 2;
+    let overlapY = (hero.h / 2 + boss.h / 2) - Math.abs(heroCY - bossCY);
+
+    if (overlapX > 0 && overlapY > 0) {
+      if (overlapX < overlapY) {
+        // Push apart horizontally
+        let pushDir = heroCX < bossCX ? -1 : 1;
+        hero.x += pushDir * overlapX * 0.6;
+        boss.x -= pushDir * overlapX * 0.4;
+        hero.vx = pushDir * 2;
+        boss.vx = -pushDir * 1;
+      } else {
+        // Push apart vertically
+        let pushDir = heroCY < bossCY ? -1 : 1;
+        hero.y += pushDir * overlapY * 0.6;
+        boss.y -= pushDir * overlapY * 0.4;
+        if (pushDir === -1) {
+          hero.vy = -3; // bounce hero up if on top
+        }
+      }
+    }
+
+    if (hero.attackCooldown <= 0 && hero.aiState === 'approach') {
+      hero.aiState = 'attack';
+    }
+  }
+
+  // Keep both in bounds after push
+  if (hero.x < 0) hero.x = 0;
+  if (hero.x + hero.w > W) hero.x = W - hero.w;
+  if (boss.x < 0) boss.x = 0;
+  if (boss.x + boss.w > W) boss.x = W - boss.w;
+}
+
+function damageHero(dmg, knockback) {
+  hero.hp -= dmg;
+  hero.hurtTimer = 10;
+  hero.vx = knockback || 0;
+  hero.vy = -4;
+  hero.onGround = false;
+  screenShake = Math.min(12, dmg / 3);
+  hitFlash = 4;
+  comboCount++;
+  comboTimer = 90;
+  spawnParticles(hero.x + hero.w / 2, hero.y + hero.h / 2, '#8cf', 8);
+  // Spawn impact sparks
+  for (let i = 0; i < 5; i++) {
+    spawnParticles(hero.x + hero.w / 2, hero.y + hero.h / 2, '#fff', 1);
+  }
+
+  if (hero.hp <= 0) {
+    heroDefeated();
+  }
+}
+
+function damageBoss(dmg) {
+  // Invincibility
+  if (boss.invincible && boss.invincible > 0) return;
+  // Shield blocks hit
+  if (boss.shield) {
+    boss.shield = false;
+    boss.shieldTimer = 0;
+    spawnParticles(boss.x + boss.w / 2, boss.y + boss.h / 2, '#0ff', 12);
+    return;
+  }
+  boss.hp -= dmg;
+  boss.hurtTimer = 8;
+  screenShake = Math.min(15, dmg / 2);
+  hitFlash = 5;
+  comboCount = 0; // reset player combo when hit
+  spawnParticles(boss.x + boss.w / 2, boss.y + boss.h / 2, '#f88', 6);
+  spawnParticles(boss.x + boss.w / 2, boss.y + boss.h / 2, '#fff', 4);
+
+  if (boss.hp <= 0) {
+    bossDefeated();
+  }
+}
+
+function damageWizard(dmg) {
+  if (!wizard || wizard.hp <= 0) return;
+  wizard.hp -= dmg;
+  wizard.hurtTimer = 10;
+  spawnParticles(wizard.x + wizard.w/2, wizard.y + wizard.h/2, '#c4f', 6);
+  if (wizard.hp <= 0) {
+    spawnParticles(wizard.x + wizard.w/2, wizard.y + wizard.h/2, '#a0f', 20);
+    let ann = document.getElementById('phase-announce');
+    ann.style.display = 'block';
+    ann.style.fontSize = '20px';
+    ann.style.color = '#a0f';
+    ann.textContent = '"The Wizard has fallen!"';
+    setTimeout(() => { ann.style.display = 'none'; ann.style.color = '#f44'; ann.style.fontSize = '48px'; }, 2000);
+  }
+}
+
+function heroDefeated() {
+  heroDefeats++;
+  spawnParticles(hero.x + hero.w / 2, hero.y + hero.h / 2, '#4af', 20);
+
+  // Boss does NOT regenerate when hero dies
+
+  if (playMode === 'hero') {
+    // Hero mode — infinite lives, respawn after delay
+    hero.x = -999; hero.y = -999;
+    screenShake = 10;
+    setTimeout(() => {
+      if (!gameRunning) return;
+      hero = createHero();
+      hero.x = Math.random() < 0.5 ? 30 : W - 70;
+    }, 1500);
+    return;
+  }
+
+  // Boss mode — hero respawns stronger
+  setTimeout(() => {
+    if (!gameRunning) return;
+    hero = createHero();
+    hero.x = Math.random() < 0.5 ? 30 : W - 70;
+    hero.spawnDelay = 90; // wait 1.5 sec before fighting
+  }, 2500);
+  hero.x = -999; hero.y = -999;
+}
+
+function bossDefeated() {
+  bossDeaths++;
+  if (bossDeaths >= MAX_BOSS_DEATHS) {
+    if (playMode === 'boss') {
+      showGameOver('DEFEATED!', 'The hero has beaten you 20 times... You are no longer the boss.',
+        `Phase reached: ${phase} | Hero defeated: ${heroDefeats}x`);
+    } else {
+      showGameOver('VICTORY!', 'You have slain the Demon Lord 20 times! The kingdom is saved forever!',
+        `Phase reached: ${phase} | Your deaths: ${heroDefeats} | Wizard: ${wizard && wizard.hp > 0 ? 'Alive' : 'Fallen'}`);
+    }
+    return;
+  }
+  phase++;
+  spawnParticles(boss.x + boss.w / 2, boss.y + boss.h / 2, '#f44', 30);
+  screenShake = 15;
+
+  let newAbility = ABILITIES.find(a => a.phase === phase);
+
+  // Varied dialogue pools so cutscenes never repeat
+  let heroWinLines = [
+    'I did it! The demon falls!',
+    'Yes! Another form destroyed!',
+    'Is that all you have, demon?',
+    'The light prevails once more!',
+    'Your darkness cannot stop me!',
+    'One step closer to victory!',
+    'Fall, demon! FALL!',
+    'The kingdom grows safer with each blow!',
+    'How many times must I defeat you?',
+    'Your power means nothing against my will!',
+  ];
+  let bossTauntLines = [
+    `You fool... This is only PHASE ${phase}!`,
+    `Hahaha! You think that was my true power? PHASE ${phase} begins!`,
+    `Every time you strike me down, I rise STRONGER! Phase ${phase}!`,
+    `You have merely angered me. Welcome to Phase ${phase}.`,
+    `That tickled. Now witness Phase ${phase}!`,
+    `My true form has ${20 - bossDeaths} stages left. You will never survive!`,
+    `The flames of hell grow hotter with each defeat! Phase ${phase}!`,
+    `I have been holding back. No more. Phase ${phase}!`,
+    `Did you think it would be that easy? Phase ${phase} says otherwise!`,
+    `Your sword grows dull, but my power only sharpens! Phase ${phase}!`,
+  ];
+  let heroReplyLines = [
+    'No matter how many forms you take, I will defeat you!',
+    'Bring it on! I will not back down!',
+    'Each phase just makes my victory more legendary!',
+    'I have faced worse. Let us continue!',
+    'My blade is ready. Come, demon!',
+    'The people are counting on me. I will NOT fail!',
+    'You can change forms all you want. I adapt too!',
+    'Phase after phase, I will cut you down!',
+    'Your threats are empty. Fight me!',
+    'I was born for this battle!',
+  ];
+
+  let pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  let bossName = playMode === 'boss' ? 'DEMON LORD (You)' : 'DEMON LORD';
+  let heroName = playMode === 'hero' ? 'HERO (You)' : 'HERO';
+
+  let cutsceneLines = [
+    { speaker: heroName, text: pick(heroWinLines), color: '#4af', wait: 60 },
+    { speaker: bossName, text: pick(bossTauntLines), color: '#f44', wait: 60 },
+  ];
+  if (newAbility) {
+    cutsceneLines.push({ speaker: 'NARRATOR', text: `New Ability Unlocked: ${newAbility.icon} ${newAbility.name} — ${newAbility.description}!`, color: '#fa0', wait: 80 });
+  }
+  cutsceneLines.push({ speaker: heroName, text: pick(heroReplyLines), color: '#4af', wait: 60 });
+
+  startCutscene(cutsceneLines, () => {
+    boss = createBoss();
+    boss.x = 400;
+    hero = createHero();
+    hero.x = 50;
+    projectiles = [];
+    shockwaves = [];
+    updateAbilitiesBar();
+    updateSideButtons();
+  });
+}
+
+function heroQuits() {
+  heroQuitting = true;
+  // Hero walks off screen
+  let ann = document.getElementById('phase-announce');
+  ann.style.display = 'block';
+  ann.style.fontSize = '24px';
+  ann.style.color = '#8cf';
+  ann.textContent = '"This boss is just standing there... I quit!"';
+
+  // Make hero walk away
+  heroQuitTimer = 180;
+}
+
+function updateHeroQuit() {
+  if (!heroQuitting) return;
+  heroQuitTimer--;
+  hero.vx = hero.x < W / 2 ? -3 : 3; // walk toward nearest edge
+  hero.x += hero.vx;
+  hero.vy += GRAVITY;
+  hero.y += hero.vy;
+  if (hero.y + hero.h > GROUND) { hero.y = GROUND - hero.h; hero.vy = 0; }
+
+  if (heroQuitTimer <= 0 || hero.x < -50 || hero.x > W + 50) {
+    showGameOver('HERO QUIT!', 'The hero got bored and left. You win by doing absolutely nothing!',
+      `Phase: ${phase} | Hero defeated: ${heroDefeats}x | Deaths: ${bossDeaths}`);
+  }
+}
+
+function showGameOver(title, text, stats) {
+  gameRunning = false;
+  let overlay = document.getElementById('gameover-overlay');
+  overlay.style.display = 'flex';
+  document.getElementById('gameover-title').textContent = title;
+  document.getElementById('gameover-text').textContent = text;
+  document.getElementById('gameover-stats').textContent = stats;
+  document.getElementById('phase-announce').style.display = 'none';
+}
+
+document.getElementById('restart-btn').addEventListener('click', () => {
+  document.getElementById('gameover-overlay').style.display = 'none';
+  // Show menu to pick mode
+  document.getElementById('menu').style.display = 'block';
+  document.getElementById('ui-overlay').classList.add('active');
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('move-buttons').style.display = 'none';
+  document.getElementById('ability-buttons').style.display = 'none';
+  document.getElementById('surrender-btn').style.display = 'none';
+  document.getElementById('demon-army-btn').style.display = 'none';
+  document.getElementById('hero-surrender-btn').style.display = 'none';
+  document.getElementById('summon-wizard-btn').style.display = 'none';
+  phase = 1; heroDefeats = 0; bossDeaths = 0; bossIdleTime = 0;
+  heroQuitting = false; heroQuitTimer = 0;
+  comboCount = 0; comboTimer = 0; screenShake = 0; hitFlash = 0;
+  demonArmy = []; demonArmyActive = false; heroRefuseTimer = 0;
+  wizard = null; wizardSpawned = false; wizardSpellTimer = 0;
+  gameRunning = false;
+  let ann = document.getElementById('phase-announce');
+  ann.style.display = 'none';
+  ann.style.color = '#f44';
+  ann.style.fontSize = '48px';
+});
+
+// ── Projectiles & Shockwaves ──
+function updateProjectiles() {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    let p = projectiles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+
+    if (p.type === 'fireball') {
+      spawnParticles(p.x, p.y + 7, '#f80', 1);
+    }
+    if (p.type === 'ice') {
+      spawnParticles(p.x + 8, p.y + 8, '#4ef', 1);
+      p.vy += 0.05; // slight arc
+    }
+    if (p.type === 'meteor') {
+      spawnParticles(p.x + 12, p.y + 12, '#f60', 2);
+      // Meteor hits ground and explodes
+      if (p.y + p.h >= GROUND) {
+        shockwaves.push({ x: p.x + 12, y: GROUND, radius: 0, maxRadius: 80, damage: p.damage, speed: 5, owner: 'boss', hit: false });
+        spawnParticles(p.x + 12, GROUND, '#f80', 10);
+        projectiles.splice(i, 1); continue;
+      }
+    }
+    if (p.type === 'blackhole') {
+      // Pull hero toward center
+      let dx = p.cx - (hero.x + hero.w / 2);
+      let dy = p.cy - (hero.y + hero.h / 2);
+      let dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 180 && dist > 5) {
+        let pull = 2.5 / Math.max(dist / 60, 0.5);
+        hero.vx += (dx / dist) * pull;
+        hero.vy += (dy / dist) * pull;
+      }
+      // Instant kill if hero gets sucked into center
+      if (dist < 20) {
+        hero.hp = 0;
+        spawnParticles(p.cx, p.cy, '#f0f', 20);
+        spawnParticles(p.cx, p.cy, '#000', 10);
+        heroDefeated();
+      }
+      // Damage hero if close
+      else if (dist < 35 && p.life % 10 === 0) {
+        damageHero(p.damage, 0);
+      }
+      spawnParticles(p.cx + (Math.random()-0.5)*40, p.cy + (Math.random()-0.5)*40, '#808', 1);
+    }
+    if (p.type === 'poison') {
+      // Poison cloud stays in place, damages hero inside it
+      spawnParticles(p.cx + (Math.random()-0.5)*50, p.cy + (Math.random()-0.5)*30, '#0f0', 1);
+      if (p.life % 15 === 0 && rectsOverlap(p.x, p.y, p.w, p.h, hero.x, hero.y, hero.w, hero.h)) {
+        damageHero(p.damage, 0);
+      }
+    }
+    if (p.type === 'clone') {
+      // Clone runs toward hero and punches
+      let cdx = hero.x - p.x;
+      let cdir = cdx > 0 ? 1 : -1;
+      p.vx = cdir * 3;
+      p.x += p.vx;
+      p.vy += GRAVITY;
+      p.y += p.vy;
+      if (p.y + p.h > GROUND) { p.y = GROUND - p.h; p.vy = 0; }
+      if (!p.cloneHit && rectsOverlap(p.x, p.y, p.w, p.h, hero.x, hero.y, hero.w, hero.h)) {
+        damageHero(p.damage, cdir * 6);
+        p.cloneHit = true;
+        spawnParticles(p.x + p.w/2, p.y + p.h/2, '#ff0', 8);
+      }
+      spawnParticles(p.x + p.w/2, p.y + p.h - 5, 'rgba(255,0,0,0.3)', 1);
+    }
+    if (p.type === 'tornado') {
+      p.angle = (p.angle || 0) + 0.2;
+      p.vy = Math.sin(p.angle) * 2;
+      // Bounce off walls
+      if (p.x <= 0 || p.x + p.w >= W) {
+        p.vx *= -1;
+        p.bounces--;
+        if (p.bounces <= 0) { projectiles.splice(i, 1); continue; }
+      }
+      spawnParticles(p.x + 11, p.y + 11, '#8df', 1);
+    }
+    if (p.type === 'dragonfire') {
+      spawnParticles(p.x + 5, p.y + 5, '#f80', 1);
+      p.vy += (Math.random() - 0.5) * 0.3;
+    }
+    if (p.type === 'explosion') {
+      // Expanding circle visual — doesn't collide again
+      p.radius = (p.radius || 0) + p.maxRadius / 30;
+    }
+
+    if (p.life <= 0) { projectiles.splice(i, 1); continue; }
+
+    let noCollideTypes = ['beam', 'blackhole', 'poison', 'clone', 'lightning', 'laser', 'drainline', 'timefield', 'explosion'];
+    if (p.owner === 'boss' && !noCollideTypes.includes(p.type)) {
+      // Hit hero
+      if (rectsOverlap(p.x, p.y, p.w, p.h, hero.x, hero.y, hero.w, hero.h)) {
+        damageHero(p.damage, p.vx > 0 ? 5 : (p.vx < 0 ? -5 : 0));
+        if (p.type === 'ice') hero.frozen = 60;
+        projectiles.splice(i, 1);
+        continue;
+      }
+      // Hit wizard
+      if (wizard && wizard.hp > 0 && rectsOverlap(p.x, p.y, p.w, p.h, wizard.x, wizard.y, wizard.w, wizard.h)) {
+        damageWizard(p.damage);
+        projectiles.splice(i, 1);
+        continue;
+      }
+    }
+
+    // Wizard bolts hit boss and demon army
+    if (p.owner === 'wizard' && p.type === 'wizardbolt') {
+      // Hit boss
+      if (rectsOverlap(p.x - 5, p.y - 5, p.w + 10, p.h + 10, boss.x, boss.y, boss.w, boss.h)) {
+        damageBoss(p.damage);
+        spawnParticles(p.x, p.y, '#c4f', 6);
+        projectiles.splice(i, 1);
+        continue;
+      }
+      // Hit demon army
+      for (let d of demonArmy) {
+        if (rectsOverlap(p.x - 5, p.y - 5, p.w + 10, p.h + 10, d.x, d.y, d.w, d.h)) {
+          d.hp -= p.damage;
+          d.hurtTimer = 8;
+          spawnParticles(d.x + d.w/2, d.y + d.h/2, '#c4f', 6);
+          projectiles.splice(i, 1);
+          break;
+        }
+      }
+    }
+    // Arcane explosion visual
+    if (p.type === 'arcane_explosion') {
+      p.radius = (p.radius || 0) + p.maxRadius / 25;
+    }
+  }
+
+  for (let i = shockwaves.length - 1; i >= 0; i--) {
+    let s = shockwaves[i];
+    s.radius += s.speed;
+    if (s.radius >= s.maxRadius) { shockwaves.splice(i, 1); continue; }
+
+    if (!s.hit && s.owner === 'boss') {
+      let heroCX = hero.x + hero.w / 2;
+      let heroCY = hero.y + hero.h;
+      if (Math.abs(heroCX - s.x) < s.radius + 20 && heroCY > GROUND - 20) {
+        damageHero(s.damage, heroCX > s.x ? 8 : -8);
+        s.hit = true;
+      }
+    }
+  }
+}
+
+// ── Particles ──
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    let angle = Math.random() * Math.PI * 2;
+    let speed = 1 + Math.random() * 5;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 2,
+      life: 25 + Math.random() * 30, color,
+      size: 2 + Math.random() * 5,
+      rotation: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    let p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life--;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+// ── Collision ──
+function rectsOverlap(x1, y1, w1, h1, x2, y2, w2, h2) {
+  return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
+}
+
+// ── HUD ──
+function updateHUD() {
+  document.getElementById('hud-phase').textContent = phase;
+  document.getElementById('hud-boss-hp').textContent = Math.max(0, Math.ceil(boss.hp));
+  document.getElementById('hud-hero-hp').textContent = Math.max(0, Math.ceil(hero.hp));
+  document.getElementById('hud-kills').textContent = heroDefeats;
+  document.getElementById('hud-lives').textContent = playMode === 'hero' ? `∞ (Boss: ${MAX_BOSS_DEATHS - bossDeaths})` : (MAX_BOSS_DEATHS - bossDeaths);
+}
+
+function updateAbilitiesBar() {
+  let bar = document.getElementById('abilities-bar');
+  bar.innerHTML = '';
+  for (let ab of ABILITIES) {
+    let unlocked = ab.phase <= phase;
+    let slot = document.createElement('div');
+    slot.className = 'ability-slot' + (unlocked ? '' : ' locked');
+    slot.innerHTML = `<div class="icon">${ab.icon}</div><div class="key">${ab.key.toUpperCase()}</div>`;
+    let cdOverlay = document.createElement('div');
+    cdOverlay.className = 'cooldown-overlay';
+    cdOverlay.id = 'cd-' + ab.name;
+    slot.appendChild(cdOverlay);
+    bar.appendChild(slot);
+  }
+}
+
+function updateAbilityCooldowns() {
+  let now = Date.now();
+  for (let ab of ABILITIES) {
+    let el = document.getElementById('cd-' + ab.name);
+    if (!el) continue;
+    let cd = boss.cooldowns[ab.name];
+    if (cd && now < cd) {
+      let pct = (cd - now) / ab.cooldown;
+      el.style.height = (pct * 100) + '%';
+    } else {
+      el.style.height = '0%';
+    }
+  }
+}
+
+// ── Drawing ──
+function draw() {
+  frameCount++;
+  let t = Date.now();
+
+  // Screen shake
+  if (screenShake > 0) {
+    screenShakeX = (Math.random() - 0.5) * screenShake * 2;
+    screenShakeY = (Math.random() - 0.5) * screenShake * 2;
+    screenShake *= 0.85;
+    if (screenShake < 0.5) screenShake = 0;
+  } else {
+    screenShakeX = 0;
+    screenShakeY = 0;
+  }
+
+  // Combo timer
+  if (comboTimer > 0) { comboTimer--; } else { comboCount = 0; }
+
+  ctx.save();
+  ctx.translate(screenShakeX, screenShakeY);
+
+  // === BACKGROUND — dark sky with gradient ===
+  let grad = ctx.createLinearGradient(0, 0, 0, H);
+  let phaseHue = ((phase - 1) * 30) % 360;
+  grad.addColorStop(0, `hsl(${phaseHue}, 40%, 5%)`);
+  grad.addColorStop(0.5, `hsl(${phaseHue + 10}, 50%, 10%)`);
+  grad.addColorStop(1, `hsl(${phaseHue + 20}, 30%, 8%)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(-10, -10, W + 20, H + 20);
+
+  // === STARS — twinkling ===
+  for (let i = 0; i < 60; i++) {
+    let sx = (i * 137.5 + phase * 50) % W;
+    let sy = (i * 73.1) % (GROUND - 80);
+    let twinkle = Math.sin(t / 300 + i * 2.3) * 0.5 + 0.5;
+    let size = 1 + twinkle * 1.5;
+    ctx.fillStyle = `rgba(255,255,255,${0.2 + twinkle * 0.6})`;
+    ctx.beginPath();
+    ctx.arc(sx, sy, size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // === PARALLAX MOUNTAINS ===
+  // Far mountains
+  ctx.fillStyle = `hsl(${phaseHue}, 20%, 8%)`;
+  ctx.beginPath();
+  ctx.moveTo(0, GROUND);
+  for (let x = 0; x <= W; x += 40) {
+    let h = Math.sin(x * 0.008 + 1) * 60 + Math.sin(x * 0.015) * 30 + 80;
+    ctx.lineTo(x, GROUND - h);
+  }
+  ctx.lineTo(W, GROUND);
+  ctx.fill();
+
+  // Near mountains
+  ctx.fillStyle = `hsl(${phaseHue}, 25%, 12%)`;
+  ctx.beginPath();
+  ctx.moveTo(0, GROUND);
+  for (let x = 0; x <= W; x += 30) {
+    let h = Math.sin(x * 0.012 + 3) * 40 + Math.sin(x * 0.025 + 1) * 25 + 50;
+    ctx.lineTo(x, GROUND - h);
+  }
+  ctx.lineTo(W, GROUND);
+  ctx.fill();
+
+  // === GROUND — stone/lava floor ===
+  let groundGrad = ctx.createLinearGradient(0, GROUND, 0, H);
+  groundGrad.addColorStop(0, '#3a2a2a');
+  groundGrad.addColorStop(0.3, '#2a1a1a');
+  groundGrad.addColorStop(1, '#1a0a0a');
+  ctx.fillStyle = groundGrad;
+  ctx.fillRect(0, GROUND, W, H - GROUND);
+
+  // Lava cracks in ground
+  ctx.strokeStyle = `rgba(255, ${80 + Math.sin(t/200)*40}, 0, ${0.3 + Math.sin(t/300)*0.15})`;
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 8; i++) {
+    let crackX = (i * 107 + 30) % W;
+    ctx.beginPath();
+    ctx.moveTo(crackX, GROUND + 5);
+    ctx.lineTo(crackX + 15, GROUND + 15 + Math.sin(i) * 8);
+    ctx.lineTo(crackX + 5, GROUND + 28);
+    ctx.stroke();
+  }
+
+  // Ground edge glow
+  let edgeGrad = ctx.createLinearGradient(0, GROUND - 5, 0, GROUND + 8);
+  edgeGrad.addColorStop(0, 'rgba(255,100,0,0)');
+  edgeGrad.addColorStop(0.5, `rgba(255,${60 + phase * 10},0,${0.3 + Math.sin(t/250)*0.1})`);
+  edgeGrad.addColorStop(1, 'rgba(255,50,0,0)');
+  ctx.fillStyle = edgeGrad;
+  ctx.fillRect(0, GROUND - 5, W, 13);
+
+  // === PILLARS — ruined columns ===
+  for (let i = 0; i < 5; i++) {
+    let px = 80 + i * 170;
+    let pillarH = 120 + Math.sin(i * 2) * 40;
+    // Pillar body
+    let pillarGrad = ctx.createLinearGradient(px, GROUND - pillarH, px, GROUND);
+    pillarGrad.addColorStop(0, 'rgba(60,50,50,0.4)');
+    pillarGrad.addColorStop(1, 'rgba(40,30,30,0.6)');
+    ctx.fillStyle = pillarGrad;
+    ctx.fillRect(px - 2, GROUND - pillarH, 24, pillarH);
+    // Pillar top
+    ctx.fillStyle = 'rgba(80,60,60,0.5)';
+    ctx.fillRect(px - 6, GROUND - pillarH - 5, 32, 8);
+    // Cracks
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px + 10, GROUND - pillarH + 10);
+    ctx.lineTo(px + 14, GROUND - pillarH + 40);
+    ctx.lineTo(px + 8, GROUND - pillarH + 60);
+    ctx.stroke();
+  }
+
+  // === EMBERS — floating fire particles ===
+  for (let e of embers) {
+    e.x += e.vx + Math.sin(t / 500 + e.life) * 0.3;
+    e.y += e.vy;
+    e.life++;
+    if (e.life > e.maxLife || e.y < -10) {
+      e.x = Math.random() * W;
+      e.y = GROUND + Math.random() * 20;
+      e.life = 0;
+    }
+    let alpha = 1 - (e.life / e.maxLife);
+    ctx.fillStyle = e.color;
+    ctx.globalAlpha = alpha * 0.6;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.size * alpha, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // === VIGNETTE — dark edges ===
+  let vignette = ctx.createRadialGradient(W/2, H/2, H*0.3, W/2, H/2, H*0.9);
+  vignette.addColorStop(0, 'rgba(0,0,0,0)');
+  vignette.addColorStop(1, 'rgba(0,0,0,0.5)');
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, W, H);
+
+  // Shockwaves
+  for (let s of shockwaves) {
+    ctx.strokeStyle = `rgba(255, 170, 0, ${1 - s.radius / s.maxRadius})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y, s.radius, 15, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Projectiles
+  for (let p of projectiles) {
+    if (p.type === 'beam') {
+      ctx.fillStyle = `rgba(200, 80, 255, ${p.life / 12})`;
+      ctx.shadowColor = '#c4f';
+      ctx.shadowBlur = 15;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.shadowBlur = 0;
+    } else if (p.type === 'fireball') {
+      ctx.fillStyle = '#f80';
+      ctx.shadowColor = '#f60';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.ellipse(p.x + p.w / 2, p.y + p.h / 2, p.w / 2, p.h / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    } else if (p.type === 'ice') {
+      ctx.fillStyle = '#4ef';
+      ctx.shadowColor = '#0cf';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(p.x + p.w / 2, p.y);
+      ctx.lineTo(p.x + p.w, p.y + p.h);
+      ctx.lineTo(p.x, p.y + p.h);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    } else if (p.type === 'meteor') {
+      ctx.fillStyle = '#f60';
+      ctx.shadowColor = '#f40';
+      ctx.shadowBlur = 15;
+      ctx.beginPath();
+      ctx.arc(p.x + p.w / 2, p.y + p.h / 2, p.w / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ff0';
+      ctx.beginPath();
+      ctx.arc(p.x + p.w / 2, p.y + p.h / 2, p.w / 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    } else if (p.type === 'blackhole') {
+      // Swirling black hole
+      ctx.fillStyle = '#000';
+      ctx.shadowColor = '#808';
+      ctx.shadowBlur = 25;
+      ctx.beginPath();
+      ctx.arc(p.cx, p.cy, 25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(160, 0, 255, ${0.4 + Math.sin(Date.now()/80)*0.3})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(p.cx, p.cy, 30 + Math.sin(Date.now()/100)*5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else if (p.type === 'lightning' || p.type === 'laser') {
+      ctx.fillStyle = p.type === 'lightning' ? `rgba(255,255,0,${p.life/15})` : `rgba(255,0,0,${p.life/8})`;
+      ctx.shadowColor = p.type === 'lightning' ? '#ff0' : '#f00';
+      ctx.shadowBlur = 20;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.shadowBlur = 0;
+    } else if (p.type === 'poison') {
+      ctx.fillStyle = `rgba(0,180,0,${0.15 + Math.sin(Date.now()/200)*0.1})`;
+      ctx.beginPath();
+      ctx.ellipse(p.cx, p.cy, p.w/2, p.h/2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(0,255,0,${0.3})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else if (p.type === 'clone') {
+      // Draw a faded copy of the boss
+      ctx.globalAlpha = 0.6;
+      drawCharacter({x:p.x, y:p.y, w:p.w, h:p.h, vx:p.vx, facing: p.vx > 0 ? 1 : -1, hurtTimer:0}, '#d33', '#f66', '💀', true);
+      ctx.globalAlpha = 1;
+    } else if (p.type === 'tornado') {
+      ctx.fillStyle = '#8df';
+      ctx.shadowColor = '#4af';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(p.x + 11, p.y + 11, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(p.x + 11, p.y + 11, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    } else if (p.type === 'drainline') {
+      ctx.strokeStyle = `rgba(160,0,255,${p.life/20})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.tx, p.ty);
+      ctx.stroke();
+    } else if (p.type === 'timefield') {
+      ctx.strokeStyle = `rgba(255,255,0,${p.life/25})`;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(p.x, p.y, p.w, p.h);
+      ctx.setLineDash([]);
+    } else if (p.type === 'explosion') {
+      let r = p.radius || 0;
+      let alpha = p.life / 30;
+      ctx.fillStyle = `rgba(255,130,0,${alpha * 0.3})`;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 20;
+      ctx.beginPath();
+      ctx.arc(p.cx, p.cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(255,200,0,${alpha})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else if (p.type === 'dragonfire') {
+      ctx.fillStyle = `rgba(255,100,0,${p.life/60})`;
+      ctx.shadowColor = '#f60';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(p.x + 5, p.y + 5, 5 + Math.random()*3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    } else if (p.type === 'wizardbolt') {
+      ctx.fillStyle = '#c4f';
+      ctx.shadowColor = '#a0f';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(p.x + 5, p.y + 5, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(p.x + 5, p.y + 4, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    } else if (p.type === 'arcane_explosion') {
+      let r = p.radius || 0;
+      let alpha = p.life / 25;
+      ctx.fillStyle = `rgba(160,60,255,${alpha * 0.25})`;
+      ctx.shadowColor = '#a0f';
+      ctx.shadowBlur = 15;
+      ctx.beginPath();
+      ctx.arc(p.cx, p.cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(200,120,255,${alpha})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else {
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+    }
+  }
+
+  // Particles — glowing
+  for (let p of particles) {
+    let alpha = p.life / 40;
+    ctx.globalAlpha = alpha;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = p.size * 2;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+
+  // Demon Army
+  drawDemonArmy();
+
+  // Wizard
+  drawWizard();
+
+  // Hero
+  if (hero.x > -100) {
+    let heroFrozen = hero.frozen && hero.frozen > 0;
+    drawCharacter(hero, heroFrozen ? '#4cf' : '#38f', heroFrozen ? '#8ef' : '#6af', '🗡️', false);
+    drawHPBar(hero, '#38f');
+    if (heroFrozen) {
+      ctx.strokeStyle = '#4ef';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(hero.x - 3, hero.y - 3, hero.w + 6, hero.h + 6);
+      ctx.fillStyle = 'rgba(100, 200, 255, 0.2)';
+      ctx.fillRect(hero.x - 3, hero.y - 3, hero.w + 6, hero.h + 6);
+    }
+    if (hero.slowed && hero.slowed > 0) {
+      ctx.fillStyle = `rgba(255,255,0,${0.15 + Math.sin(Date.now()/100)*0.1})`;
+      ctx.fillRect(hero.x - 5, hero.y - 5, hero.w + 10, hero.h + 10);
+    }
+    // Label
+    ctx.fillStyle = '#8cf';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    let heroLabel = heroQuitting ? 'I QUIT!' : (playMode === 'hero' ? '⬇ YOU ⬇' : 'HERO');
+    ctx.fillText(heroLabel, hero.x + hero.w / 2, hero.y - 20);
+  }
+
+  // Boss (you!)
+  // Boss flashes when invincible
+  if (boss.invincible && boss.invincible > 0 && Math.floor(boss.invincible / 4) % 2 === 0) {
+    ctx.globalAlpha = 0.4;
+  }
+  drawCharacter(boss, '#d33', '#f66', '💀', true);
+  ctx.globalAlpha = 1;
+  drawHPBar(boss, '#d33');
+
+  // Shield visual
+  if (boss.shield) {
+    ctx.strokeStyle = `rgba(0,255,255,${0.5 + Math.sin(Date.now()/150)*0.3})`;
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#0ff';
+    ctx.shadowBlur = 15;
+    ctx.beginPath();
+    ctx.ellipse(boss.x + boss.w/2, boss.y + boss.h/2, boss.w/2 + 10, boss.h/2 + 8, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  // Punch visual
+  if (boss.punchAnim > 0) {
+    let px = boss.x + (boss.facing === 1 ? boss.w + 5 : -25);
+    ctx.fillStyle = `rgba(255, 255, 0, ${boss.punchAnim / 10})`;
+    ctx.beginPath();
+    ctx.arc(px + 10, boss.y + 30, 15, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // "YOU" label with glow
+  ctx.shadowColor = '#f00';
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = '#f66';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(playMode === 'boss' ? `⬇ YOU ⬇` : `⬇ BOSS ⬇`, boss.x + boss.w / 2, boss.y - 24);
+  ctx.shadowBlur = 0;
+
+  // Phase crown for boss
+  if (phase > 1) {
+    ctx.font = '16px sans-serif';
+    ctx.fillText('👑', boss.x + boss.w / 2, boss.y - 8);
+  }
+
+  // === SPEED LINES when boss moves fast ===
+  if (Math.abs(boss.vx) > 2) {
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      let ly = boss.y + 10 + i * 12;
+      ctx.beginPath();
+      ctx.moveTo(boss.x + boss.w / 2 - boss.vx * 4, ly);
+      ctx.lineTo(boss.x + boss.w / 2 - boss.vx * 12 - Math.random() * 20, ly);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // === COMBO COUNTER ===
+  if (comboCount > 1 && comboTimer > 0) {
+    let comboAlpha = Math.min(1, comboTimer / 30);
+    let scale = 1 + Math.sin(comboTimer * 0.3) * 0.1;
+    ctx.save();
+    ctx.globalAlpha = comboAlpha;
+    ctx.translate(W - 100, 80);
+    ctx.scale(scale, scale);
+    ctx.textAlign = 'center';
+    // Glow
+    ctx.shadowColor = comboCount > 5 ? '#f0f' : (comboCount > 3 ? '#f80' : '#ff0');
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = comboCount > 5 ? '#f4f' : (comboCount > 3 ? '#fa0' : '#ff0');
+    ctx.font = `bold ${20 + comboCount * 2}px sans-serif`;
+    ctx.fillText(`${comboCount}x`, 0, 0);
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('COMBO', 0, 18);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // === HIT FLASH — white overlay ===
+  if (hitFlash > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${hitFlash * 0.06})`;
+    ctx.fillRect(-10, -10, W + 20, H + 20);
+    hitFlash--;
+  }
+
+  ctx.restore(); // end screen shake
+}
+
+function drawCharacter(entity, bodyColor, lightColor, faceEmoji, isBoss) {
+  let hurt = entity.hurtTimer > 0;
+  let shake = hurt ? (Math.random() - 0.5) * 6 : 0;
+  let ex = entity.x + shake;
+  let ey = entity.y;
+  let cx = ex + entity.w / 2;
+  let t = Date.now();
+  let moving = Math.abs(entity.vx) > 0.5;
+  let walkCycle = moving ? Math.sin(t / 80) : 0;
+  let breathe = Math.sin(t / 400) * 1.5;
+  let f = entity.facing || 1;
+  let punching = isBoss && boss.punchAnim > 0;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(cx, GROUND + 2, entity.w / 2 + 6, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (isBoss) {
+    drawDemon(ex, ey, cx, entity, hurt, walkCycle, breathe, f, punching, t);
+  } else {
+    drawHuman(ex, ey, cx, entity, hurt, walkCycle, breathe, f, t);
+  }
+}
+
+function drawDemon(ex, ey, cx, entity, hurt, walk, breathe, f, punching, t) {
+  let skinColor = hurt ? '#faa' : '#8b0000';
+  let darkSkin = hurt ? '#f88' : '#5a0000';
+  let eyeGlow = '#f00';
+
+  // === TAIL ===
+  ctx.strokeStyle = darkSkin;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  let tailX = cx - f * 8;
+  ctx.moveTo(tailX, ey + 42);
+  ctx.quadraticCurveTo(tailX - f * 20, ey + 50 + Math.sin(t / 200) * 5, tailX - f * 28, ey + 38 + Math.sin(t / 150) * 4);
+  ctx.stroke();
+  // Tail tip (arrow)
+  ctx.fillStyle = darkSkin;
+  ctx.beginPath();
+  let tipX = tailX - f * 28, tipY = ey + 38 + Math.sin(t / 150) * 4;
+  ctx.moveTo(tipX, tipY - 4);
+  ctx.lineTo(tipX - f * 6, tipY);
+  ctx.lineTo(tipX, tipY + 4);
+  ctx.fill();
+
+  // === LEGS ===
+  let legLen = 18;
+  let hipY = ey + entity.h - legLen - 2;
+  let leftLegAngle = walk * 0.5;
+  let rightLegAngle = -walk * 0.5;
+
+  // Left leg
+  ctx.strokeStyle = skinColor;
+  ctx.lineWidth = 7;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - 7, hipY);
+  ctx.lineTo(cx - 7 + Math.sin(leftLegAngle) * 8, hipY + legLen);
+  ctx.stroke();
+  // Hoof
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.ellipse(cx - 7 + Math.sin(leftLegAngle) * 8, hipY + legLen + 2, 6, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Right leg
+  ctx.strokeStyle = skinColor;
+  ctx.beginPath();
+  ctx.moveTo(cx + 7, hipY);
+  ctx.lineTo(cx + 7 + Math.sin(rightLegAngle) * 8, hipY + legLen);
+  ctx.stroke();
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.ellipse(cx + 7 + Math.sin(rightLegAngle) * 8, hipY + legLen + 2, 6, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // === TORSO ===
+  ctx.fillStyle = skinColor;
+  ctx.beginPath();
+  ctx.moveTo(cx - 16, ey + 22);
+  ctx.lineTo(cx + 16, ey + 22);
+  ctx.lineTo(cx + 12, ey + 48 + breathe);
+  ctx.lineTo(cx - 12, ey + 48 + breathe);
+  ctx.closePath();
+  ctx.fill();
+  // Chest detail
+  ctx.strokeStyle = darkSkin;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx, ey + 25);
+  ctx.lineTo(cx, ey + 42);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - 8, ey + 30);
+  ctx.lineTo(cx + 8, ey + 30);
+  ctx.stroke();
+
+  // === ARMS ===
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  let shoulderY = ey + 24;
+
+  // === INFERNAL SWORD — always held in right hand ===
+  let swordArmX, swordArmY, swordSwing;
+
+  if (punching) {
+    // SWING! Arm extends forward with sword slash
+    swordSwing = (boss.punchAnim / 10); // 1 -> 0
+    let swingAngle = -1.5 + swordSwing * 2.5; // sweeps from back to front
+
+    // Punching arm
+    ctx.strokeStyle = skinColor;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(cx + f * 14, shoulderY);
+    swordArmX = cx + f * 36;
+    swordArmY = shoulderY + 2;
+    ctx.lineTo(swordArmX, swordArmY);
+    ctx.stroke();
+    // Hand grip
+    ctx.fillStyle = hurt ? '#fcc' : '#600';
+    ctx.beginPath();
+    ctx.arc(swordArmX, swordArmY, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Infernal sword blade — swinging
+    let bladeLen = 32;
+    let bladeTipX = swordArmX + Math.cos(swingAngle) * f * bladeLen;
+    let bladeTipY = swordArmY - Math.sin(swingAngle) * bladeLen;
+    // Fire trail
+    ctx.shadowColor = '#f60';
+    ctx.shadowBlur = 20;
+    ctx.strokeStyle = '#f80';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(swordArmX, swordArmY);
+    ctx.lineTo(bladeTipX, bladeTipY);
+    ctx.stroke();
+    // Blade core
+    ctx.strokeStyle = '#ffe040';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(swordArmX, swordArmY);
+    ctx.lineTo(bladeTipX, bladeTipY);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // Swing arc trail
+    ctx.strokeStyle = `rgba(255,100,0,${swordSwing * 0.6})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(swordArmX, swordArmY, bladeLen, (f===1?-2.5:-0.6), (f===1?-0.6:-2.5), f===-1);
+    ctx.stroke();
+    // Sparks from swing
+    if (boss.punchAnim > 5) {
+      for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = `rgba(255,${150+Math.random()*100},0,${Math.random()})`;
+        ctx.beginPath();
+        ctx.arc(bladeTipX + (Math.random()-0.5)*10, bladeTipY + (Math.random()-0.5)*10, 1+Math.random()*2, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+    // Crossguard
+    ctx.strokeStyle = '#a00';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    let cgAngle = swingAngle + Math.PI/2;
+    ctx.moveTo(swordArmX + Math.cos(cgAngle)*5, swordArmY - Math.sin(cgAngle)*5);
+    ctx.lineTo(swordArmX - Math.cos(cgAngle)*5, swordArmY + Math.sin(cgAngle)*5);
+    ctx.stroke();
+
+    // Other arm idle
+    ctx.strokeStyle = skinColor;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(cx - f * 14, shoulderY);
+    ctx.lineTo(cx - f * 18, shoulderY + 14 + Math.sin(t / 200) * 2);
+    ctx.stroke();
+    drawClaws(cx - f * 18, shoulderY + 18 + Math.sin(t / 200) * 2, darkSkin);
+  } else {
+    // Idle — sword held down at side
+    let armSwing = walk * 0.4;
+    // Left arm
+    ctx.strokeStyle = skinColor;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, shoulderY);
+    ctx.lineTo(cx - 18 + Math.sin(armSwing) * 6, shoulderY + 16 + breathe);
+    ctx.stroke();
+    drawClaws(cx - 18 + Math.sin(armSwing) * 6, shoulderY + 20 + breathe, darkSkin);
+
+    // Right arm — holds infernal sword
+    ctx.beginPath();
+    ctx.moveTo(cx + f * 14, shoulderY);
+    swordArmX = cx + f * 18 - Math.sin(armSwing) * 6;
+    swordArmY = shoulderY + 16 + breathe;
+    ctx.lineTo(swordArmX, swordArmY);
+    ctx.stroke();
+    // Hand
+    ctx.fillStyle = hurt ? '#fcc' : '#600';
+    ctx.beginPath();
+    ctx.arc(swordArmX, swordArmY + 2, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Infernal sword — idle, pointing down
+    let idleAngle = 0.3 + Math.sin(t / 800) * 0.1;
+    let bladeLen = 28;
+    let bladeTipX = swordArmX + Math.cos(idleAngle) * f * bladeLen;
+    let bladeTipY = swordArmY + 2 + Math.sin(idleAngle) * bladeLen;
+    // Blade fire glow
+    ctx.shadowColor = '#f40';
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = '#c44';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(swordArmX, swordArmY + 2);
+    ctx.lineTo(bladeTipX, bladeTipY);
+    ctx.stroke();
+    // Blade core
+    ctx.strokeStyle = '#fa0';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(swordArmX, swordArmY + 2);
+    ctx.lineTo(bladeTipX, bladeTipY);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // Embers from blade
+    if (frameCount % 8 === 0) {
+      ctx.fillStyle = `rgba(255,${100+Math.random()*100},0,0.7)`;
+      ctx.beginPath();
+      ctx.arc(bladeTipX + (Math.random()-0.5)*6, bladeTipY + (Math.random()-0.5)*6, 1.5, 0, Math.PI*2);
+      ctx.fill();
+    }
+    // Crossguard
+    ctx.strokeStyle = '#800';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    let cgA = idleAngle + Math.PI/2;
+    ctx.moveTo(swordArmX + Math.cos(cgA)*f*4, swordArmY + 2 - Math.sin(cgA)*4);
+    ctx.lineTo(swordArmX - Math.cos(cgA)*f*4, swordArmY + 2 + Math.sin(cgA)*4);
+    ctx.stroke();
+
+    drawClaws(cx + f * 18 - Math.sin(armSwing) * 6, shoulderY + 20 + breathe, darkSkin);
+  }
+
+  // === HEAD ===
+  ctx.fillStyle = skinColor;
+  ctx.beginPath();
+  ctx.ellipse(cx, ey + 14, 15, 16, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Jaw / chin
+  ctx.fillStyle = darkSkin;
+  ctx.beginPath();
+  ctx.ellipse(cx, ey + 22, 10, 5, 0, 0, Math.PI);
+  ctx.fill();
+
+  // === HORNS === (big curved horns)
+  ctx.fillStyle = '#333';
+  ctx.strokeStyle = '#222';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  // Left horn
+  ctx.beginPath();
+  ctx.moveTo(cx - 10, ey + 4);
+  ctx.quadraticCurveTo(cx - 22, ey - 12, cx - 16, ey - 22);
+  ctx.stroke();
+  // Right horn
+  ctx.beginPath();
+  ctx.moveTo(cx + 10, ey + 4);
+  ctx.quadraticCurveTo(cx + 22, ey - 12, cx + 16, ey - 22);
+  ctx.stroke();
+  // Horn tips
+  ctx.fillStyle = '#c00';
+  ctx.beginPath();
+  ctx.arc(cx - 16, ey - 22, 3, 0, Math.PI * 2);
+  ctx.arc(cx + 16, ey - 22, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // === EYES === (glowing demon eyes)
+  ctx.shadowColor = eyeGlow;
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = '#ff0';
+  ctx.beginPath();
+  ctx.ellipse(cx + f * 3 - 5, ey + 11, 4, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx + f * 3 + 5, ey + 11, 4, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Slit pupils
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(cx + f * 4 - 5.5, ey + 9, 2, 5);
+  ctx.fillRect(cx + f * 4 + 4.5, ey + 9, 2, 5);
+
+  // Angry eyebrows
+  ctx.strokeStyle = darkSkin;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - 10, ey + 6);
+  ctx.lineTo(cx - 3, ey + 8);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + 10, ey + 6);
+  ctx.lineTo(cx + 3, ey + 8);
+  ctx.stroke();
+
+  // Mouth — fanged grin
+  ctx.fillStyle = '#300';
+  ctx.beginPath();
+  ctx.ellipse(cx + f * 2, ey + 19, 7, 3, 0, 0, Math.PI);
+  ctx.fill();
+  // Fangs
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.moveTo(cx + f * 2 - 4, ey + 18);
+  ctx.lineTo(cx + f * 2 - 3, ey + 22);
+  ctx.lineTo(cx + f * 2 - 1, ey + 18);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + f * 2 + 4, ey + 18);
+  ctx.lineTo(cx + f * 2 + 3, ey + 22);
+  ctx.lineTo(cx + f * 2 + 1, ey + 18);
+  ctx.fill();
+
+  // === AURA === (demonic glow based on phase)
+  if (phase > 1) {
+    ctx.globalAlpha = 0.1 + Math.sin(t / 200) * 0.05;
+    ctx.fillStyle = phase > 10 ? '#f0f' : (phase > 5 ? '#f00' : '#f80');
+    ctx.beginPath();
+    ctx.ellipse(cx, ey + entity.h / 2, entity.w / 2 + 12 + phase, entity.h / 2 + 8 + phase, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawClaws(x, y, color) {
+  ctx.fillStyle = color;
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x + i * 3, y);
+    ctx.lineTo(x + i * 3 - 1, y + 5);
+    ctx.lineTo(x + i * 3 + 1, y + 5);
+    ctx.fill();
+  }
+}
+
+function drawHuman(ex, ey, cx, entity, hurt, walk, breathe, f, t) {
+  let skinColor = hurt ? '#fdd' : '#f5c5a3';
+  let shirtColor = hurt ? '#aaf' : '#3366cc';
+  let pantsColor = hurt ? '#aaa' : '#4a4a6a';
+  let hairColor = '#543';
+  let shoeColor = '#543';
+
+  // === LEGS ===
+  let legLen = 18;
+  let hipY = ey + entity.h - legLen - 2;
+  let leftLegAngle = walk * 0.5;
+  let rightLegAngle = -walk * 0.5;
+
+  // Left leg
+  ctx.strokeStyle = pantsColor;
+  ctx.lineWidth = 7;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - 6, hipY);
+  ctx.lineTo(cx - 6 + Math.sin(leftLegAngle) * 8, hipY + legLen);
+  ctx.stroke();
+  // Shoe
+  ctx.fillStyle = shoeColor;
+  roundRect(ctx, cx - 10 + Math.sin(leftLegAngle) * 8, hipY + legLen - 1, 9, 5, 2);
+  ctx.fill();
+
+  // Right leg
+  ctx.strokeStyle = pantsColor;
+  ctx.beginPath();
+  ctx.moveTo(cx + 6, hipY);
+  ctx.lineTo(cx + 6 + Math.sin(rightLegAngle) * 8, hipY + legLen);
+  ctx.stroke();
+  ctx.fillStyle = shoeColor;
+  roundRect(ctx, cx + 2 + Math.sin(rightLegAngle) * 8, hipY + legLen - 1, 9, 5, 2);
+  ctx.fill();
+
+  // === TORSO ===
+  ctx.fillStyle = shirtColor;
+  ctx.beginPath();
+  ctx.moveTo(cx - 14, ey + 22);
+  ctx.lineTo(cx + 14, ey + 22);
+  ctx.lineTo(cx + 10, ey + 46 + breathe);
+  ctx.lineTo(cx - 10, ey + 46 + breathe);
+  ctx.closePath();
+  ctx.fill();
+  // Belt
+  ctx.fillStyle = '#653';
+  ctx.fillRect(cx - 10, ey + 43 + breathe, 20, 3);
+  ctx.fillStyle = '#ffd700';
+  ctx.fillRect(cx - 2, ey + 43 + breathe, 4, 3);
+
+  // === ARMS ===
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  let shoulderY = ey + 24;
+  let armSwing = walk * 0.5;
+
+  // Left arm
+  ctx.strokeStyle = shirtColor;
+  ctx.beginPath();
+  ctx.moveTo(cx - 14, shoulderY);
+  let lArmEndX = cx - 18 + Math.sin(armSwing) * 8;
+  let lArmEndY = shoulderY + 14 + breathe;
+  ctx.lineTo(lArmEndX, lArmEndY);
+  ctx.stroke();
+  // Hand
+  ctx.fillStyle = skinColor;
+  ctx.beginPath();
+  ctx.arc(lArmEndX, lArmEndY + 3, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Right arm — holds sword
+  ctx.strokeStyle = shirtColor;
+  ctx.beginPath();
+  ctx.moveTo(cx + 14, shoulderY);
+  let rArmEndX = cx + 18 - Math.sin(armSwing) * 8;
+  let rArmEndY = shoulderY + 14 + breathe;
+  ctx.lineTo(rArmEndX, rArmEndY);
+  ctx.stroke();
+  // Hand
+  ctx.fillStyle = skinColor;
+  ctx.beginPath();
+  ctx.arc(rArmEndX, rArmEndY + 3, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // === HERO SWORD — holy silver blade ===
+  let swordAngle = -0.4 + Math.sin(armSwing) * 0.25;
+  // Hero swings sword when attacking
+  let heroAttacking = entity.attackCooldown > 10;
+  if (heroAttacking) {
+    swordAngle = -1.2 + (entity.attackCooldown / 15) * 1.5;
+  }
+  let sLen = 24;
+  let sTipX = rArmEndX + Math.cos(swordAngle) * f * sLen;
+  let sTipY = rArmEndY + 3 - Math.sin(swordAngle) * sLen;
+  // Blade glow
+  ctx.shadowColor = '#8cf';
+  ctx.shadowBlur = 8;
+  // Blade
+  ctx.strokeStyle = '#ddeeff';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(rArmEndX, rArmEndY + 3);
+  ctx.lineTo(sTipX, sTipY);
+  ctx.stroke();
+  // Blade edge highlight
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(rArmEndX + f * 1, rArmEndY + 2);
+  ctx.lineTo(sTipX + f * 1, sTipY - 1);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  // Crossguard
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(rArmEndX - 5, rArmEndY + 3);
+  ctx.lineTo(rArmEndX + 5, rArmEndY + 3);
+  ctx.stroke();
+  // Pommel
+  ctx.fillStyle = '#4488ff';
+  ctx.beginPath();
+  ctx.arc(rArmEndX - f * 3, rArmEndY + 6, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // === HEAD ===
+  ctx.fillStyle = skinColor;
+  ctx.beginPath();
+  ctx.ellipse(cx, ey + 14, 12, 13, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Hair
+  ctx.fillStyle = hairColor;
+  ctx.beginPath();
+  ctx.ellipse(cx, ey + 8, 13, 8, 0, Math.PI, Math.PI * 2);
+  ctx.fill();
+  // Side hair
+  ctx.fillRect(cx - 13, ey + 7, 4, 8);
+  ctx.fillRect(cx + 9, ey + 7, 4, 8);
+
+  // === EYES ===
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(cx + f * 2 - 4, ey + 13, 3.5, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx + f * 2 + 4, ey + 13, 3.5, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Pupils
+  ctx.fillStyle = '#36a';
+  ctx.beginPath();
+  ctx.arc(cx + f * 3 - 4, ey + 13, 2, 0, Math.PI * 2);
+  ctx.arc(cx + f * 3 + 4, ey + 13, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(cx + f * 3.5 - 4, ey + 13, 1, 0, Math.PI * 2);
+  ctx.arc(cx + f * 3.5 + 4, ey + 13, 1, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eyebrows (determined)
+  ctx.strokeStyle = hairColor;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - 8, ey + 8);
+  ctx.lineTo(cx - 2, ey + 9.5);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + 8, ey + 8);
+  ctx.lineTo(cx + 2, ey + 9.5);
+  ctx.stroke();
+
+  // Mouth
+  ctx.strokeStyle = '#a66';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx + f * 1, ey + 19, 3, 0.1, Math.PI - 0.1);
+  ctx.stroke();
+
+  // Cape (flows behind)
+  ctx.fillStyle = `rgba(200, 30, 30, 0.6)`;
+  ctx.beginPath();
+  let capeX = cx - f * 6;
+  ctx.moveTo(capeX - 8, ey + 20);
+  ctx.quadraticCurveTo(capeX - 12 - f * Math.sin(t / 150) * 4, ey + 40, capeX - 10 - f * Math.sin(t / 120) * 6, ey + entity.h - 5);
+  ctx.lineTo(capeX + 4, ey + entity.h - 5);
+  ctx.quadraticCurveTo(capeX + 2, ey + 35, capeX + 2, ey + 20);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawHPBar(entity, color) {
+  let bw = entity.w + 16;
+  let bh = 7;
+  let bx = entity.x - 8;
+  let by = entity.y - 14;
+  let pct = Math.max(0, entity.hp / entity.maxHp);
+
+  // Background
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  roundRect(ctx, bx - 1, by - 1, bw + 2, bh + 2, 3);
+  ctx.fill();
+
+  // HP fill with gradient
+  if (pct > 0) {
+    let hpGrad = ctx.createLinearGradient(bx, by, bx, by + bh);
+    let hpColor = pct > 0.5 ? color : (pct > 0.25 ? '#f80' : '#f22');
+    hpGrad.addColorStop(0, hpColor);
+    hpGrad.addColorStop(0.5, '#fff');
+    hpGrad.addColorStop(1, hpColor);
+    ctx.fillStyle = hpGrad;
+    roundRect(ctx, bx, by, bw * pct, bh, 2);
+    ctx.fill();
+
+    // Glow
+    ctx.shadowColor = hpColor;
+    ctx.shadowBlur = 6;
+    ctx.fillStyle = `${hpColor}44`;
+    ctx.fillRect(bx, by, bw * pct, bh);
+    ctx.shadowBlur = 0;
+  }
+
+  // Border
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 1;
+  roundRect(ctx, bx - 1, by - 1, bw + 2, bh + 2, 3);
+  ctx.stroke();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ── Game Loop ──
+function loop() {
+  if (!gameRunning) return;
+  updateCutscene();
+  updateBoss();
+  updateHero();
+  updateHeroQuit();
+  updateDemonArmy();
+  updateWizard();
+  updateProjectiles();
+  updateParticles();
+  updateHUD();
+  updateAbilityCooldowns();
+  updateSideButtonCooldowns();
+  draw();
+  drawCutscene();
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>

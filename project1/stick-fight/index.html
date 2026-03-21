@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stick Fight</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <h1>Stick Fight</h1>
+    <p class="hint">P1: A/D move, W jump, G punch &nbsp;|&nbsp; P2: Arrows move & jump, L punch</p>
+    <div class="hud">
+      <span class="p1-hp">P1: <strong id="p1-hp">100</strong></span>
+      <span class="vs">VS</span>
+      <span class="p2-hp">P2: <strong id="p2-hp">100</strong></span>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="game" width="720" height="420"></canvas>
+      <div id="overlay" class="overlay hidden">
+        <p id="overlay-msg" class="overlay-msg"></p>
+        <button type="button" class="btn" id="btn-again">Fight again</button>
+      </div>
+    </div>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>

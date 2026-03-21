@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shooter</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <h1>Shooter</h1>
+    <div class="hud">
+      <span>HP: <strong id="hp">100</strong></span>
+      <span>Score: <strong id="score">0</strong></span>
+      <span>Wave: <strong id="wave">1</strong></span>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="game" width="800" height="500"></canvas>
+      <div id="overlay" class="overlay hidden">
+        <p id="overlay-msg"></p>
+        <button type="button" class="btn" id="btn-restart">Play again</button>
+      </div>
+    </div>
+    <p class="hint">WASD move · Mouse aim · Hold click to shoot</p>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>

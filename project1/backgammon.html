@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backgammon</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@500;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    background: #0e0c08;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  #bg {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse at 30% 40%, rgba(120,80,20,0.1) 0%, transparent 60%),
+      radial-gradient(ellipse at 70% 60%, rgba(60,30,10,0.12) 0%, transparent 60%),
+      linear-gradient(180deg, #151208 0%, #0e0c08 100%);
+  }
+
+  /* ─── Menu ─── */
+  #menu {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at 50% 35%, rgba(140,90,20,0.08) 0%, transparent 60%),
+                linear-gradient(180deg, #151208 0%, #0e0c08 100%);
+    gap: 26px; animation: fadeIn 0.5s ease;
+  }
+  #menu.hidden { display: none; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .menu-title {
+    font-family: 'Cinzel', serif; font-size: 46px; font-weight: 900; letter-spacing: 5px;
+    background: linear-gradient(135deg, #d4a040, #fff4d0, #b07020, #ffe0a0);
+    background-size: 300% 300%;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    animation: shimmer 4s ease infinite;
+    filter: drop-shadow(0 0 20px rgba(180,110,30,0.35));
+  }
+  @keyframes shimmer { 0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%} }
+
+  .menu-sub { color: rgba(255,255,255,0.18); font-size: 11px; letter-spacing: 5px; text-transform: uppercase; margin-top: -16px; }
+
+  .menu-section { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .menu-section h3 { font-family: 'Cinzel', serif; color: rgba(255,255,255,0.22); font-size: 11px; letter-spacing: 3px; text-transform: uppercase; }
+  .menu-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+
+  .mbtn {
+    padding: 16px 28px; min-width: 140px;
+    font-family: 'Cinzel', serif; font-size: 14px; font-weight: 700;
+    border: 1px solid rgba(255,255,255,0.06); border-radius: 14px;
+    background: rgba(255,255,255,0.02); color: #998877; cursor: pointer;
+    transition: all 0.3s; text-align: center;
+  }
+  .mbtn:hover { border-color: rgba(200,130,40,0.3); color: #d4a040; transform: translateY(-2px); box-shadow: 0 6px 25px rgba(180,110,30,0.1); background: rgba(180,110,30,0.05); }
+  .mbtn .icon { display: block; font-size: 26px; margin-bottom: 5px; }
+  .mbtn .desc { display: block; font-size: 9px; font-family: 'Inter', sans-serif; color: rgba(255,255,255,0.18); margin-top: 4px; letter-spacing: 0; }
+
+  /* ─── Game ─── */
+  #app { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px; }
+  #app.hidden { display: none; }
+
+  #top-bar {
+    display: flex; align-items: center; gap: 16px; width: 100%; justify-content: center;
+  }
+  .player-info {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 16px; border-radius: 20px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+    font-size: 12px; font-weight: 700; letter-spacing: 1px;
+  }
+  .player-info.active { border-color: rgba(200,160,60,0.3); box-shadow: 0 0 12px rgba(200,160,60,0.1); }
+  .p-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.15); }
+  .p-dot.white { background: #e8dcc8; box-shadow: 0 0 8px rgba(220,200,170,0.3); }
+  .p-dot.dark { background: #3a2a1a; box-shadow: 0 0 8px rgba(40,25,10,0.5); }
+  .p-name { color: #998877; }
+  .p-off { color: rgba(255,255,255,0.25); font-size: 11px; }
+  #vs-text { color: rgba(255,255,255,0.1); font-size: 11px; }
+
+  #dice-area {
+    display: flex; align-items: center; gap: 10px; min-height: 50px;
+  }
+
+  .die {
+    width: 42px; height: 42px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Cinzel', serif; font-size: 20px; font-weight: 900;
+    background: linear-gradient(145deg, #f5edd8, #d8c8a8);
+    color: #3a2a18; box-shadow: 0 3px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.4);
+    transition: all 0.3s;
+  }
+  .die.used { opacity: 0.25; transform: scale(0.85); }
+  .die.rolling { animation: diceRoll 0.5s ease; }
+  @keyframes diceRoll {
+    0% { transform: rotate(0deg) scale(0.5); } 25% { transform: rotate(180deg) scale(1.1); }
+    50% { transform: rotate(360deg) scale(0.9); } 100% { transform: rotate(720deg) scale(1); }
+  }
+
+  #roll-btn {
+    padding: 10px 30px; font-family: 'Cinzel', serif; font-size: 14px; font-weight: 700;
+    border: 1px solid rgba(200,160,60,0.3); border-radius: 25px;
+    background: rgba(200,160,60,0.08); color: #d4a040; cursor: pointer;
+    transition: all 0.2s; letter-spacing: 1px;
+  }
+  #roll-btn:hover { background: rgba(200,160,60,0.15); box-shadow: 0 0 20px rgba(200,160,60,0.15); }
+  #roll-btn.hidden { display: none; }
+
+  #msg {
+    color: #887766; font-size: 12px; font-weight: 600; min-height: 18px; letter-spacing: 0.5px;
+  }
+
+  #thinking { display: none; align-items: center; gap: 6px; color: #887766; font-size: 12px; font-weight: 600; }
+  #thinking.active { display: flex; }
+  .dots span { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #b08030; margin: 0 1px; animation: dp 1.2s ease-in-out infinite; }
+  .dots span:nth-child(2) { animation-delay: 0.2s; }
+  .dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dp { 0%,60%,100%{transform:translateY(0);opacity:0.3}30%{transform:translateY(-4px);opacity:1} }
+
+  /* Board */
+  canvas { border-radius: 10px; box-shadow: 0 0 50px rgba(120,80,20,0.1), 0 15px 40px rgba(0,0,0,0.5); cursor: pointer; }
+
+  /* Controls */
+  #controls { display: flex; gap: 10px; margin-top: 4px; }
+  .btn {
+    padding: 8px 22px; font-family: 'Cinzel', serif; font-size: 12px; font-weight: 700;
+    border: 1px solid rgba(255,255,255,0.06); border-radius: 22px;
+    background: rgba(255,255,255,0.03); color: #998877; cursor: pointer; transition: all 0.2s; letter-spacing: 1px;
+  }
+  .btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(200,130,40,0.2); color: #d4a040; }
+
+  .overlay {
+    display: none; position: fixed; inset: 0; background: rgba(10,8,5,0.85); backdrop-filter: blur(10px);
+    z-index: 50; justify-content: center; align-items: center; flex-direction: column; text-align: center; animation: fadeIn 0.4s;
+  }
+  .overlay.active { display: flex; }
+  .overlay h2 { font-family: 'Cinzel', serif; font-size: 42px; font-weight: 900; background: linear-gradient(135deg, #d4a040, #fff4d0, #b07020); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(180,110,30,0.4)); margin-bottom: 10px; }
+  .overlay p { color: #887766; font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+  .overlay .btn { font-size: 16px; padding: 12px 36px; }
+
+  @media (max-width: 700px) {
+    canvas { max-width: 95vw; }
+    .menu-title { font-size: 30px; }
+    .mbtn { min-width: 110px; padding: 12px 16px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div id="bg"></div>
+
+<div id="menu">
+  <div class="menu-title">BACKGAMMON</div>
+  <div class="menu-sub">The Classic Game</div>
+  <div class="menu-section">
+    <h3>2 Players</h3>
+    <div class="menu-row">
+      <button class="mbtn" onclick="startGame('pvp')"><span class="icon">&#9823; vs &#9817;</span>Local Match<span class="desc">Play on same screen</span></button>
+    </div>
+  </div>
+  <div class="menu-section">
+    <h3>vs Computer</h3>
+    <div class="menu-row">
+      <button class="mbtn" onclick="startGame('easy')"><span class="icon">&#9786;</span>Easy<span class="desc">Relaxed play</span></button>
+      <button class="mbtn" onclick="startGame('medium')"><span class="icon">&#9813;</span>Medium<span class="desc">Fair challenge</span></button>
+      <button class="mbtn" onclick="startGame('hard')"><span class="icon">&#9876;</span>Hard<span class="desc">Expert level</span></button>
+    </div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <div id="top-bar">
+    <div class="player-info" id="info-w"><div class="p-dot white"></div><span class="p-name" id="name-w">White</span><span class="p-off" id="off-w">0</span></div>
+    <span id="vs-text">vs</span>
+    <div class="player-info" id="info-b"><div class="p-dot dark"></div><span class="p-name" id="name-b">Black</span><span class="p-off" id="off-b">0</span></div>
+  </div>
+
+  <div id="dice-area">
+    <div class="die" id="die1"></div>
+    <div class="die" id="die2"></div>
+    <button id="roll-btn" onclick="rollDice()">Roll Dice</button>
+  </div>
+
+  <span id="msg"></span>
+  <div id="thinking">Thinking<span class="dots"><span></span><span></span><span></span></span></div>
+
+  <canvas id="board" width="680" height="440"></canvas>
+
+  <div id="controls">
+    <button class="btn" onclick="showMenu()">Menu</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-end">
+  <h2 id="end-title"></h2>
+  <p id="end-msg"></p>
+  <button class="btn" onclick="showMenu()">New Game</button>
+</div>
+
+<script>
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const BW = 680, BH = 440;
+
+// ─── Constants ─────────────────────────────────
+const POINT_W = 46;
+const POINT_H = 170;
+const BAR_W = 36;
+const MARGIN_X = 28;
+const MARGIN_Y = 16;
+const CHECKER_R = 18;
+const OFF_W = 30;
+
+// Colors
+const BOARD_BG = '#2a1f12';
+const BOARD_FELT = '#1a5030';
+const FRAME_COLOR = '#5a3a18';
+const POINT_LIGHT = '#c8a870';
+const POINT_DARK = '#6b3a1a';
+const WHITE_C = '#e8dcc8';
+const WHITE_EDGE = '#c8b898';
+const BLACK_C = '#2a1a0e';
+const BLACK_EDGE = '#4a3020';
+const HIGHLIGHT = 'rgba(255,200,60,0.5)';
+
+// ─── Game State ────────────────────────────────
+// Points 1-24, 0=bar, 25=off
+// Positive = white checkers, negative = black checkers
+// White moves 24→1→off, Black moves 1→24→off
+let points; // [0..25]
+let turn; // 'w' or 'b'
+let dice = []; // remaining dice values to use
+let diceRolled = false;
+let selectedPoint = -1;
+let validTargets = [];
+let gameMode = 'pvp';
+let gameOver = false;
+let botThinking = false;
+let message = '';
+
+function initBoard() {
+  points = new Array(26).fill(0);
+  // Standard starting position
+  // White (positive): 2 on 24, 5 on 13, 3 on 8, 5 on 6
+  points[24] = 2; points[13] = 5; points[8] = 3; points[6] = 5;
+  // Black (negative): 2 on 1, 5 on 12, 3 on 17, 5 on 19
+  points[1] = -2; points[12] = -5; points[17] = -3; points[19] = -5;
+  // Bar: points[0] for white bar, we'll track separately
+  // Off: points[25] for white off, tracked separately
+}
+
+let whiteBar = 0, blackBar = 0;
+let whiteOff = 0, blackOff = 0;
+
+function resetAll() {
+  initBoard();
+  whiteBar = 0; blackBar = 0;
+  whiteOff = 0; blackOff = 0;
+  turn = 'w';
+  dice = [];
+  diceRolled = false;
+  selectedPoint = -1;
+  validTargets = [];
+  gameOver = false;
+  botThinking = false;
+  message = '';
+}
+
+// ─── Menu / Flow ───────────────────────────────
+function showMenu() {
+  document.getElementById('overlay-end').classList.remove('active');
+  document.getElementById('menu').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
+}
+
+function startGame(mode) {
+  gameMode = mode;
+  document.getElementById('menu').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  resetAll();
+
+  if (gameMode !== 'pvp') {
+    document.getElementById('name-w').textContent = 'You';
+    document.getElementById('name-b').textContent = 'Bot';
+  } else {
+    document.getElementById('name-w').textContent = 'White';
+    document.getElementById('name-b').textContent = 'Black';
+  }
+
+  updateUI();
+  drawBoard();
+}
+
+function rollDice() {
+  if (diceRolled || gameOver || botThinking) return;
+  if (gameMode !== 'pvp' && turn === 'b') return;
+
+  const d1 = Math.floor(Math.random() * 6) + 1;
+  const d2 = Math.floor(Math.random() * 6) + 1;
+
+  if (d1 === d2) {
+    dice = [d1, d1, d1, d1]; // doubles
+  } else {
+    dice = [d1, d2];
+  }
+  diceRolled = true;
+
+  // Animate dice
+  document.getElementById('die1').classList.add('rolling');
+  document.getElementById('die2').classList.add('rolling');
+  setTimeout(() => {
+    document.getElementById('die1').classList.remove('rolling');
+    document.getElementById('die2').classList.remove('rolling');
+    updateUI();
+    drawBoard();
+
+    if (getAllValidMoves().length === 0) {
+      message = (turn === 'w' ? 'White' : 'Black') + ' has no moves!';
+      setTimeout(() => endTurn(), 800);
+    }
+  }, 500);
+
+  updateUI();
+}
+
+function endTurn() {
+  dice = [];
+  diceRolled = false;
+  selectedPoint = -1;
+  validTargets = [];
+  turn = turn === 'w' ? 'b' : 'w';
+  message = '';
+  updateUI();
+  drawBoard();
+
+  if (gameMode !== 'pvp' && turn === 'b' && !gameOver) {
+    setTimeout(() => botTurn(), 400);
+  }
+}
+
+function checkWin() {
+  if (whiteOff >= 15) {
+    gameOver = true;
+    const t = gameMode === 'pvp' ? 'White Wins!' : 'You Win!';
+    document.getElementById('end-title').textContent = t;
+    document.getElementById('end-msg').textContent = 'All checkers borne off!';
+    setTimeout(() => document.getElementById('overlay-end').classList.add('active'), 300);
+    return true;
+  }
+  if (blackOff >= 15) {
+    gameOver = true;
+    const t = gameMode === 'pvp' ? 'Black Wins!' : 'Bot Wins!';
+    document.getElementById('end-title').textContent = t;
+    document.getElementById('end-msg').textContent = 'All checkers borne off!';
+    setTimeout(() => document.getElementById('overlay-end').classList.add('active'), 300);
+    return true;
+  }
+  return false;
+}
+
+// ─── Move Logic ────────────────────────────────
+function checkerCount(pt, color) {
+  if (color === 'w') return points[pt] > 0 ? points[pt] : 0;
+  return points[pt] < 0 ? -points[pt] : 0;
+}
+
+function canBearOff(color) {
+  if (color === 'w') {
+    if (whiteBar > 0) return false;
+    for (let i = 7; i <= 24; i++) if (points[i] > 0) return false;
+    return true;
+  } else {
+    if (blackBar > 0) return false;
+    for (let i = 1; i <= 18; i++) if (points[i] < 0) return false;
+    return true;
+  }
+}
+
+function getMovesForPoint(fromPt, color) {
+  const moves = [];
+  const bar = color === 'w' ? whiteBar : blackBar;
+  const isBar = fromPt === 0;
+
+  // Must enter from bar first
+  if (!isBar && bar > 0) return [];
+
+  for (let di = 0; di < dice.length; di++) {
+    const d = dice[di];
+    let target;
+
+    if (color === 'w') {
+      target = isBar ? 25 - d : fromPt - d;
+    } else {
+      target = isBar ? d : fromPt + d;
+    }
+
+    // Bearing off
+    if (color === 'w' && target <= 0) {
+      if (canBearOff('w')) {
+        // Exact or highest checker
+        if (target === 0) {
+          moves.push({ from: fromPt, to: 25, die: di });
+        } else {
+          // Can bear off if this is the farthest checker
+          let farthest = 0;
+          for (let i = 6; i >= 1; i--) { if (points[i] > 0) { farthest = i; break; } }
+          if (fromPt === farthest) moves.push({ from: fromPt, to: 25, die: di });
+        }
+      }
+      continue;
+    }
+    if (color === 'b' && target >= 25) {
+      if (canBearOff('b')) {
+        if (target === 25) {
+          moves.push({ from: fromPt, to: 25, die: di });
+        } else {
+          let farthest = 0;
+          for (let i = 19; i <= 24; i++) { if (points[i] < 0) { farthest = i; break; } }
+          if (fromPt === farthest) moves.push({ from: fromPt, to: 25, die: di });
+        }
+      }
+      continue;
+    }
+
+    if (target < 1 || target > 24) continue;
+
+    // Check target
+    if (color === 'w') {
+      if (points[target] < -1) continue; // blocked
+    } else {
+      if (points[target] > 1) continue; // blocked
+    }
+
+    moves.push({ from: fromPt, to: target, die: di });
+  }
+
+  // Remove duplicate targets
+  const seen = new Set();
+  return moves.filter(m => {
+    const k = m.to;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+function getAllValidMoves() {
+  const color = turn;
+  const bar = color === 'w' ? whiteBar : blackBar;
+  const all = [];
+
+  if (bar > 0) {
+    all.push(...getMovesForPoint(0, color));
+  } else {
+    for (let pt = 1; pt <= 24; pt++) {
+      if ((color === 'w' && points[pt] > 0) || (color === 'b' && points[pt] < 0)) {
+        all.push(...getMovesForPoint(pt, color));
+      }
+    }
+  }
+  return all;
+}
+
+function executeMove(move) {
+  const color = turn;
+  const { from, to, die } = move;
+
+  // Remove from source
+  if (from === 0) {
+    if (color === 'w') whiteBar--;
+    else blackBar--;
+  } else {
+    if (color === 'w') points[from]--;
+    else points[from]++;
+  }
+
+  // Bearing off
+  if (to === 25) {
+    if (color === 'w') whiteOff++;
+    else blackOff++;
+    dice.splice(die, 1);
+    if (checkWin()) return;
+    if (dice.length === 0 || getAllValidMoves().length === 0) endTurn();
+    else { selectedPoint = -1; validTargets = []; updateUI(); drawBoard(); }
+    return;
+  }
+
+  // Hit opponent?
+  if (color === 'w' && points[to] === -1) {
+    points[to] = 0;
+    blackBar++;
+  } else if (color === 'b' && points[to] === 1) {
+    points[to] = 0;
+    whiteBar++;
+  }
+
+  // Place checker
+  if (color === 'w') points[to]++;
+  else points[to]--;
+
+  dice.splice(die, 1);
+
+  if (dice.length === 0 || getAllValidMoves().length === 0) {
+    endTurn();
+  } else {
+    selectedPoint = -1;
+    validTargets = [];
+    updateUI();
+    drawBoard();
+  }
+}
+
+// ─── Bot AI ────────────────────────────────────
+function botTurn() {
+  botThinking = true;
+  document.getElementById('thinking').classList.add('active');
+  updateUI();
+
+  // Roll dice for bot
+  const d1 = Math.floor(Math.random() * 6) + 1;
+  const d2 = Math.floor(Math.random() * 6) + 1;
+  dice = d1 === d2 ? [d1, d1, d1, d1] : [d1, d2];
+  diceRolled = true;
+  updateUI();
+  drawBoard();
+
+  setTimeout(() => {
+    botPlayMoves();
+  }, 600);
+}
+
+function botPlayMoves() {
+  if (gameOver) { botThinking = false; return; }
+
+  const moves = getAllValidMoves();
+  if (moves.length === 0) {
+    botThinking = false;
+    document.getElementById('thinking').classList.remove('active');
+    endTurn();
+    return;
+  }
+
+  // Pick move
+  let best = moves[0];
+
+  if (gameMode === 'easy') {
+    best = moves[Math.floor(Math.random() * moves.length)];
+  } else {
+    let bestScore = -Infinity;
+    for (const m of moves) {
+      const s = scoreBotMove(m);
+      const noise = gameMode === 'medium' ? (Math.random() - 0.5) * 5 : 0;
+      if (s + noise > bestScore) { bestScore = s + noise; best = m; }
+    }
+  }
+
+  executeMove(best);
+  drawBoard();
+
+  if (dice.length > 0 && !gameOver) {
+    setTimeout(() => botPlayMoves(), 350);
+  } else {
+    botThinking = false;
+    document.getElementById('thinking').classList.remove('active');
+    updateUI();
+    drawBoard();
+  }
+}
+
+function scoreBotMove(m) {
+  let score = 0;
+  const from = m.from, to = m.to;
+
+  // Bearing off is great
+  if (to === 25) return 50;
+
+  // Hitting opponent
+  if (points[to] === 1) score += 20;
+
+  // Making a pair (safe point)
+  if (points[to] === -1) score += 15;
+
+  // Advancing towards home
+  if (to >= 19) score += 10;
+  else if (to >= 13) score += 5;
+
+  // Don't leave blots
+  if (from !== 0 && (points[from] === -1 || points[from] === 1)) score -= 5;
+
+  // Escape from bar
+  if (from === 0) score += 25;
+
+  // Prefer moving farthest checker
+  if (from !== 0) score += (from < 13 ? 13 - from : from - 12) * 0.5;
+
+  return score;
+}
+
+// ─── Drawing ───────────────────────────────────
+function pointX(pt) {
+  // Points 13-24 top left to right, 12-1 bottom right to left
+  if (pt >= 13 && pt <= 18) return MARGIN_X + (pt - 13) * POINT_W;
+  if (pt >= 19 && pt <= 24) return MARGIN_X + BAR_W + 6 * POINT_W + (pt - 19) * POINT_W;
+  if (pt >= 7 && pt <= 12) return MARGIN_X + (12 - pt) * POINT_W;
+  if (pt >= 1 && pt <= 6) return MARGIN_X + BAR_W + 6 * POINT_W + (6 - pt) * POINT_W;
+  return BW / 2 - POINT_W / 2;
+}
+
+function pointTop(pt) {
+  return pt >= 13 ? true : false;
+}
+
+function drawBoard() {
+  ctx.clearRect(0, 0, BW, BH);
+
+  // Board frame
+  ctx.fillStyle = FRAME_COLOR;
+  ctx.beginPath();
+  ctx.roundRect(0, 0, BW, BH, 10);
+  ctx.fill();
+
+  // Felt
+  ctx.fillStyle = BOARD_FELT;
+  ctx.fillRect(MARGIN_X - 4, MARGIN_Y - 4, 6 * POINT_W + 8, BH - 2 * MARGIN_Y + 8);
+  ctx.fillRect(MARGIN_X + 6 * POINT_W + BAR_W - 4, MARGIN_Y - 4, 6 * POINT_W + 8, BH - 2 * MARGIN_Y + 8);
+
+  // Bar
+  ctx.fillStyle = '#3a2a14';
+  ctx.fillRect(MARGIN_X + 6 * POINT_W, 0, BAR_W, BH);
+
+  // Bear-off tray
+  ctx.fillStyle = '#2a1e10';
+  ctx.fillRect(BW - OFF_W - 6, MARGIN_Y - 4, OFF_W + 4, BH - 2 * MARGIN_Y + 8);
+
+  // Points (triangles)
+  for (let pt = 1; pt <= 24; pt++) {
+    const x = pointX(pt);
+    const top = pointTop(pt);
+    const isLight = pt % 2 === 0;
+
+    ctx.fillStyle = isLight ? POINT_LIGHT : POINT_DARK;
+    ctx.beginPath();
+    if (top) {
+      ctx.moveTo(x, MARGIN_Y);
+      ctx.lineTo(x + POINT_W, MARGIN_Y);
+      ctx.lineTo(x + POINT_W / 2, MARGIN_Y + POINT_H);
+    } else {
+      ctx.moveTo(x, BH - MARGIN_Y);
+      ctx.lineTo(x + POINT_W, BH - MARGIN_Y);
+      ctx.lineTo(x + POINT_W / 2, BH - MARGIN_Y - POINT_H);
+    }
+    ctx.fill();
+
+    // Highlight selected
+    if (pt === selectedPoint) {
+      ctx.fillStyle = HIGHLIGHT;
+      ctx.beginPath();
+      if (top) {
+        ctx.moveTo(x, MARGIN_Y);
+        ctx.lineTo(x + POINT_W, MARGIN_Y);
+        ctx.lineTo(x + POINT_W / 2, MARGIN_Y + POINT_H);
+      } else {
+        ctx.moveTo(x, BH - MARGIN_Y);
+        ctx.lineTo(x + POINT_W, BH - MARGIN_Y);
+        ctx.lineTo(x + POINT_W / 2, BH - MARGIN_Y - POINT_H);
+      }
+      ctx.fill();
+    }
+
+    // Valid targets
+    if (validTargets.includes(pt)) {
+      ctx.strokeStyle = 'rgba(255,200,60,0.7)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      const cx = x + POINT_W / 2;
+      const cy = top ? MARGIN_Y + 30 : BH - MARGIN_Y - 30;
+      ctx.arc(cx, cy, CHECKER_R + 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  // Bear-off highlight
+  if (validTargets.includes(25)) {
+    ctx.strokeStyle = 'rgba(255,200,60,0.7)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(BW - OFF_W - 4, turn === 'w' ? BH / 2 : MARGIN_Y, OFF_W, BH / 2 - MARGIN_Y);
+  }
+
+  // Draw checkers on points
+  for (let pt = 1; pt <= 24; pt++) {
+    const count = Math.abs(points[pt]);
+    const isW = points[pt] > 0;
+    if (count === 0) continue;
+
+    const x = pointX(pt) + POINT_W / 2;
+    const top = pointTop(pt);
+    const maxShow = Math.min(count, 5);
+
+    for (let i = 0; i < maxShow; i++) {
+      const y = top ? MARGIN_Y + CHECKER_R + 2 + i * (CHECKER_R * 1.8) : BH - MARGIN_Y - CHECKER_R - 2 - i * (CHECKER_R * 1.8);
+      drawChecker(x, y, isW);
+    }
+
+    if (count > 5) {
+      const y = top ? MARGIN_Y + CHECKER_R + 2 + 4 * (CHECKER_R * 1.8) : BH - MARGIN_Y - CHECKER_R - 2 - 4 * (CHECKER_R * 1.8);
+      ctx.fillStyle = isW ? '#3a2a18' : '#ddd';
+      ctx.font = '700 12px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText(count, x, y + 4);
+    }
+  }
+
+  // Bar checkers
+  if (whiteBar > 0) {
+    const bx = MARGIN_X + 6 * POINT_W + BAR_W / 2;
+    for (let i = 0; i < Math.min(whiteBar, 3); i++) {
+      drawChecker(bx, BH / 2 + 30 + i * (CHECKER_R * 2), true);
+    }
+    if (whiteBar > 3) {
+      ctx.fillStyle = '#3a2a18';
+      ctx.font = '700 11px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText(whiteBar, bx, BH / 2 + 30 + 2 * CHECKER_R * 2 + 4);
+    }
+  }
+  if (blackBar > 0) {
+    const bx = MARGIN_X + 6 * POINT_W + BAR_W / 2;
+    for (let i = 0; i < Math.min(blackBar, 3); i++) {
+      drawChecker(bx, BH / 2 - 30 - i * (CHECKER_R * 2), false);
+    }
+    if (blackBar > 3) {
+      ctx.fillStyle = '#ddd';
+      ctx.font = '700 11px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText(blackBar, bx, BH / 2 - 30 - 2 * CHECKER_R * 2 + 4);
+    }
+  }
+
+  // Bar highlight
+  if (selectedPoint === 0) {
+    ctx.fillStyle = HIGHLIGHT;
+    const bx = MARGIN_X + 6 * POINT_W;
+    ctx.fillRect(bx, turn === 'w' ? BH / 2 : 0, BAR_W, BH / 2);
+  }
+
+  // Bear-off counts
+  const offX = BW - OFF_W / 2 - 4;
+  if (whiteOff > 0) {
+    for (let i = 0; i < Math.min(whiteOff, 5); i++) {
+      drawChecker(offX, BH - MARGIN_Y - 10 - i * 14, true, 10);
+    }
+    ctx.fillStyle = '#3a2a18';
+    ctx.font = '700 11px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText(whiteOff, offX, BH - MARGIN_Y + 14);
+  }
+  if (blackOff > 0) {
+    for (let i = 0; i < Math.min(blackOff, 5); i++) {
+      drawChecker(offX, MARGIN_Y + 10 + i * 14, false, 10);
+    }
+    ctx.fillStyle = '#ddd';
+    ctx.font = '700 11px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText(blackOff, offX, MARGIN_Y - 4);
+  }
+
+  // Point numbers
+  ctx.font = '600 9px Inter';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  for (let pt = 1; pt <= 24; pt++) {
+    const x = pointX(pt) + POINT_W / 2;
+    const top = pointTop(pt);
+    ctx.fillText(pt, x, top ? MARGIN_Y - 4 : BH - MARGIN_Y + 12);
+  }
+}
+
+function drawChecker(x, y, isWhite, r) {
+  r = r || CHECKER_R;
+  // Shadow
+  ctx.beginPath();
+  ctx.arc(x, y + 2, r, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fill();
+
+  // Main
+  const grad = ctx.createRadialGradient(x - r * 0.25, y - r * 0.25, r * 0.1, x, y, r);
+  if (isWhite) {
+    grad.addColorStop(0, '#fff8ee');
+    grad.addColorStop(0.6, WHITE_C);
+    grad.addColorStop(1, '#b0a080');
+  } else {
+    grad.addColorStop(0, '#4a3828');
+    grad.addColorStop(0.6, BLACK_C);
+    grad.addColorStop(1, '#0a0804');
+  }
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Edge
+  ctx.strokeStyle = isWhite ? WHITE_EDGE : BLACK_EDGE;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Inner ring
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.6, 0, Math.PI * 2);
+  ctx.strokeStyle = isWhite ? 'rgba(160,140,100,0.3)' : 'rgba(80,60,40,0.3)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Shine
+  ctx.beginPath();
+  ctx.ellipse(x - r * 0.2, y - r * 0.3, r * 0.3, r * 0.15, -0.3, 0, Math.PI * 2);
+  ctx.fillStyle = isWhite ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.08)';
+  ctx.fill();
+}
+
+// ─── Click Handling ────────────────────────────
+canvas.addEventListener('click', (e) => {
+  if (gameOver || botThinking) return;
+  if (gameMode !== 'pvp' && turn === 'b') return;
+  if (!diceRolled || dice.length === 0) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) / rect.width * BW;
+  const my = (e.clientY - rect.top) / rect.height * BH;
+
+  // Check bar click
+  const barX = MARGIN_X + 6 * POINT_W;
+  if (mx >= barX && mx <= barX + BAR_W) {
+    const bar = turn === 'w' ? whiteBar : blackBar;
+    if (bar > 0) {
+      selectedPoint = 0;
+      const moves = getMovesForPoint(0, turn);
+      validTargets = moves.map(m => m.to);
+      drawBoard();
+      return;
+    }
+  }
+
+  // Check bear-off tray click
+  if (mx >= BW - OFF_W - 6 && validTargets.includes(25)) {
+    const moves = getMovesForPoint(selectedPoint, turn);
+    const move = moves.find(m => m.to === 25);
+    if (move) { executeMove(move); drawBoard(); }
+    return;
+  }
+
+  // Check point click
+  const clickedPt = getClickedPoint(mx, my);
+
+  if (clickedPt > 0) {
+    // If clicking a valid target, make the move
+    if (validTargets.includes(clickedPt) && selectedPoint >= 0) {
+      const moves = getMovesForPoint(selectedPoint, turn);
+      const move = moves.find(m => m.to === clickedPt);
+      if (move) { executeMove(move); drawBoard(); return; }
+    }
+
+    // Select own checker
+    if ((turn === 'w' && points[clickedPt] > 0) || (turn === 'b' && points[clickedPt] < 0)) {
+      const bar = turn === 'w' ? whiteBar : blackBar;
+      if (bar > 0) { message = 'Must enter from bar first!'; updateUI(); return; }
+      const moves = getMovesForPoint(clickedPt, turn);
+      if (moves.length > 0) {
+        selectedPoint = clickedPt;
+        validTargets = moves.map(m => m.to);
+        drawBoard();
+        return;
+      }
+    }
+  }
+
+  // Deselect
+  selectedPoint = -1;
+  validTargets = [];
+  drawBoard();
+});
+
+function getClickedPoint(mx, my) {
+  for (let pt = 1; pt <= 24; pt++) {
+    const x = pointX(pt);
+    const top = pointTop(pt);
+    if (mx >= x && mx <= x + POINT_W) {
+      if (top && my < BH / 2) return pt;
+      if (!top && my > BH / 2) return pt;
+    }
+  }
+  return -1;
+}
+
+// ─── UI Update ─────────────────────────────────
+function updateUI() {
+  const d1El = document.getElementById('die1');
+  const d2El = document.getElementById('die2');
+  const rollBtn = document.getElementById('roll-btn');
+  const msgEl = document.getElementById('msg');
+
+  if (dice.length >= 2) {
+    const allDice = diceRolled ? dice : [];
+    d1El.textContent = allDice.length > 0 ? allDice[0] : '';
+    d2El.textContent = allDice.length > 1 ? allDice[1] : '';
+    d1El.classList.toggle('used', false);
+    d2El.classList.toggle('used', false);
+  } else if (dice.length === 1) {
+    d1El.textContent = dice[0];
+    d2El.textContent = '';
+    d1El.classList.remove('used');
+    d2El.classList.add('used');
+  } else {
+    d1El.textContent = '';
+    d2El.textContent = '';
+  }
+
+  if (!diceRolled && !gameOver && !botThinking && (gameMode === 'pvp' || turn === 'w')) {
+    rollBtn.classList.remove('hidden');
+  } else {
+    rollBtn.classList.add('hidden');
+  }
+
+  document.getElementById('info-w').classList.toggle('active', turn === 'w');
+  document.getElementById('info-b').classList.toggle('active', turn === 'b');
+  document.getElementById('off-w').textContent = whiteOff + '/15';
+  document.getElementById('off-b').textContent = blackOff + '/15';
+
+  msgEl.textContent = message;
+}
+
+// ─── Start ─────────────────────────────────────
+showMenu();
+</script>
+</body>
+</html>

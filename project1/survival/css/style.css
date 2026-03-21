@@ -1,0 +1,113 @@
+/* Survival — Minecraft-like browser game */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #1a1d29;
+  color: #e8eaed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-wrap {
+  text-align: center;
+  padding: 1rem;
+  position: relative;
+}
+
+h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.hud {
+  margin: 0 0 0.25rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.hud-item {
+  color: #9aa0a6;
+}
+
+.hud-item strong {
+  color: #e8eaed;
+}
+
+.health-bar-wrap {
+  width: 200px;
+  height: 12px;
+  margin: 0 auto 0.5rem;
+  background: #252936;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.health-bar {
+  height: 100%;
+  width: 100%;
+  background: #7caf5e;
+  transition: width 0.15s;
+}
+
+.health-bar.low {
+  background: #d9655c;
+}
+
+#game-canvas {
+  display: block;
+  margin: 0 auto;
+  background: #5eb4c4;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: #9aa0a6;
+}
+
+.overlay {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(30, 36, 51, 0.95);
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+  min-width: 200px;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.overlay-msg {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  background: #252936;
+  color: #e8eaed;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn:hover {
+  background: #2e3344;
+}

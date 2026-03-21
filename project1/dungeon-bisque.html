@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DUNGEON BISQUE</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:'Segoe UI',sans-serif;overflow:hidden}
+canvas{display:block;image-rendering:auto}
+</style>
+</head>
+<body>
+<canvas id="C"></canvas>
+<script>
+const C=document.getElementById('C'),ctx=C.getContext('2d');
+const GW=960,GH=600;
+C.width=GW;C.height=GH;
+
+// ==================== CONSTANTS ====================
+const T=32; // tile size
+const COMBO_WINDOW=90;
+const PARTICLE_MAX=400;
+const PICKUP_RANGE=28;
+
+// ==================== INGREDIENTS ====================
+const INGREDIENTS={
+    baguette:{id:'baguette',name:'Baguette',icon:'🥖',type:'melee',dmg:8,range:44,cd:15,kb:6,
+        desc:'Crusty French sword',voice:['Baguette!','En garde!','Take a SLICE!']},
+    hot_pepper:{id:'hot_pepper',name:'Hot Pepper',icon:'🌶️',type:'thrown',dmg:12,range:200,cd:40,aoe:50,
+        desc:'Spicy grenade',voice:['HOT PEPPER!','Fire in the hole!','SPICY!']},
+    cheese_wheel:{id:'cheese_wheel',name:'Cheese Wheel',icon:'🧀',type:'shield',block:5,cd:50,dur:45,
+        desc:'Aged gouda shield',voice:['Say cheese!','Gouda defense!']},
+    fish:{id:'fish',name:'Frozen Fish',icon:'🐟',type:'melee',dmg:10,range:38,cd:20,kb:10,stun:15,
+        desc:'Hammer-slap of justice',voice:['Fish slap!','Something smells FISHY!']},
+    egg:{id:'egg',name:'Egg',icon:'🥚',type:'thrown',dmg:5,range:160,cd:22,aoe:30,effect:'slow',
+        desc:'Sticky slow bomb',voice:['Over easy!','Egg-cellent!']},
+    garlic:{id:'garlic',name:'Garlic',icon:'🧄',type:'aura',dmg:2,radius:65,tick:25,
+        desc:'Passive stink damage',voice:['Aromatic!','Keep away!']},
+    onion:{id:'onion',name:'Onion',icon:'🧅',type:'thrown',dmg:4,range:130,cd:25,aoe:40,effect:'blind',
+        desc:'Makes em cry',voice:['Cry me a river!','Peel THIS!']},
+    butter:{id:'butter',name:'Butter',icon:'🧈',type:'utility',effect:'speed',dur:180,cd:60,
+        desc:'Speed boost slip',voice:['Smooth operator!','Butter up!']},
+    noodle:{id:'noodle',name:'Noodle Whip',icon:'🍝',type:'melee',dmg:7,range:58,cd:18,kb:3,
+        desc:'Long range whip',voice:['Pasta la vista!','Get NOODLED!']},
+    rice_ball:{id:'rice_ball',name:'Rice Ball',icon:'🍙',type:'heal',heal:20,cd:80,
+        desc:'Heals 20 HP',voice:['Oishii!','Rice to meet you!']},
+    rolling_pin:{id:'rolling_pin',name:'Rolling Pin',icon:'📏',type:'melee',dmg:11,range:32,cd:22,kb:8,stun:20,
+        desc:'Heavy bonk, stuns',voice:['BONK!','Flatten out!']},
+    tomato:{id:'tomato',name:'Tomato',icon:'🍅',type:'thrown',dmg:6,range:140,cd:18,aoe:35,
+        desc:'Splat!',voice:['Tomato!','SPLAT!']},
+    chili_flake:{id:'chili_flake',name:'Chili Flakes',icon:'🫙',type:'trap',dmg:3,dur:150,tick:12,
+        desc:'Burning floor trap',voice:['Hot stuff!','Feel the burn!']},
+    basil:{id:'basil',name:'Basil',icon:'🌿',type:'heal',heal:10,cd:50,
+        desc:'Minor heal herb',voice:['Fresh basil!','Herbal remedy!']},
+    mozzarella:{id:'mozzarella',name:'Mozzarella',icon:'🫕',type:'shield',block:3,cd:35,dur:30,
+        desc:'Stretchy cheese guard',voice:['Mozzarella!','Cheesy defense!']},
+    seaweed:{id:'seaweed',name:'Seaweed',icon:'🌊',type:'trap',dmg:2,dur:120,tick:15,effect:'slow',
+        desc:'Slippery trap',voice:['Seaweed wrap!']},
+    tortilla:{id:'tortilla',name:'Tortilla',icon:'🫓',type:'shield',block:4,cd:40,dur:35,
+        desc:'Flexible wrap shield',voice:['Wrap it up!']},
+    lime:{id:'lime',name:'Lime',icon:'🍋',type:'thrown',dmg:4,range:120,cd:20,aoe:25,effect:'blind',
+        desc:'Citrus sting!',voice:['Lime time!','Zesty!']},
+    ginger:{id:'ginger',name:'Ginger',icon:'🫚',type:'utility',effect:'speed',dur:120,cd:45,
+        desc:'Ginger kick speed up',voice:['Ginger snap!']},
+    dumpling:{id:'dumpling',name:'Dumpling',icon:'🥟',type:'thrown',dmg:8,range:150,cd:28,aoe:35,
+        desc:'Steamy projectile',voice:['Dim sum damage!','Dumpling!']},
+    soy_sauce:{id:'soy_sauce',name:'Soy Sauce',icon:'🫗',type:'trap',dmg:4,dur:100,tick:10,
+        desc:'Slippery salty pool',voice:['Soy sauce!','Salty!']},
+    croissant:{id:'croissant',name:'Croissant',icon:'🥐',type:'melee',dmg:9,range:36,cd:16,kb:5,
+        desc:'Flaky boomerang blade',voice:['Croissant!','Flaky fury!']},
+    wine:{id:'wine',name:'Wine',icon:'🍷',type:'utility',effect:'dmg_boost',dur:200,cd:70,
+        desc:'+50% damage for 3s',voice:['Cheers!','Magnifique!']},
+};
+
+// ==================== RECIPES ====================
+const RECIPES={
+    'basil_mozzarella_tomato':{name:'Caprese Combo',icon:'🥗',dmg:25,effect:'heal',val:15,
+        voice:'CAPRESE COMBO!'},
+    'fish_noodle':{name:'Ramen Bomb',icon:'🍜',dmg:22,effect:'aoe',val:70,
+        voice:'RAMEN BOMB!'},
+    'baguette_cheese_wheel':{name:'Croque Monsieur',icon:'🥪',dmg:20,effect:'heal',val:12,
+        voice:'CROQUE MONSIEUR!'},
+    'egg_hot_pepper':{name:'Huevos Rancheros',icon:'🍳',dmg:18,effect:'burn',val:4,
+        voice:'HUEVOS RANCHEROS!'},
+    'butter_garlic':{name:'Garlic Bread',icon:'🍞',dmg:0,effect:'shield',val:40,
+        voice:'GARLIC BREAD!'},
+    'hot_pepper_onion_tortilla':{name:'Salsa Inferno',icon:'🫕',dmg:30,effect:'screen',val:0,
+        voice:'SALSA INFERNO!'},
+    'egg_fish_rice_ball':{name:'Supreme Sushi',icon:'🍣',dmg:28,effect:'heal',val:20,
+        voice:'SUPREME SUSHI!'},
+    'dumpling_ginger_soy_sauce':{name:'Dragon Feast',icon:'🐉',dmg:26,effect:'screen',val:0,
+        voice:'DRAGON FEAST!'},
+    'butter_croissant_wine':{name:'French Kiss',icon:'💋',dmg:15,effect:'heal',val:25,
+        voice:'FRENCH KISS! Ooh la la!'},
+    'chili_flake_lime_tortilla':{name:'Burrito Bomb',icon:'🌯',dmg:35,effect:'aoe',val:80,
+        voice:'BURRITO BOMB!'},
+    'basil_garlic_tomato':{name:'Marinara Blast',icon:'🍝',dmg:20,effect:'burn',val:3,
+        voice:'MARINARA BLAST!'},
+    'rice_ball_seaweed':{name:'Sushi Roll',icon:'🍱',dmg:18,effect:'multi',val:5,
+        voice:'SUSHI ROLL!'},
+    'noodle_soy_sauce':{name:'Lo Mein Lash',icon:'🥢',dmg:20,effect:'aoe',val:55,
+        voice:'LO MEIN LASH!'},
+};
+
+// ==================== ENEMIES ====================
+const ENEMY_DEFS={
+    angry_meatball:{hp:22,speed:1.8,dmg:4,w:24,h:24,behavior:'roll',color:'#8B4513',icon:'🧆',name:'Angry Meatball'},
+    spaghetti_snake:{hp:30,speed:1.2,dmg:5,w:28,h:20,behavior:'chase',color:'#DAA520',icon:'🍝',name:'Spaghetti Snake'},
+    pizza_frisbee:{hp:16,speed:2.5,dmg:6,w:22,h:22,behavior:'orbit',color:'#FF6347',icon:'🍕',name:'Pizza Frisbee'},
+    wasabi_bomb:{hp:14,speed:0.9,dmg:10,w:18,h:18,behavior:'explode',color:'#90EE90',icon:'🟢',name:'Wasabi Bomb'},
+    tempura_shrimp:{hp:28,speed:1.6,dmg:5,w:22,h:26,behavior:'hop',color:'#FFD700',icon:'🍤',name:'Tempura Shrimp'},
+    taco_turret:{hp:40,speed:0,dmg:4,w:26,h:26,behavior:'turret',color:'#FFA500',icon:'🌮',name:'Taco Turret'},
+    bean_bandit:{hp:22,speed:2.2,dmg:3,w:20,h:22,behavior:'dash',color:'#8B6914',icon:'🫘',name:'Bean Bandit'},
+    croissant_crab:{hp:35,speed:1.3,dmg:6,w:26,h:22,behavior:'sidestep',color:'#DEB887',icon:'🥐',name:'Croissant Crab'},
+    souffle_puffer:{hp:20,speed:0.6,dmg:10,w:24,h:24,behavior:'inflate',color:'#FFFACD',icon:'🫧',name:'Soufflé Puffer'},
+    dumpling_swarm:{hp:10,speed:2.5,dmg:2,w:16,h:16,behavior:'chase',color:'#FFF8DC',icon:'🥟',name:'Dumpling'},
+    wok_warrior:{hp:50,speed:1.0,dmg:7,w:30,h:30,behavior:'tank',color:'#2F4F4F',icon:'🍳',name:'Wok Warrior'},
+    bland_blob:{hp:28,speed:1.4,dmg:5,w:24,h:24,behavior:'chase',color:'#aaa',icon:'⬜',name:'Bland Blob'},
+};
+
+// ==================== FLOORS ====================
+const FLOORS=[
+    {id:'italian',name:'Pasta Palazzo',bg:'#1a0f0a',tile:'#3a2a1a',wall:'#5a3a2a',accent:'#c44',
+     boss:'mama_marinara',enemies:['angry_meatball','spaghetti_snake','pizza_frisbee'],
+     drops:['tomato','basil','mozzarella','baguette','garlic'],roomCount:5},
+    {id:'japanese',name:'Soy Shrine',bg:'#0a0f1a',tile:'#1a2a3a',wall:'#2a3a5a',accent:'#e44',
+     boss:'sensei_sashimi',enemies:['wasabi_bomb','tempura_shrimp'],
+     drops:['fish','rice_ball','seaweed','noodle','egg'],roomCount:5},
+    {id:'mexican',name:'Hacienda del Fuego',bg:'#1a1008',tile:'#3a2a0a',wall:'#5a3a1a',accent:'#fa0',
+     boss:'senor_fuego',enemies:['taco_turret','bean_bandit'],
+     drops:['hot_pepper','tortilla','lime','chili_flake','onion'],roomCount:6},
+    {id:'french',name:'Château Beurre',bg:'#0f0a1a',tile:'#2a1a3a',wall:'#3a2a4a',accent:'#a5f',
+     boss:'madame_croissant',enemies:['croissant_crab','souffle_puffer'],
+     drops:['butter','croissant','wine','cheese_wheel','egg'],roomCount:5},
+    {id:'chinese',name:"Dragon's Kitchen",bg:'#1a0a0a',tile:'#2a1a1a',wall:'#4a2a2a',accent:'#f80',
+     boss:'uncle_wok',enemies:['dumpling_swarm','wok_warrior'],
+     drops:['ginger','soy_sauce','dumpling','noodle','rice_ball'],roomCount:6},
+    {id:'bland',name:'The Bland Banquet',bg:'#1a1a1a',tile:'#2a2a2a',wall:'#3a3a3a',accent:'#666',
+     boss:'monsieur_bland',enemies:['bland_blob'],
+     drops:['tomato','fish','hot_pepper','butter','dumpling'],roomCount:4},
+];
+
+// ==================== BOSSES ====================
+const BOSSES={
+    mama_marinara:{hp:200,speed:1.0,w:48,h:48,dmg:8,icon:'🍅',name:'Mama Marinara',
+        color:'#c44',phases:['sauce','meatball_rain'],
+        intro:'"Nobody out-cooks Mama!"',defeat:'"My sauce... overcooked..."'},
+    sensei_sashimi:{hp:220,speed:1.3,w:44,h:44,dmg:7,icon:'🍣',name:'Sensei Sashimi',
+        color:'#e88',phases:['slice','wasabi_wave'],
+        intro:'"Your technique lacks precision."',defeat:'"A worthy chef..."'},
+    senor_fuego:{hp:250,speed:1.1,w:46,h:46,dmg:9,icon:'🌮',name:'Señor Fuego',
+        color:'#f80',phases:['fire_ring','pepper_storm'],
+        intro:'"Too spicy for you, amigo!"',defeat:'"Ay... I need agua..."'},
+    madame_croissant:{hp:230,speed:0.9,w:44,h:44,dmg:7,icon:'🥐',name:'Madame Croissant',
+        color:'#da8',phases:['pastry_shield','butter_barrage'],
+        intro:'"How... uncouth."',defeat:'"Mon dieu... well played."'},
+    uncle_wok:{hp:260,speed:1.2,w:50,h:50,dmg:8,icon:'🥘',name:'Uncle Wok',
+        color:'#f60',phases:['stir_fry','dragon_breath'],
+        intro:'"You dare enter MY kitchen?!"',defeat:'"Hah... good cooking."'},
+    monsieur_bland:{hp:400,speed:0.8,w:56,h:56,dmg:10,icon:'👤',name:'Monsieur Bland',
+        color:'#888',phases:['drain','beige_beam','final'],
+        intro:'"Flavor is... unnecessary."',defeat:'"I can... taste... something..."'},
+};
+
+// ==================== SOUS LINES ====================
+const SOUS_LINES={
+    idle:['Is it me or does this place smell delicious?','I could really go for a snack right now...',
+          'Watch out for that thing!','Remember: presentation matters!',
+          'Five-second rule applies in dungeons, right?','My pages are getting grease stains...'],
+    enter:['New room! Smells like adventure... and garlic.','What fresh horror awaits?',
+           'I have a BAD feeling about this recipe...','After you, Chef!'],
+    boss:['Oh no... THAT is a big ingredient!','Boss fight! Time to cook under pressure!',
+          'Remember your training, Chef!'],
+    pickup:['Ooh, fresh ingredients!','Add it to the collection!','That looks... edible?'],
+    combo:['Now THAT\'s what I call fusion!','Recipe executed perfectly!','Chef\'s kiss!'],
+    death:['Five-second rule?','That\'s going to leave a stain...','Kitchen\'s closed...'],
+    lowHp:['Maybe try NOT getting hit?','You look a little... undercooked.','Health is low, Chef!'],
+};
+
+// ==================== GAME STATE ====================
+let player,camera,enemies,projectiles,particles,drops,traps;
+let rooms,currentRoom,currentFloor,currentFloorIdx;
+let keys={},frame=0,screenShake=0,roomTransTimer=0;
+let gameState='title';
+let bossHp=0,bossMaxHp=0,bossName='',bossEntity=null;
+let sous={x:0,y:0,msg:'',msgTimer:0,bob:0};
+let comboBuffer=[];
+let floatingTexts=[];
+let titleAnim=0,deathTimer=0,victoryTimer=0;
+let discoveredRecipes=new Set();
+let totalKills=0,floorClears=0;
+let dungeonMap=[],exploredRooms={};
+let shieldActive=0;
+let activeBuffs=[];
+
+// ==================== UTILITY ====================
+function lerp(a,b,t){return a+(b-a)*t}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function rng(){return Math.random()}
+function rngInt(a,b){return Math.floor(a+rng()*(b-a+1))}
+function rngEl(arr){return arr[rngInt(0,arr.length-1)]}
+function rectOverlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
+
+// ==================== PARTICLES ====================
+function spawnParticle(x,y,vx,vy,life,color,size){
+    if(particles.length>=PARTICLE_MAX)return;
+    particles.push({x,y,vx,vy,life,maxLife:life,color,size:size||3});
+}
+function spawnBurst(x,y,n,color,spd,life){
+    for(let i=0;i<n;i++){
+        const a=rng()*Math.PI*2,s=rng()*spd;
+        spawnParticle(x,y,Math.cos(a)*s,Math.sin(a)*s,life||25,color,rng()*3+1);
+    }
+}
+function floatText(x,y,text,color,size){
+    floatingTexts.push({x,y,text,color:color||'#fff',size:size||14,life:60,maxLife:60});
+}
+
+// ==================== ROOM GENERATION ====================
+function generateRoom(floor,w,h,isBoss,roomIdx){
+    const tiles=[];
+    for(let y=0;y<h;y++){tiles[y]=[];for(let x=0;x<w;x++)tiles[y][x]=1;}
+    // Carve arena
+    const margin=isBoss?2:2;
+    for(let y=margin;y<h-margin;y++)
+        for(let x=margin;x<w-margin;x++)
+            tiles[y][x]=0;
+    if(!isBoss){
+        // Kitchen counter obstacles
+        const obs=rngInt(2,4);
+        for(let i=0;i<obs;i++){
+            const ox=rngInt(4,w-6),oy=rngInt(4,h-6);
+            const ow=rngInt(2,4),oh=rngInt(1,2);
+            for(let dy=0;dy<oh;dy++)for(let dx=0;dx<ow;dx++){
+                if(oy+dy<h-margin&&ox+dx<w-margin)tiles[oy+dy][ox+dx]=1;
+            }
+        }
+        // Make sure spawn area is clear
+        for(let y=h-5;y<h-2;y++)for(let x=2;x<5;x++)tiles[y][x]=0;
+    }else{
+        // Boss arena pillars
+        const qw=Math.floor(w/4),qh=Math.floor(h/4);
+        tiles[qh][qw]=1;tiles[qh][w-qw-1]=1;
+        tiles[h-qh-1][qw]=1;tiles[h-qh-1][w-qw-1]=1;
+    }
+    // Doors - right and left
+    const doorY=Math.floor(h/2);
+    return {tiles,w,h,objects:[],cleared:false,isBoss,doorY,index:roomIdx,floorIdx:0};
+}
+
+function generateFloor(floorIdx){
+    const fl=FLOORS[floorIdx];
+    const count=fl.roomCount;
+    const floorRooms=[];
+    for(let i=0;i<count;i++){
+        const isBoss=(i===count-1);
+        const w=isBoss?30:rngInt(22,28);
+        const h=isBoss?22:rngInt(16,20);
+        const room=generateRoom(fl,w,h,isBoss,i);
+        room.floorIdx=floorIdx;
+        // Enemies
+        if(!isBoss){
+            const ec=rngInt(3,5);
+            for(let e=0;e<ec;e++){
+                const kind=rngEl(fl.enemies);
+                room.objects.push({type:'enemy',kind,x:rngInt(4,w-4)*T,y:rngInt(4,h-4)*T});
+            }
+            // Ingredient drops
+            const dc=rngInt(1,3);
+            for(let d=0;d<dc;d++){
+                room.objects.push({type:'drop',kind:rngEl(fl.drops),x:rngInt(4,w-4)*T,y:rngInt(4,h-4)*T});
+            }
+        }else{
+            room.objects.push({type:'boss',kind:fl.boss,x:Math.floor(w/2)*T,y:Math.floor(h/3)*T});
+        }
+        floorRooms.push(room);
+    }
+    return floorRooms;
+}
+
+function loadRoom(floorIdx,roomIdx){
+    const room=dungeonMap[floorIdx][roomIdx];
+    currentRoom=room;
+    currentFloor=FLOORS[floorIdx];
+    currentFloorIdx=floorIdx;
+    enemies=[];drops=[];projectiles=[];traps=[];
+    bossEntity=null;bossHp=0;
+    const key=floorIdx+'-'+roomIdx;
+    exploredRooms[key]=true;
+    // Spawn objects
+    for(const obj of room.objects){
+        if(obj.type==='enemy'){
+            spawnEnemy(obj.x,obj.y,obj.kind);
+        }else if(obj.type==='drop'){
+            drops.push({x:obj.x,y:obj.y,id:obj.kind,life:9999,bob:rng()*6});
+        }else if(obj.type==='boss'){
+            spawnBoss(obj.x,obj.y,obj.kind);
+        }
+    }
+    if(room.isBoss&&bossEntity){
+        showSous(rngEl(SOUS_LINES.boss));
+        floatText(GW/2,100,BOSSES[room.objects.find(o=>o.type==='boss').kind].intro,'#ffa',20);
+    }else{
+        if(rng()>0.6)showSous(rngEl(SOUS_LINES.enter));
+    }
+}
+
+// ==================== ENEMY SYSTEM ====================
+function spawnEnemy(x,y,kind){
+    const def=ENEMY_DEFS[kind];if(!def)return;
+    const scale=1+currentFloorIdx*0.25;
+    enemies.push({
+        x,y,vx:0,vy:0,w:def.w,h:def.h,
+        hp:Math.floor(def.hp*scale),maxHp:Math.floor(def.hp*scale),
+        speed:def.speed,dmg:Math.floor(def.dmg*scale),
+        behavior:def.behavior,color:def.color,icon:def.icon,
+        name:def.name,kind,
+        iFrames:0,dir:1,aiTimer:rngInt(0,60),
+        attackTimer:0,stun:0,slow:0,animFrame:0,
+        orbitAngle:rng()*Math.PI*2,inflateSize:0,
+    });
+}
+
+function spawnBoss(x,y,kind){
+    const def=BOSSES[kind];if(!def)return;
+    const e={
+        x,y,vx:0,vy:0,w:def.w,h:def.h,
+        hp:def.hp,maxHp:def.hp,
+        speed:def.speed,dmg:def.dmg,
+        behavior:'boss',color:def.color,icon:def.icon,
+        name:def.name,kind,boss:true,
+        iFrames:0,dir:1,aiTimer:0,phase:0,
+        attackTimer:0,stun:0,slow:0,animFrame:0,
+        phaseTimer:0,
+    };
+    enemies.push(e);
+    bossEntity=e;
+    bossHp=e.hp;bossMaxHp=e.maxHp;bossName=def.name;
+}
+
+function updateEnemies(){
+    for(let i=enemies.length-1;i>=0;i--){
+        const e=enemies[i];
+        if(e.stun>0){e.stun--;continue;}
+        if(e.iFrames>0)e.iFrames--;
+        if(e.slow>0)e.slow--;
+        e.animFrame++;
+        const dx=player.x-e.x,dy=player.y-e.y;
+        const d=Math.hypot(dx,dy)||1;
+        const nx=dx/d,ny=dy/d;
+        const spd=e.slow>0?e.speed*0.4:e.speed;
+        switch(e.behavior){
+            case 'roll':
+                if(e.aiTimer<=0){e.vx=nx*spd*3;e.vy=ny*spd*3;e.aiTimer=80;}
+                e.aiTimer--;e.vx*=0.98;e.vy*=0.98;
+                break;
+            case 'chase':
+                e.vx=nx*spd;e.vy=ny*spd;
+                break;
+            case 'orbit':
+                e.orbitAngle+=0.03;
+                const od=100;
+                e.vx=(player.x+Math.cos(e.orbitAngle)*od-e.x)*0.05;
+                e.vy=(player.y+Math.sin(e.orbitAngle)*od-e.y)*0.05;
+                if(e.aiTimer++>80){
+                    // Dash at player
+                    e.vx=nx*spd*4;e.vy=ny*spd*4;e.aiTimer=0;
+                }
+                break;
+            case 'hop':
+                e.aiTimer++;
+                if(e.aiTimer>50){e.vx=nx*spd*3;e.vy=ny*spd*3-2;e.aiTimer=0;}
+                e.vx*=0.94;e.vy*=0.94;
+                break;
+            case 'explode':
+                e.vx=nx*spd*0.5;e.vy=ny*spd*0.5;
+                if(d<40){
+                    // Explode
+                    for(const en of enemies)if(en!==e&&dist(e,en)<60)en.hp-=5;
+                    if(dist(e,player)<60)damagePlayer(e.dmg*2);
+                    spawnBurst(e.x,e.y,25,'#90EE90',5,20);
+                    screenShake=10;
+                    e.hp=0;
+                }
+                break;
+            case 'turret':
+                e.vx=0;e.vy=0;
+                if(e.attackTimer<=0&&d<250){
+                    projectiles.push({x:e.x,y:e.y,vx:nx*4,vy:ny*4,dmg:e.dmg,life:80,
+                        color:e.color,size:5,enemy:true});
+                    e.attackTimer=50;
+                }
+                if(e.attackTimer>0)e.attackTimer--;
+                break;
+            case 'dash':
+                e.aiTimer++;
+                if(e.aiTimer>40){
+                    e.vx=nx*spd*5;e.vy=ny*spd*5;e.aiTimer=-20;
+                }
+                if(e.aiTimer<0){e.vx*=0.92;e.vy*=0.92;}
+                else{e.vx*=0.96;e.vy*=0.96;}
+                break;
+            case 'sidestep':
+                const perp=e.animFrame%120<60?1:-1;
+                e.vx=(-ny*spd*perp+nx*spd*0.3);
+                e.vy=(nx*spd*perp+ny*spd*0.3);
+                break;
+            case 'inflate':
+                e.inflateSize+=0.02;
+                if(e.inflateSize>1.5){
+                    // Pop!
+                    if(d<80)damagePlayer(e.dmg*2);
+                    spawnBurst(e.x,e.y,30,e.color,6,25);
+                    screenShake=8;e.hp=0;
+                }
+                e.vx=nx*spd*0.3;e.vy=ny*spd*0.3;
+                break;
+            case 'tank':
+                e.aiTimer++;
+                if(e.aiTimer>80){e.vx=nx*spd*4;e.vy=ny*spd*4;e.aiTimer=0;}
+                else{e.vx*=0.95;e.vy*=0.95;}
+                break;
+            case 'boss':
+                updateBossAI(e);
+                break;
+        }
+        // Move with tile collision
+        moveEntity(e);
+        // Contact damage
+        if(player.iFrames<=0&&!player.dead&&rectOverlap(
+            {x:player.x-player.w/2,y:player.y-player.h/2,w:player.w,h:player.h},
+            {x:e.x-e.w/2,y:e.y-e.h/2,w:e.w,h:e.h})){
+            damagePlayer(e.dmg);
+        }
+        // Boss hp
+        if(e.boss){bossHp=e.hp;bossMaxHp=e.maxHp;bossName=e.name;}
+        // Death
+        if(e.hp<=0){
+            spawnBurst(e.x,e.y,20,e.color,4,20);
+            floatText(e.x,e.y-20,'💀',e.color);
+            // Drop ingredient
+            if(!e.boss){
+                if(rng()<0.5){
+                    const dropId=rngEl(currentFloor.drops);
+                    drops.push({x:e.x,y:e.y,id:dropId,life:600,bob:0});
+                }
+            }else{
+                // Boss defeated
+                screenShake=25;
+                floatText(e.x,e.y-40,BOSSES[e.kind].defeat,'#ffa',16);
+                currentRoom.cleared=true;
+                if(e.kind==='monsieur_bland'){
+                    setTimeout(()=>{gameState='victory';victoryTimer=0;},2000);
+                }
+            }
+            totalKills++;
+            enemies.splice(i,1);
+            if(enemies.length===0&&!currentRoom.isBoss)currentRoom.cleared=true;
+        }
+    }
+}
+
+function updateBossAI(e){
+    const dx=player.x-e.x,dy=player.y-e.y;
+    const d=Math.hypot(dx,dy)||1;
+    const nx=dx/d,ny=dy/d;
+    const def=BOSSES[e.kind];
+    // Phase transitions
+    const hpPct=e.hp/e.maxHp;
+    if(hpPct<0.6&&e.phase===0){e.phase=1;screenShake=15;spawnBurst(e.x,e.y,30,e.color,5,25);}
+    if(hpPct<0.3&&e.phase<2&&def.phases.length>2){e.phase=2;screenShake=20;spawnBurst(e.x,e.y,40,'#f44',6,30);}
+    e.phaseTimer++;
+    // Movement
+    e.vx+=nx*e.speed*0.1;e.vy+=ny*e.speed*0.1;
+    e.vx*=0.95;e.vy*=0.95;
+    // Attacks based on phase
+    if(e.phaseTimer%60===0){
+        const spread=e.phase>=1?3:1;
+        for(let s=0;s<spread;s++){
+            const ang=Math.atan2(dy,dx)+((s-Math.floor(spread/2))*0.3);
+            projectiles.push({x:e.x,y:e.y,vx:Math.cos(ang)*4,vy:Math.sin(ang)*4,
+                dmg:e.dmg,life:100,color:e.color,size:7,enemy:true});
+        }
+    }
+    if(e.phase>=1&&e.phaseTimer%90===0){
+        // Summon minion
+        const mk=currentFloor.enemies[0]||'bland_blob';
+        spawnEnemy(e.x+rng()*60-30,e.y+rng()*60-30,mk);
+    }
+    if(e.phase>=2&&e.phaseTimer%40===0){
+        // Rapid fire
+        const a=Math.atan2(dy,dx);
+        projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*6,vy:Math.sin(a)*6,
+            dmg:e.dmg,life:80,color:'#f44',size:8,enemy:true});
+    }
+}
+
+// ==================== PHYSICS ====================
+function moveEntity(e){
+    e.x+=e.vx;
+    if(tileHit(e.x-e.w/2,e.y-e.h/2,e.w,e.h)){e.x-=e.vx;e.vx*=-0.5;}
+    e.y+=e.vy;
+    if(tileHit(e.x-e.w/2,e.y-e.h/2,e.w,e.h)){e.y-=e.vy;e.vy*=-0.5;}
+    // World bounds
+    e.x=clamp(e.x,e.w/2+2,currentRoom.w*T-e.w/2-2);
+    e.y=clamp(e.y,e.h/2+2,currentRoom.h*T-e.h/2-2);
+}
+
+function tileHit(x,y,w,h){
+    const x1=Math.floor(x/T),y1=Math.floor(y/T);
+    const x2=Math.floor((x+w-1)/T),y2=Math.floor((y+h-1)/T);
+    for(let ty=y1;ty<=y2;ty++)
+        for(let tx=x1;tx<=x2;tx++){
+            if(ty<0||ty>=currentRoom.h||tx<0||tx>=currentRoom.w)return true;
+            if(currentRoom.tiles[ty][tx]===1)return true;
+        }
+    return false;
+}
+
+// ==================== PLAYER ====================
+function initPlayer(){
+    player={
+        x:4*T,y:12*T,vx:0,vy:0,w:22,h:22,
+        hp:100,maxHp:100,speed:3.2,
+        facing:'right',
+        inventory:[{id:'baguette',qty:1},{id:'rolling_pin',qty:1},null,null,null,null],
+        activeSlot:0,
+        flavorMeter:0,flavorMax:100,
+        iFrames:0,attackTimer:0,attackCd:0,
+        dead:false,animFrame:0,
+        gold:0,
+    };
+    comboBuffer=[];
+    activeBuffs=[];
+    shieldActive=0;
+}
+
+function getActiveIngredient(){
+    const slot=player.inventory[player.activeSlot];
+    if(!slot)return null;
+    return INGREDIENTS[slot.id];
+}
+
+function useIngredient(){
+    if(player.attackCd>0||player.dead)return;
+    const slot=player.inventory[player.activeSlot];
+    if(!slot)return;
+    const ing=INGREDIENTS[slot.id];
+    if(!ing)return;
+    // Voice line
+    if(ing.voice)floatText(player.x,player.y-30,rngEl(ing.voice),'#ff0',12);
+    // Add to combo buffer
+    comboBuffer.push({id:slot.id,time:frame});
+    // Check for recipe combo
+    const recipe=checkCombo();
+    if(recipe){
+        executeRecipe(recipe);
+        return;
+    }
+    // Normal use
+    switch(ing.type){
+        case 'melee':{
+            player.attackTimer=10;
+            player.attackCd=ing.cd;
+            const dir=facingDir();
+            const ax=player.x+dir.x*ing.range/2;
+            const ay=player.y+dir.y*ing.range/2;
+            const hitBox={x:ax-ing.range/2,y:ay-ing.range/2,w:ing.range,h:ing.range};
+            for(const e of enemies){
+                if(rectOverlap(hitBox,{x:e.x-e.w/2,y:e.y-e.h/2,w:e.w,h:e.h})&&e.iFrames<=0){
+                    let dmg=ing.dmg;
+                    for(const b of activeBuffs)if(b.type==='dmg_boost')dmg=Math.floor(dmg*1.5);
+                    e.hp-=dmg;e.iFrames=8;
+                    e.vx+=dir.x*(ing.kb||4);e.vy+=dir.y*(ing.kb||4);
+                    if(ing.stun)e.stun=ing.stun;
+                    spawnBurst(e.x,e.y,6,'#ff0',3,10);
+                    player.flavorMeter=Math.min(player.flavorMax,player.flavorMeter+3);
+                }
+            }
+            spawnBurst(ax,ay,8,ing.icon==='🥖'?'#da8':'#aaa',3,12);
+            screenShake=3;
+            break;}
+        case 'thrown':{
+            player.attackCd=ing.cd;
+            const dir=facingDir();
+            projectiles.push({x:player.x,y:player.y,vx:dir.x*5,vy:dir.y*5,
+                dmg:ing.dmg,life:Math.floor(ing.range/5),color:ing.color||'#f80',size:6,
+                enemy:false,aoe:ing.aoe||0,effect:ing.effect||null,icon:ing.icon});
+            // Consume if stackable
+            consumeSlot();
+            player.flavorMeter=Math.min(player.flavorMax,player.flavorMeter+2);
+            break;}
+        case 'shield':
+            shieldActive=ing.dur||30;
+            player.attackCd=ing.cd;
+            spawnBurst(player.x,player.y,10,'#ffa',3,15);
+            break;
+        case 'heal':{
+            player.hp=Math.min(player.maxHp,player.hp+(ing.heal||10));
+            player.attackCd=ing.cd;
+            spawnBurst(player.x,player.y,15,'#4f4',4,20);
+            floatText(player.x,player.y-25,'+'+(ing.heal||10)+' HP','#4f4');
+            consumeSlot();
+            break;}
+        case 'aura':
+            // Passive — damage nearby enemies
+            for(const e of enemies){
+                if(dist(e,player)<(ing.radius||60)){
+                    e.hp-=ing.dmg;
+                    spawnParticle(e.x,e.y,rng()*2-1,-rng()*2,10,'#4f4',2);
+                }
+            }
+            player.attackCd=ing.tick||25;
+            player.flavorMeter=Math.min(player.flavorMax,player.flavorMeter+1);
+            break;
+        case 'utility':
+            if(ing.effect==='speed')activeBuffs.push({type:'speed',dur:ing.dur||120});
+            if(ing.effect==='dmg_boost')activeBuffs.push({type:'dmg_boost',dur:ing.dur||150});
+            player.attackCd=ing.cd;
+            spawnBurst(player.x,player.y,12,'#8af',3,15);
+            consumeSlot();
+            break;
+        case 'trap':
+            traps.push({x:player.x,y:player.y,dmg:ing.dmg,dur:ing.dur||120,tick:ing.tick||15,
+                tickTimer:0,effect:ing.effect||null,color:'#f80'});
+            player.attackCd=ing.cd;
+            consumeSlot();
+            break;
+    }
+}
+
+function consumeSlot(){
+    const slot=player.inventory[player.activeSlot];
+    if(!slot)return;
+    slot.qty--;
+    if(slot.qty<=0)player.inventory[player.activeSlot]=null;
+}
+
+function facingDir(){
+    switch(player.facing){
+        case 'up':return{x:0,y:-1};case 'down':return{x:0,y:1};
+        case 'left':return{x:-1,y:0};case 'right':return{x:1,y:0};
+    }
+    return{x:1,y:0};
+}
+
+function damagePlayer(dmg){
+    if(player.iFrames>0||player.dead)return;
+    if(shieldActive>0){dmg=Math.max(0,dmg-3);shieldActive=Math.max(0,shieldActive-10);}
+    player.hp-=Math.max(1,dmg);
+    player.iFrames=30;
+    screenShake=6;
+    spawnBurst(player.x,player.y,8,'#f44',3,12);
+    if(player.hp<=0){
+        player.dead=true;
+        gameState='dead';deathTimer=0;
+        showSous(rngEl(SOUS_LINES.death));
+    }
+    if(player.hp<30&&player.hp>0&&rng()>0.5)showSous(rngEl(SOUS_LINES.lowHp));
+}
+
+function pickupItem(id){
+    // Find empty slot or stack
+    for(let i=0;i<6;i++){
+        if(player.inventory[i]&&player.inventory[i].id===id&&player.inventory[i].qty<5){
+            player.inventory[i].qty++;
+            if(rng()>0.7)showSous(rngEl(SOUS_LINES.pickup));
+            return true;
+        }
+    }
+    for(let i=0;i<6;i++){
+        if(!player.inventory[i]){
+            player.inventory[i]={id,qty:1};
+            if(rng()>0.7)showSous(rngEl(SOUS_LINES.pickup));
+            return true;
+        }
+    }
+    return false; // Full
+}
+
+// ==================== COMBO SYSTEM ====================
+function checkCombo(){
+    // Prune old entries
+    comboBuffer=comboBuffer.filter(c=>frame-c.time<COMBO_WINDOW);
+    if(comboBuffer.length<2)return null;
+    const ids=[...new Set(comboBuffer.map(c=>c.id))].sort();
+    // Check 3-ingredient combos
+    if(ids.length>=3){
+        for(let a=0;a<ids.length;a++)
+            for(let b=a+1;b<ids.length;b++)
+                for(let c=b+1;c<ids.length;c++){
+                    const key=[ids[a],ids[b],ids[c]].sort().join('_');
+                    if(RECIPES[key])return{key,recipe:RECIPES[key],ids:[ids[a],ids[b],ids[c]]};
+                }
+    }
+    // Check 2-ingredient combos
+    for(let a=0;a<ids.length;a++)
+        for(let b=a+1;b<ids.length;b++){
+            const key=[ids[a],ids[b]].sort().join('_');
+            if(RECIPES[key])return{key,recipe:RECIPES[key],ids:[ids[a],ids[b]]};
+        }
+    return null;
+}
+
+function executeRecipe(combo){
+    const r=combo.recipe;
+    comboBuffer=[];
+    // Consume ingredients from inventory
+    for(const id of combo.ids){
+        for(let i=0;i<6;i++){
+            if(player.inventory[i]&&player.inventory[i].id===id){
+                player.inventory[i].qty--;
+                if(player.inventory[i].qty<=0)player.inventory[i]=null;
+                break;
+            }
+        }
+    }
+    discoveredRecipes.add(combo.key);
+    // Big announcement
+    floatText(player.x,player.y-50,r.voice||r.name,'#ffa',18);
+    showSous(rngEl(SOUS_LINES.combo));
+    screenShake=12;
+    spawnBurst(player.x,player.y,35,'#ffa',6,30);
+    spawnBurst(player.x,player.y,20,'#ff0',4,25);
+    player.flavorMeter=Math.min(player.flavorMax,player.flavorMeter+15);
+    // Apply effect
+    switch(r.effect){
+        case 'heal':
+            for(const e of enemies)if(dist(e,player)<(r.val||50)+50){e.hp-=r.dmg;spawnBurst(e.x,e.y,8,'#f44',3,12);}
+            player.hp=Math.min(player.maxHp,player.hp+(r.val||10));
+            floatText(player.x,player.y-20,'+'+(r.val||10)+' HP','#4f4');
+            break;
+        case 'aoe':
+            for(const e of enemies)if(dist(e,player)<(r.val||60)){
+                e.hp-=r.dmg;e.stun=15;spawnBurst(e.x,e.y,10,'#fa0',4,15);
+            }
+            break;
+        case 'burn':
+            for(const e of enemies)if(dist(e,player)<120){
+                e.hp-=r.dmg;
+                // Apply burn DoT via trap
+                traps.push({x:e.x,y:e.y,dmg:r.val||3,dur:90,tick:15,tickTimer:0,color:'#f40'});
+            }
+            break;
+        case 'screen':
+            for(const e of enemies){
+                e.hp-=r.dmg;spawnBurst(e.x,e.y,12,'#ffa',5,20);
+            }
+            break;
+        case 'shield':
+            shieldActive=r.val||30;
+            break;
+        case 'multi':
+            for(let s=0;s<(r.val||5);s++){
+                const a=rng()*Math.PI*2;
+                projectiles.push({x:player.x,y:player.y,vx:Math.cos(a)*5,vy:Math.sin(a)*5,
+                    dmg:Math.floor(r.dmg/(r.val||5)),life:40,color:'#ffa',size:5,enemy:false});
+            }
+            break;
+    }
+    player.attackCd=30;
+}
+
+// ==================== FLAVOR BURST ====================
+function flavorBurst(){
+    if(player.flavorMeter<player.flavorMax)return;
+    player.flavorMeter=0;
+    screenShake=20;
+    floatText(player.x,player.y-60,'🔥 FLAVOR BURST! 🔥','#ffa',22);
+    spawnBurst(player.x,player.y,60,'#ffa',8,35);
+    spawnBurst(player.x,player.y,40,'#f80',6,30);
+    spawnBurst(player.x,player.y,30,'#ff0',5,25);
+    for(const e of enemies){
+        e.hp-=30;e.stun=30;
+        spawnBurst(e.x,e.y,15,'#ff0',5,20);
+    }
+}
+
+// ==================== PROJECTILES ====================
+function updateProjectiles(){
+    for(let i=projectiles.length-1;i>=0;i--){
+        const p=projectiles[i];
+        p.x+=p.vx;p.y+=p.vy;p.life--;
+        if(p.life<=0||tileHit(p.x-2,p.y-2,4,4)){
+            if(p.aoe&&!p.enemy){
+                // AoE explosion
+                for(const e of enemies){
+                    if(dist({x:p.x,y:p.y},{x:e.x,y:e.y})<p.aoe){
+                        e.hp-=p.dmg;
+                        if(p.effect==='slow')e.slow=90;
+                        if(p.effect==='blind')e.stun=30;
+                        spawnBurst(e.x,e.y,5,'#f80',3,10);
+                    }
+                }
+                spawnBurst(p.x,p.y,15,'#f80',5,20);
+                screenShake=5;
+            }
+            projectiles.splice(i,1);continue;
+        }
+        if(p.enemy){
+            if(dist({x:p.x,y:p.y},player)<16&&player.iFrames<=0){
+                damagePlayer(p.dmg);
+                projectiles.splice(i,1);continue;
+            }
+        }else{
+            for(const e of enemies){
+                if(dist({x:p.x,y:p.y},{x:e.x,y:e.y})<e.w/2+p.size&&e.iFrames<=0){
+                    e.hp-=p.dmg;e.iFrames=5;
+                    if(p.effect==='slow')e.slow=90;
+                    if(p.effect==='blind')e.stun=30;
+                    spawnBurst(e.x,e.y,5,'#ff0',3,8);
+                    player.flavorMeter=Math.min(player.flavorMax,player.flavorMeter+5);
+                    if(!p.aoe){projectiles.splice(i,1);break;}
+                }
+            }
+        }
+    }
+}
+
+// ==================== TRAPS ====================
+function updateTraps(){
+    for(let i=traps.length-1;i>=0;i--){
+        const t=traps[i];
+        t.dur--;t.tickTimer++;
+        if(t.dur<=0){traps.splice(i,1);continue;}
+        if(t.tickTimer>=t.tick){
+            t.tickTimer=0;
+            for(const e of enemies){
+                if(dist({x:t.x,y:t.y},{x:e.x,y:e.y})<30){
+                    e.hp-=t.dmg;
+                    if(t.effect==='slow')e.slow=30;
+                    spawnParticle(e.x,e.y,rng()*2-1,-rng()*2,10,t.color,2);
+                }
+            }
+        }
+        if(frame%5===0)spawnParticle(t.x+rng()*20-10,t.y+rng()*20-10,0,-rng(),12,t.color,2);
+    }
+}
+
+// ==================== UPDATE PLAYER ====================
+function updatePlayer(){
+    if(player.dead)return;
+    if(player.iFrames>0)player.iFrames--;
+    if(player.attackCd>0)player.attackCd--;
+    if(player.attackTimer>0)player.attackTimer--;
+    if(shieldActive>0)shieldActive--;
+    // Buffs
+    for(let i=activeBuffs.length-1;i>=0;i--){
+        activeBuffs[i].dur--;
+        if(activeBuffs[i].dur<=0)activeBuffs.splice(i,1);
+    }
+    player.animFrame++;
+    let spd=player.speed;
+    for(const b of activeBuffs)if(b.type==='speed')spd*=1.6;
+    // Movement
+    let mx=0,my=0;
+    if(keys['ArrowLeft']||keys['KeyA']){mx=-1;player.facing='left';}
+    if(keys['ArrowRight']||keys['KeyD']){mx=1;player.facing='right';}
+    if(keys['ArrowUp']||keys['KeyW']){my=-1;player.facing='up';}
+    if(keys['ArrowDown']||keys['KeyS']){my=1;player.facing='down';}
+    if(mx&&my){mx*=0.707;my*=0.707;}
+    player.vx=mx*spd;player.vy=my*spd;
+    moveEntity(player);
+    // Pickup drops
+    for(let i=drops.length-1;i>=0;i--){
+        const d=drops[i];
+        d.life--;d.bob+=0.05;
+        if(d.life<=0){drops.splice(i,1);continue;}
+        if(dist(player,d)<PICKUP_RANGE){
+            if(pickupItem(d.id)){
+                spawnBurst(d.x,d.y,8,INGREDIENTS[d.id]?.icon==='🌶️'?'#f44':'#ffa',3,10);
+                drops.splice(i,1);
+            }
+        }
+    }
+    // Room transitions
+    if(currentRoom.cleared||enemies.length===0){
+        currentRoom.cleared=true;
+        // Right exit
+        if(player.x>=(currentRoom.w-1)*T-8){
+            const nextIdx=currentRoom.index+1;
+            if(nextIdx<dungeonMap[currentFloorIdx].length){
+                loadRoom(currentFloorIdx,nextIdx);
+                player.x=3*T;player.y=currentRoom.doorY*T;
+                roomTransTimer=15;
+            }
+        }
+        // Left exit (back)
+        if(player.x<=T+8&&currentRoom.index>0){
+            loadRoom(currentFloorIdx,currentRoom.index-1);
+            player.x=(currentRoom.w-3)*T;player.y=currentRoom.doorY*T;
+            roomTransTimer=15;
+        }
+    }
+    // Boss room cleared — stairs to next floor
+    if(currentRoom.isBoss&&currentRoom.cleared&&enemies.length===0){
+        // Show stairs at center
+        const cx=currentRoom.w*T/2,cy=currentRoom.h*T/2;
+        if(dist(player,{x:cx,y:cy})<40){
+            if(currentFloorIdx<FLOORS.length-1){
+                currentFloorIdx++;
+                loadRoom(currentFloorIdx,0);
+                player.x=4*T;player.y=(currentRoom.h-4)*T;
+                roomTransTimer=25;
+                floatText(GW/2,GH/2,'Floor '+(currentFloorIdx+1)+': '+FLOORS[currentFloorIdx].name,'#ffa',20);
+                floorClears++;
+            }
+        }
+    }
+    // Garlic aura passive
+    const act=getActiveIngredient();
+    if(act&&act.type==='aura'&&player.attackCd<=0){
+        useIngredient();
+    }
+}
+
+// ==================== SOUS ====================
+function showSous(msg){sous.msg=msg;sous.msgTimer=180;}
+function updateSous(){
+    sous.x+=(player.x-25-sous.x)*0.06;
+    sous.y+=(player.y-30-sous.y)*0.06;
+    sous.bob+=0.04;sous.y+=Math.sin(sous.bob)*0.3;
+    if(sous.msgTimer>0)sous.msgTimer--;
+    // Random hints
+    if(frame%500===0&&sous.msgTimer<=0&&rng()>0.5){
+        // Check for recipe hints
+        const held=player.inventory.filter(s=>s).map(s=>s.id);
+        for(const key in RECIPES){
+            const parts=key.split('_');
+            if(parts.every(p=>held.includes(p))&&!discoveredRecipes.has(key)){
+                showSous('Try combining those... I sense a recipe!');
+                return;
+            }
+        }
+        showSous(rngEl(SOUS_LINES.idle));
+    }
+}
+
+// ==================== CAMERA ====================
+function updateCamera(){
+    if(!camera)camera={x:0,y:0};
+    const tx=player.x-GW/2,ty=player.y-GH/2;
+    camera.x+=(tx-camera.x)*0.12;camera.y+=(ty-camera.y)*0.12;
+    camera.x=clamp(camera.x,0,Math.max(0,currentRoom.w*T-GW));
+    camera.y=clamp(camera.y,0,Math.max(0,currentRoom.h*T-GH));
+    if(screenShake>0){
+        camera.x+=(rng()-0.5)*screenShake*2;camera.y+=(rng()-0.5)*screenShake*2;
+        screenShake*=0.85;if(screenShake<0.5)screenShake=0;
+    }
+}
+
+// ==================== DRAWING ====================
+function drawBackground(){
+    ctx.fillStyle=currentFloor.bg;ctx.fillRect(0,0,GW,GH);
+}
+
+function drawTiles(){
+    const r=currentRoom,fl=currentFloor;
+    const sx=Math.max(0,Math.floor(camera.x/T)),sy=Math.max(0,Math.floor(camera.y/T));
+    const ex=Math.min(r.w,Math.ceil((camera.x+GW)/T)+1);
+    const ey=Math.min(r.h,Math.ceil((camera.y+GH)/T)+1);
+    for(let y=sy;y<ey;y++){
+        for(let x=sx;x<ex;x++){
+            const t=r.tiles[y][x];
+            const px=x*T-camera.x,py=y*T-camera.y;
+            if(t===1){
+                ctx.fillStyle=fl.wall;ctx.fillRect(px,py,T,T);
+                ctx.fillStyle=fl.tile;ctx.fillRect(px+1,py+1,T-2,2);
+                ctx.fillRect(px+1,py+1,2,T-2);
+            }else{
+                ctx.fillStyle=fl.tile;ctx.fillRect(px,py,T,T);
+                // Subtle grid
+                ctx.strokeStyle='rgba(255,255,255,0.03)';
+                ctx.strokeRect(px,py,T,T);
+            }
+        }
+    }
+    // Draw exits if room cleared
+    if(r.cleared||enemies.length===0){
+        const dy=r.doorY;
+        // Right exit arrow
+        if(r.index<dungeonMap[currentFloorIdx].length-1){
+            const px=(r.w-1)*T-camera.x,py=dy*T-camera.y;
+            ctx.fillStyle=fl.accent;ctx.globalAlpha=0.5+Math.sin(frame*0.06)*0.3;
+            ctx.font='20px sans-serif';ctx.textAlign='center';
+            ctx.fillText('►',px,py+T/2+7);ctx.globalAlpha=1;
+        }
+        // Left exit arrow
+        if(r.index>0){
+            const px=-camera.x+T,py=dy*T-camera.y;
+            ctx.fillStyle=fl.accent;ctx.globalAlpha=0.5+Math.sin(frame*0.06)*0.3;
+            ctx.font='20px sans-serif';ctx.textAlign='center';
+            ctx.fillText('◄',px,py+T/2+7);ctx.globalAlpha=1;
+        }
+    }
+    // Stairs in cleared boss room
+    if(r.isBoss&&r.cleared&&enemies.length===0&&currentFloorIdx<FLOORS.length-1){
+        const cx=r.w*T/2-camera.x,cy=r.h*T/2-camera.y;
+        ctx.fillStyle='#ffa';ctx.shadowColor='#ff8';ctx.shadowBlur=15;
+        ctx.font='24px sans-serif';ctx.textAlign='center';
+        ctx.fillText('⬇️',cx,cy+8);
+        ctx.shadowBlur=0;
+        ctx.fillStyle='#ff0';ctx.font='10px monospace';
+        ctx.fillText('DESCEND',cx,cy+25);
+    }
+    // Draw open doors in walls
+    if(r.cleared||enemies.length===0){
+        const dy=r.doorY;
+        if(r.index<dungeonMap[currentFloorIdx].length-1){
+            ctx.fillStyle=fl.tile;
+            ctx.fillRect((r.w-1)*T-camera.x,dy*T-camera.y,T,T*2);
+        }
+        if(r.index>0){
+            ctx.fillStyle=fl.tile;
+            ctx.fillRect(-camera.x,(dy)*T-camera.y,T,T*2);
+        }
+    }
+}
+
+function drawDrops(){
+    for(const d of drops){
+        const px=d.x-camera.x,py=d.y-camera.y+Math.sin(d.bob)*4;
+        const ing=INGREDIENTS[d.id];if(!ing)continue;
+        ctx.font='18px sans-serif';ctx.textAlign='center';
+        ctx.fillText(ing.icon,px,py+6);
+    }
+}
+
+function drawTraps(){
+    for(const t of traps){
+        const px=t.x-camera.x,py=t.y-camera.y;
+        ctx.globalAlpha=0.4+Math.sin(frame*0.1)*0.15;
+        ctx.fillStyle=t.color;
+        ctx.beginPath();ctx.arc(px,py,15,0,Math.PI*2);ctx.fill();
+        ctx.globalAlpha=1;
+    }
+}
+
+function drawEnemies(){
+    for(const e of enemies){
+        const px=e.x-camera.x,py=e.y-camera.y;
+        if(px<-50||px>GW+50||py<-50||py>GH+50)continue;
+        if(e.iFrames>0&&frame%3<1)continue;
+        // Shadow
+        ctx.fillStyle='rgba(0,0,0,0.2)';
+        ctx.beginPath();ctx.ellipse(px,py+e.h/2+2,e.w/2,4,0,0,Math.PI*2);ctx.fill();
+        // Body
+        const scale=1+(e.inflateSize||0);
+        ctx.font=(Math.floor(e.w*scale))+'px sans-serif';
+        ctx.textAlign='center';
+        ctx.fillText(e.icon,px,py+e.h/4*scale);
+        // HP bar
+        if(e.hp<e.maxHp){
+            const bw=e.w+6,bh=3;
+            ctx.fillStyle='#400';ctx.fillRect(px-bw/2,py-e.h/2-6,bw,bh);
+            ctx.fillStyle=e.boss?'#f44':'#f88';
+            ctx.fillRect(px-bw/2,py-e.h/2-6,bw*(e.hp/e.maxHp),bh);
+        }
+    }
+}
+
+function drawPlayer(){
+    if(player.dead)return;
+    const px=player.x-camera.x,py=player.y-camera.y;
+    if(player.iFrames>0&&frame%4<2)return;
+    // Shadow
+    ctx.fillStyle='rgba(0,0,0,0.25)';
+    ctx.beginPath();ctx.ellipse(px,py+14,12,4,0,0,Math.PI*2);ctx.fill();
+    // Shield glow
+    if(shieldActive>0){
+        ctx.strokeStyle='rgba(255,215,0,0.4)';ctx.lineWidth=3;
+        ctx.beginPath();ctx.arc(px,py,18,0,Math.PI*2);ctx.stroke();
+        ctx.lineWidth=1;
+    }
+    // Chef hat + body
+    ctx.font='24px sans-serif';ctx.textAlign='center';
+    ctx.fillText('👨‍🍳',px,py+8);
+    // Attack animation
+    if(player.attackTimer>0){
+        const d=facingDir();
+        const ing=getActiveIngredient();
+        if(ing&&ing.icon){
+            ctx.font='16px sans-serif';
+            ctx.fillText(ing.icon,px+d.x*25,py+d.y*25+5);
+        }
+    }
+    // Speed buff visual
+    if(activeBuffs.some(b=>b.type==='speed')&&frame%3===0){
+        spawnParticle(px+camera.x,py+camera.y+10,rng()*2-1,rng()*2,10,'#8af',2);
+    }
+}
+
+function drawSous(){
+    const px=sous.x-camera.x,py=sous.y-camera.y;
+    ctx.font='16px sans-serif';ctx.textAlign='center';
+    ctx.globalAlpha=0.8;
+    ctx.fillText('📖',px,py+5);
+    ctx.globalAlpha=1;
+    // Message
+    if(sous.msgTimer>0){
+        const a=Math.min(1,sous.msgTimer/30);
+        ctx.globalAlpha=a;
+        ctx.font='11px monospace';ctx.textAlign='center';
+        const tw=ctx.measureText(sous.msg).width+14;
+        ctx.fillStyle='rgba(0,0,0,0.75)';
+        const bx=px-tw/2,by=py-28;
+        ctx.fillRect(bx,by,tw,18);
+        ctx.fillStyle='#ffa';
+        ctx.fillText(sous.msg,px,py-14);
+        ctx.globalAlpha=1;
+    }
+}
+
+function drawProjectiles(){
+    for(const p of projectiles){
+        const px=p.x-camera.x,py=p.y-camera.y;
+        if(p.icon){
+            ctx.font='12px sans-serif';ctx.textAlign='center';
+            ctx.fillText(p.icon,px,py+4);
+        }else{
+            ctx.fillStyle=p.color;ctx.shadowColor=p.color;ctx.shadowBlur=4;
+            ctx.beginPath();ctx.arc(px,py,p.size,0,Math.PI*2);ctx.fill();
+            ctx.shadowBlur=0;
+        }
+    }
+}
+
+function drawParticles(){
+    for(const p of particles){
+        const a=p.life/p.maxLife;
+        ctx.globalAlpha=a;ctx.fillStyle=p.color;
+        ctx.fillRect(p.x-camera.x,p.y-camera.y,p.size,p.size);
+    }
+    ctx.globalAlpha=1;
+}
+
+function drawFloatingTexts(){
+    for(const t of floatingTexts){
+        const a=t.life/t.maxLife;
+        ctx.globalAlpha=a;
+        ctx.font='bold '+t.size+'px monospace';
+        ctx.textAlign='center';
+        ctx.fillStyle='#000';
+        ctx.fillText(t.text,t.x-camera.x+1,t.y-camera.y+1);
+        ctx.fillStyle=t.color;
+        ctx.fillText(t.text,t.x-camera.x,t.y-camera.y);
+    }
+    ctx.globalAlpha=1;
+}
+
+// ==================== HUD ====================
+function drawHUD(){
+    // HP bar (top left)
+    ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(8,8,160,20);
+    ctx.fillStyle='#400';ctx.fillRect(10,10,156,16);
+    const hpPct=player.hp/player.maxHp;
+    ctx.fillStyle=hpPct>0.5?'#4a4':hpPct>0.25?'#aa4':'#a44';
+    ctx.fillRect(10,10,156*hpPct,16);
+    ctx.fillStyle='#fff';ctx.font='bold 11px monospace';ctx.textAlign='left';
+    ctx.fillText('HP: '+player.hp+'/'+player.maxHp,14,23);
+    // Freshness label
+    ctx.fillStyle='#888';ctx.font='9px monospace';
+    ctx.fillText('FRESHNESS',10,38);
+    // Flavor meter (top left, below HP)
+    ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(8,42,160,14);
+    ctx.fillStyle='#530';ctx.fillRect(10,44,156,10);
+    ctx.fillStyle='#fa0';
+    ctx.fillRect(10,44,156*(player.flavorMeter/player.flavorMax),10);
+    ctx.fillStyle='#ff0';ctx.font='9px monospace';ctx.textAlign='left';
+    ctx.fillText('FLAVOR'+(player.flavorMeter>=player.flavorMax?' [F] READY!':''),14,52);
+    // Shield
+    if(shieldActive>0){
+        ctx.fillStyle='#ffa';ctx.font='10px monospace';
+        ctx.fillText('🛡️ SHIELD: '+shieldActive,10,68);
+    }
+    // Floor info (top right)
+    ctx.fillStyle='#fff';ctx.font='bold 12px monospace';ctx.textAlign='right';
+    ctx.fillText(currentFloor.name,GW-10,20);
+    ctx.fillStyle='#888';ctx.font='10px monospace';
+    ctx.fillText('Room '+(currentRoom.index+1)+'/'+dungeonMap[currentFloorIdx].length,GW-10,34);
+    // Boss HP
+    if(bossHp>0&&bossEntity){
+        const bw=300,bh=14,bx=(GW-bw)/2,by=10;
+        ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(bx-4,by-4,bw+8,bh+22);
+        ctx.fillStyle='#fff';ctx.font='bold 12px monospace';ctx.textAlign='center';
+        ctx.fillText(bossName,GW/2,by+10);
+        ctx.fillStyle='#400';ctx.fillRect(bx,by+14,bw,bh);
+        ctx.fillStyle='#f44';ctx.fillRect(bx,by+14,bw*(bossHp/bossMaxHp),bh);
+    }
+    // Inventory hotbar (bottom center)
+    const slotW=50,slotH=50,gap=4;
+    const totalW=6*(slotW+gap)-gap;
+    const sx=(GW-totalW)/2,sy=GH-slotH-10;
+    for(let i=0;i<6;i++){
+        const x=sx+i*(slotW+gap);
+        const isActive=i===player.activeSlot;
+        ctx.fillStyle=isActive?'rgba(255,215,0,0.25)':'rgba(0,0,0,0.6)';
+        ctx.strokeStyle=isActive?'#ffd700':'#444';
+        ctx.lineWidth=isActive?2:1;
+        ctx.fillRect(x,sy,slotW,slotH);ctx.strokeRect(x,sy,slotW,slotH);
+        ctx.lineWidth=1;
+        const slot=player.inventory[i];
+        if(slot){
+            const ing=INGREDIENTS[slot.id];
+            ctx.font='22px sans-serif';ctx.textAlign='center';
+            ctx.fillText(ing.icon,x+slotW/2,sy+30);
+            // Quantity
+            if(slot.qty>1){
+                ctx.fillStyle='#fff';ctx.font='bold 10px monospace';ctx.textAlign='right';
+                ctx.fillText('x'+slot.qty,x+slotW-3,sy+slotH-3);
+            }
+            // Name below
+            ctx.fillStyle='#aaa';ctx.font='7px monospace';ctx.textAlign='center';
+            ctx.fillText(ing.name.slice(0,8),x+slotW/2,sy+slotH-2);
+        }
+        // Key number
+        ctx.fillStyle='#888';ctx.font='bold 10px monospace';ctx.textAlign='center';
+        ctx.fillText(''+(i+1),x+slotW/2,sy-2);
+    }
+    // Controls hint
+    ctx.fillStyle='#333';ctx.font='9px monospace';ctx.textAlign='center';
+    ctx.fillText('WASD:Move  J/Space:Attack  1-6:Select  F:Flavor Burst  Combos:Use ingredients fast!',GW/2,GH-3);
+    // Minimap
+    drawMinimap();
+}
+
+function drawMinimap(){
+    const mw=120,mh=20;
+    const mx=GW-mw-10,my=GH-mh-40;
+    ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(mx,my,mw,mh);
+    const fl=dungeonMap[currentFloorIdx];if(!fl)return;
+    const rw=mw/fl.length;
+    for(let i=0;i<fl.length;i++){
+        const rx=mx+i*rw+1,ry=my+3;
+        const key=currentFloorIdx+'-'+i;
+        ctx.fillStyle=exploredRooms[key]?(fl[i].cleared?'#4a4':'#664'):'#222';
+        ctx.fillRect(rx,ry,rw-2,mh-6);
+        if(fl[i].isBoss){ctx.fillStyle='#f44';ctx.fillRect(rx+1,ry+1,rw-4,mh-8);}
+        if(i===currentRoom.index){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(rx,ry,rw-2,mh-6);ctx.lineWidth=1;}
+    }
+}
+
+// ==================== TITLE SCREEN ====================
+function drawTitle(){
+    titleAnim+=0.015;
+    ctx.fillStyle='#111';ctx.fillRect(0,0,GW,GH);
+    // Food particles
+    const foodEmojis=['🥖','🌶️','🧀','🍝','🍣','🌮','🥐','🥟','🍅','🐟'];
+    for(let i=0;i<25;i++){
+        const x=((frame*0.4+i*130)%GW);
+        const y=((frame*0.3+i*90+Math.sin(frame*0.01+i)*30)%GH);
+        ctx.globalAlpha=0.25;ctx.font='20px sans-serif';ctx.textAlign='center';
+        ctx.fillText(foodEmojis[i%foodEmojis.length],x,y);
+    }
+    ctx.globalAlpha=1;
+    // Title
+    ctx.font='bold 64px monospace';ctx.textAlign='center';
+    ctx.fillStyle='#ffa';ctx.shadowColor='#f80';ctx.shadowBlur=20;
+    ctx.fillText('DUNGEON BISQUE',GW/2,GH*0.3);
+    ctx.shadowBlur=0;
+    // Subtitle
+    ctx.font='16px monospace';ctx.fillStyle='#a86';
+    ctx.fillText('A Comedy Roguelike Where Food Fights Back',GW/2,GH*0.3+35);
+    // Chef preview
+    ctx.font='48px sans-serif';
+    ctx.fillText('👨‍🍳',GW/2,GH*0.55);
+    ctx.font='14px monospace';ctx.fillStyle='#888';
+    ctx.fillText('Chef Roux',GW/2,GH*0.55+25);
+    // Start prompt
+    if(Math.sin(frame*0.05)>0){
+        ctx.font='18px monospace';ctx.fillStyle='#ffa';
+        ctx.fillText('Press ENTER or SPACE to cook!',GW/2,GH*0.75);
+    }
+    // Story
+    ctx.font='11px monospace';ctx.fillStyle='#555';
+    ctx.fillText('Your restaurant got a zero-star review from Monsieur Bland.',GW/2,GH*0.88);
+    ctx.fillText('Descend the Flavor Dungeons. Master every cuisine. Restore the flavor!',GW/2,GH*0.88+15);
+}
+
+function drawDeath(){
+    deathTimer++;
+    ctx.fillStyle='rgba(10,0,0,'+Math.min(0.8,deathTimer/60)+')';ctx.fillRect(0,0,GW,GH);
+    if(deathTimer>30){
+        ctx.font='bold 48px monospace';ctx.textAlign='center';
+        ctx.fillStyle='#f44';ctx.fillText("KITCHEN'S CLOSED",GW/2,GH*0.35);
+        ctx.font='16px monospace';ctx.fillStyle='#a66';
+        ctx.fillText('Chef Roux has been served...',GW/2,GH*0.35+35);
+        ctx.font='12px monospace';ctx.fillStyle='#666';
+        ctx.fillText('Enemies defeated: '+totalKills+' | Floors cleared: '+floorClears+' | Recipes discovered: '+discoveredRecipes.size,GW/2,GH*0.6);
+        if(deathTimer>80&&Math.sin(frame*0.05)>0){
+            ctx.fillStyle='#888';ctx.font='16px monospace';
+            ctx.fillText('Press ENTER to try again',GW/2,GH*0.75);
+        }
+    }
+}
+
+function drawVictory(){
+    victoryTimer++;
+    ctx.fillStyle='rgba(10,8,0,'+Math.min(0.85,victoryTimer/80)+')';ctx.fillRect(0,0,GW,GH);
+    if(victoryTimer>40){
+        // Gold sparkles
+        for(let i=0;i<20;i++){
+            const a=(frame*0.01+i*0.31)%(Math.PI*2);
+            const r=80+Math.sin(frame*0.005+i)*40;
+            ctx.fillStyle=['#ffa','#ff0','#fa0'][i%3];
+            ctx.globalAlpha=0.4;ctx.font='14px sans-serif';
+            ctx.fillText('⭐',GW/2+Math.cos(a)*r,GH*0.35+Math.sin(a)*r*0.5);
+        }
+        ctx.globalAlpha=1;
+        ctx.font='bold 48px monospace';ctx.textAlign='center';
+        ctx.fillStyle='#ffa';ctx.shadowColor='#f80';ctx.shadowBlur=15;
+        ctx.fillText('FLAVOR RESTORED!',GW/2,GH*0.3);
+        ctx.shadowBlur=0;
+        ctx.font='16px monospace';ctx.fillStyle='#da8';
+        ctx.fillText('Monsieur Bland has been defeated!',GW/2,GH*0.3+30);
+        ctx.fillText('The restaurant is saved!',GW/2,GH*0.3+50);
+        ctx.font='12px monospace';ctx.fillStyle='#888';
+        ctx.fillText('Enemies defeated: '+totalKills+' | Recipes discovered: '+discoveredRecipes.size,GW/2,GH*0.65);
+        if(victoryTimer>100&&Math.sin(frame*0.05)>0){
+            ctx.fillStyle='#ffa';ctx.font='16px monospace';
+            ctx.fillText('Press ENTER to play again',GW/2,GH*0.8);
+        }
+    }
+}
+
+// ==================== INPUT ====================
+document.addEventListener('keydown',e=>{
+    keys[e.code]=true;
+    if(gameState==='title'){
+        if(e.code==='Enter'||e.code==='Space')startGame();
+    }else if(gameState==='play'){
+        if(e.code==='KeyJ'||e.code==='Space')useIngredient();
+        if(e.code==='KeyF')flavorBurst();
+        if(e.code==='Digit1')player.activeSlot=0;
+        if(e.code==='Digit2')player.activeSlot=1;
+        if(e.code==='Digit3')player.activeSlot=2;
+        if(e.code==='Digit4')player.activeSlot=3;
+        if(e.code==='Digit5')player.activeSlot=4;
+        if(e.code==='Digit6')player.activeSlot=5;
+    }else if(gameState==='dead'){
+        if(e.code==='Enter'&&deathTimer>80)startGame();
+    }else if(gameState==='victory'){
+        if(e.code==='Enter'&&victoryTimer>100)startGame();
+    }
+    e.preventDefault();
+});
+document.addEventListener('keyup',e=>{keys[e.code]=false;});
+
+// ==================== GAME INIT ====================
+function startGame(){
+    gameState='play';
+    initPlayer();
+    enemies=[];projectiles=[];particles=[];drops=[];traps=[];floatingTexts=[];
+    dungeonMap=[];exploredRooms={};discoveredRecipes=new Set();
+    totalKills=0;floorClears=0;
+    camera={x:0,y:0};
+    sous={x:0,y:0,msg:'',msgTimer:0,bob:0};
+    bossHp=0;bossMaxHp=0;
+    for(let i=0;i<FLOORS.length;i++)dungeonMap.push(generateFloor(i));
+    currentFloorIdx=0;
+    loadRoom(0,0);
+    player.x=4*T;player.y=currentRoom.doorY*T;
+    showSous('Welcome to the Flavor Dungeons, Chef! Use your food weapons to fight!');
+}
+
+// ==================== GAME LOOP ====================
+function update(){
+    if(gameState==='play'){
+        updatePlayer();updateEnemies();updateProjectiles();updateTraps();updateSous();updateCamera();
+        // Particles
+        for(let i=particles.length-1;i>=0;i--){
+            const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vx*=0.97;p.vy*=0.97;p.life--;
+            if(p.life<=0)particles.splice(i,1);
+        }
+        // Floating texts
+        for(let i=floatingTexts.length-1;i>=0;i--){
+            floatingTexts[i].y-=0.8;floatingTexts[i].life--;
+            if(floatingTexts[i].life<=0)floatingTexts.splice(i,1);
+        }
+        if(roomTransTimer>0)roomTransTimer--;
+    }
+    frame++;
+}
+
+function draw(){
+    ctx.clearRect(0,0,GW,GH);
+    if(gameState==='title'){drawTitle();return;}
+    drawBackground();drawTiles();drawTraps();drawDrops();drawEnemies();
+    drawPlayer();drawProjectiles();drawParticles();drawFloatingTexts();drawSous();
+    if(roomTransTimer>0){ctx.fillStyle='rgba(0,0,0,'+roomTransTimer/25+')';ctx.fillRect(0,0,GW,GH);}
+    drawHUD();
+    if(gameState==='dead')drawDeath();
+    if(gameState==='victory')drawVictory();
+}
+
+function gameLoop(){update();draw();requestAnimationFrame(gameLoop);}
+
+// ==================== SCALING ====================
+function resize(){
+    const ratio=GW/GH;
+    let w=window.innerWidth,h=window.innerHeight;
+    if(w/h>ratio)w=h*ratio;else h=w/ratio;
+    C.style.width=w+'px';C.style.height=h+'px';
+}
+window.addEventListener('resize',resize);resize();
+gameLoop();
+</script>
+</body>
+</html>

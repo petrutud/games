@@ -1,0 +1,138 @@
+/* Totally Accurate Battle Simulator */
+@import url('https://fonts.googleapis.com/css2?family=Bangers&family=Oswald:wght@500;600&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  font-family: 'Oswald', system-ui, sans-serif;
+  background: linear-gradient(180deg, #1a1a2e 0%, #252540 100%);
+  color: #e0e4eb;
+  padding: 0.75rem;
+}
+
+.game-wrap {
+  max-width: 100%;
+  text-align: center;
+}
+
+h1 {
+  font-family: 'Bangers', cursive;
+  font-size: 1.9rem;
+  letter-spacing: 2px;
+  color: #ff6b6b;
+  text-shadow: 0 0 20px rgba(255, 107, 107, 0.4);
+  margin-bottom: 0.5rem;
+}
+
+.top-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+.budget strong { color: #4ade80; }
+.phase { color: #94a3b8; font-size: 0.95rem; }
+
+.btn {
+  padding: 0.45rem 1rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  background: #4f46e5;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+.btn:hover {
+  background: #6366f1;
+  transform: translateY(-1px);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+.btn#btn-reset {
+  background: #64748b;
+}
+.btn#btn-reset:hover { background: #475569; }
+
+.unit-bar {
+  margin-bottom: 0.5rem;
+}
+.unit-bar .label {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin-bottom: 0.35rem;
+}
+.unit-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.unit-btn {
+  padding: 0.4rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  background: #334155;
+  border: 2px solid #475569;
+  border-radius: 6px;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.unit-btn:hover {
+  border-color: #4f46e5;
+  color: #a5b4fc;
+}
+.unit-btn.active {
+  border-color: #4ade80;
+  background: #166534;
+  color: #fff;
+}
+.unit-btn .cost { color: #fbbf24; font-size: 0.8em; }
+
+.canvas-wrap {
+  position: relative;
+  display: inline-block;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 4px solid #334155;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+#battlefield {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  background: #1e293b;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+.overlay.hidden { display: none; }
+.overlay-msg {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.hint {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #64748b;
+}

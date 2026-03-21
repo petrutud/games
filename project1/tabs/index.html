@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Totally Accurate Battle Simulator</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <h1>Totally Accurate Battle Simulator</h1>
+    <div class="top-bar">
+      <span class="budget">Budget: <strong id="budget">100</strong></span>
+      <span class="phase" id="phase">Place your army (click field)</span>
+      <button type="button" class="btn" id="btn-battle" disabled>Start battle!</button>
+      <button type="button" class="btn" id="btn-reset">Reset</button>
+    </div>
+    <div class="unit-bar">
+      <p class="label">Your units (click to select, then click field to place):</p>
+      <div id="unit-buttons" class="unit-buttons"></div>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="battlefield" width="900" height="420"></canvas>
+      <div id="overlay" class="overlay hidden">
+        <p id="overlay-msg" class="overlay-msg"></p>
+        <button type="button" class="btn" id="btn-again">Battle again</button>
+      </div>
+    </div>
+    <p class="hint">Blue = you. Red = enemy. Place units in your half (left), then Start battle!</p>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>

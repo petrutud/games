@@ -1,0 +1,204 @@
+/* Stardew Valley — cozy farming */
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&family=VT323&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  font-family: 'Quicksand', system-ui, sans-serif;
+  background: linear-gradient(180deg, #87ceeb 0%, #98d8a0 40%, #6b8e6b 100%);
+  color: #2d3a2d;
+  padding: 0.5rem;
+}
+
+.game-wrap {
+  max-width: 1000px;
+  margin: 0 auto;
+  background: rgba(255,255,255,0.4);
+  border-radius: 16px;
+  padding: 1rem;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+.header h1 {
+  font-size: 1.8rem;
+  color: #2d5a2d;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+  text-shadow: 1px 1px 0 rgba(255,255,255,0.5);
+}
+.top-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.25rem;
+  font-size: 0.95rem;
+}
+.stat { color: #3d4a3d; }
+.stat strong { color: #1a4d1a; margin-left: 0.2rem; }
+.stat.gold strong { color: #b8860b; }
+
+.main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.tools-panel, .right-panel {
+  background: rgba(255,255,255,0.7);
+  border-radius: 12px;
+  padding: 1rem;
+  min-width: 160px;
+  border: 2px solid rgba(45, 90, 45, 0.3);
+}
+.panel-title {
+  font-weight: 700;
+  color: #2d5a2d;
+  margin: 0.75rem 0 0.4rem;
+  font-size: 0.9rem;
+}
+.panel-title:first-child { margin-top: 0; }
+
+.tool-btn {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.35rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  background: #e8f0e8;
+  border: 2px solid #8fb88f;
+  border-radius: 8px;
+  color: #2d5a2d;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tool-btn:hover {
+  background: #c8e0c8;
+  border-color: #6b9e6b;
+}
+.tool-btn.active {
+  background: #6b9e6b;
+  border-color: #2d5a2d;
+  color: #fff;
+}
+
+.tools-panel select {
+  width: 100%;
+  padding: 0.4rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  border: 1px solid #8fb88f;
+  background: #fff;
+  margin-bottom: 0.5rem;
+}
+.tools-panel .hint {
+  font-size: 0.8rem;
+  color: #5a6a5a;
+  margin-top: 0.75rem;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: #6b9e6b;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  transition: background 0.2s, transform 0.2s;
+}
+.btn:hover {
+  background: #5a8e5a;
+  transform: translateY(-1px);
+}
+.sleep-btn {
+  background: #4a6a9e;
+  margin-top: 1rem;
+  width: 100%;
+}
+.sleep-btn:hover { background: #3a5a8e; }
+
+.farm-wrap {
+  flex: 0 0 auto;
+  background: #5a7a5a;
+  border-radius: 12px;
+  padding: 8px;
+  border: 4px solid #3d5a3d;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
+}
+#farm {
+  display: block;
+  border-radius: 6px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  max-width: 100%;
+  height: auto;
+}
+
+.inventory p {
+  font-size: 0.9rem;
+  margin: 0.25rem 0;
+}
+.inventory strong { color: #1a4d1a; }
+.day-msg {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  color: #5a6a5a;
+  min-height: 1.2em;
+}
+
+/* Shop modal */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal.hidden { display: none; }
+.modal-content {
+  background: #f5f8e8;
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 320px;
+  border: 4px solid #6b8e6b;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+}
+.modal-content h2 {
+  color: #2d5a2d;
+  margin-bottom: 0.75rem;
+  font-size: 1.3rem;
+}
+.shop-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.shop-items label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+.shop-items input[type="number"] {
+  width: 60px;
+  padding: 0.35rem;
+  font-family: inherit;
+  border-radius: 6px;
+  border: 1px solid #8fb88f;
+}
+.modal-content .btn { margin-right: 0.5rem; }

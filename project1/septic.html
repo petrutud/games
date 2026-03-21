@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Septic</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      background: #1a1a2e;
+      font-family: 'Silkscreen', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #eaeaea;
+      overflow: hidden;
+    }
+    .bg {
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse at 50% 100%, rgba(80, 60, 40, 0.25) 0%, transparent 50%),
+        linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+    }
+    #menu {
+      position: relative; z-index: 1;
+      text-align: center;
+      padding: 2rem;
+    }
+    #menu.hidden { display: none; }
+    h1 {
+      font-size: 3rem;
+      color: #4ade80;
+      text-shadow: 0 0 20px rgba(74, 222, 128, 0.4);
+      margin-bottom: 0.5rem;
+    }
+    .sub { color: #6b7280; font-size: 0.85rem; margin-bottom: 2rem; }
+    .mbtn {
+      padding: 1rem 2rem;
+      font-family: inherit;
+      font-size: 1rem;
+      background: #22c55e;
+      color: #0f172a;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .mbtn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(34, 197, 94, 0.35);
+    }
+
+    #game {
+      position: relative; z-index: 1;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 1.5rem;
+    }
+    #game.visible { display: flex; }
+
+    .stats {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .stat {
+      padding: 0.6rem 1rem;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      font-size: 0.9rem;
+    }
+    .stat .label { color: #9ca3af; margin-right: 0.5rem; }
+    .stat .value { color: #4ade80; }
+
+    .tank-wrap {
+      position: relative;
+      width: 200px;
+      height: 280px;
+      background: linear-gradient(180deg, #2d2d44 0%, #1f1f35 100%);
+      border: 4px solid #374151;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: inset 0 0 30px rgba(0,0,0,0.5), 0 10px 40px rgba(0,0,0,0.3);
+    }
+    .tank-fill {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 30%;
+      background: linear-gradient(180deg, #3d2914 0%, #5c3d1e 50%, #2d1f0f 100%);
+      border-radius: 0 0 8px 8px;
+      transition: height 0.3s ease;
+    }
+    .tank-fill.danger { background: linear-gradient(180deg, #5c1a1a 0%, #7c2a2a 100%); }
+    .tank-fill.overflow { background: #991b1b; animation: pulse 0.5s infinite; }
+    @keyframes pulse { 50% { opacity: 0.85; } }
+    .tank-label {
+      position: absolute;
+      top: 8px;
+      left: 0; right: 0;
+      text-align: center;
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+
+    .actions {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .action-btn {
+      padding: 0.9rem 1.5rem;
+      font-family: inherit;
+      font-size: 0.9rem;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform 0.2s, opacity 0.2s;
+    }
+    .action-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .action-btn.pump {
+      background: #3b82f6;
+      color: #fff;
+    }
+    .action-btn.pump:hover:not(:disabled) { transform: scale(1.05); }
+    .action-btn.truck {
+      background: #f59e0b;
+      color: #0f172a;
+    }
+    .action-btn.truck:hover:not(:disabled) { transform: scale(1.05); }
+
+    .message {
+      min-height: 1.5rem;
+      font-size: 0.85rem;
+      color: #9ca3af;
+      text-align: center;
+    }
+    .message.bad { color: #f87171; }
+    .message.good { color: #4ade80; }
+
+    .upgrades {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .upg {
+      padding: 0.5rem 0.8rem;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .upg:hover:not(.bought) { border-color: #4ade80; color: #4ade80; }
+    .upg.bought { opacity: 0.6; cursor: default; }
+    .upg .cost { color: #fbbf24; }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+
+  <div id="menu">
+    <h1>Septic</h1>
+    <p class="sub">Keep the tank under control. Don't overflow.</p>
+    <button class="mbtn" id="start-btn">Start</button>
+  </div>
+
+  <div id="game">
+    <div class="stats">
+      <div class="stat"><span class="label">Cash</span><span class="value" id="cash">$0</span></div>
+      <div class="stat"><span class="label">Level</span><span class="value" id="level">0%</span></div>
+      <div class="stat"><span class="label">Day</span><span class="value" id="day">1</span></div>
+    </div>
+
+    <div class="tank-wrap">
+      <span class="tank-label">Tank</span>
+      <div class="tank-fill" id="tank-fill"></div>
+    </div>
+
+    <div class="actions">
+      <button class="action-btn pump" id="pump-btn">Pump (–5%)</button>
+      <button class="action-btn truck" id="truck-btn">Call truck (–30%) $50</button>
+    </div>
+
+    <div class="message" id="msg"></div>
+
+    <div class="upgrades" id="upgrades"></div>
+  </div>
+
+  <script>
+    (function() {
+      const menu = document.getElementById('menu');
+      const gameEl = document.getElementById('game');
+      const startBtn = document.getElementById('start-btn');
+      const cashEl = document.getElementById('cash');
+      const levelEl = document.getElementById('level');
+      const dayEl = document.getElementById('day');
+      const tankFill = document.getElementById('tank-fill');
+      const pumpBtn = document.getElementById('pump-btn');
+      const truckBtn = document.getElementById('truck-btn');
+      const msgEl = document.getElementById('msg');
+      const upgradesEl = document.getElementById('upgrades');
+
+      let cash = 0;
+      let level = 20;
+      let day = 1;
+      let tickRate = 1200;
+      let fillPerTick = 1.5;
+      let tickId = null;
+      const MAX_LEVEL = 100;
+      const TRUCK_COST = 50;
+
+      const upgrades = [
+        { id: 'bigger', name: 'Bigger tank', cost: 100, effect: 'Slows fill rate by 20%', bought: false },
+        { id: 'pump2', name: 'Better pump', cost: 80, effect: 'Pump removes 8%', bought: false },
+        { id: 'income', name: 'Rent', cost: 150, effect: '+$2/day', bought: false },
+      ];
+
+      function showMsg(text, type = '') {
+        msgEl.textContent = text;
+        msgEl.className = 'message ' + type;
+        if (text) setTimeout(() => { msgEl.textContent = ''; msgEl.className = 'message'; }, 2500);
+      }
+
+      function updateUI() {
+        cashEl.textContent = '$' + cash;
+        levelEl.textContent = Math.round(level) + '%';
+        dayEl.textContent = day;
+        tankFill.style.height = Math.min(100, level) + '%';
+        tankFill.classList.toggle('danger', level >= 80);
+        tankFill.classList.toggle('overflow', level >= MAX_LEVEL);
+        pumpBtn.disabled = level <= 0;
+        truckBtn.disabled = cash < TRUCK_COST || level <= 0;
+      }
+
+      function gameTick() {
+        let add = fillPerTick;
+        if (upgrades.find(u => u.id === 'bigger' && u.bought)) add *= 0.8;
+        level = Math.min(MAX_LEVEL, level + add);
+        if (upgrades.find(u => u.id === 'income' && u.bought)) cash += 2;
+        day++;
+        if (level >= MAX_LEVEL) {
+          clearInterval(tickId);
+          showMsg('Overflow! Game over.', 'bad');
+          startBtn.textContent = 'Play again';
+          menu.classList.remove('hidden');
+          gameEl.classList.remove('visible');
+          return;
+        }
+        updateUI();
+      }
+
+      function startGame() {
+        cash = 50;
+        level = 20;
+        day = 1;
+        upgrades.forEach(u => u.bought = false);
+        menu.classList.add('hidden');
+        gameEl.classList.add('visible');
+        updateUI();
+        renderUpgrades();
+        if (tickId) clearInterval(tickId);
+        tickId = setInterval(gameTick, tickRate);
+      }
+
+      pumpBtn.addEventListener('click', () => {
+        if (level <= 0) return;
+        let amount = 5;
+        if (upgrades.find(u => u.id === 'pump2' && u.bought)) amount = 8;
+        level = Math.max(0, level - amount);
+        updateUI();
+        showMsg('Pumped!', 'good');
+      });
+
+      truckBtn.addEventListener('click', () => {
+        if (cash < TRUCK_COST || level <= 0) return;
+        cash -= TRUCK_COST;
+        level = Math.max(0, level - 30);
+        updateUI();
+        showMsg('Truck emptied the tank.', 'good');
+      });
+
+      function buyUpgrade(id) {
+        const u = upgrades.find(x => x.id === id);
+        if (!u || u.bought || cash < u.cost) return;
+        cash -= u.cost;
+        u.bought = true;
+        renderUpgrades();
+        updateUI();
+        showMsg('Bought: ' + u.name, 'good');
+      }
+
+      function renderUpgrades() {
+        upgradesEl.innerHTML = upgrades.map(u =>
+          `<button class="upg ${u.bought ? 'bought' : ''}" data-id="${u.id}" ${u.bought || cash < u.cost ? 'disabled' : ''}>
+            ${u.name} <span class="cost">$${u.cost}</span> ${u.bought ? '✓' : ''}
+          </button>`
+        ).join('');
+        upgradesEl.querySelectorAll('.upg').forEach(btn => {
+          if (btn.classList.contains('bought')) return;
+          btn.addEventListener('click', () => buyUpgrade(btn.dataset.id));
+        });
+      }
+
+      startBtn.addEventListener('click', startGame);
+    })();
+  </script>
+</body>
+</html>

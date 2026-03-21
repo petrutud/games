@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <h1>Snake</h1>
+    <p class="score-line">Score: <strong id="score">0</strong></p>
+    <canvas id="game-canvas" width="400" height="300"></canvas>
+    <div id="overlay" class="overlay hidden">
+      <p id="overlay-msg" class="overlay-msg"></p>
+      <button type="button" class="btn" id="btn-again">Play again</button>
+    </div>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>

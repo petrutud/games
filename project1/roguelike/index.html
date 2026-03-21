@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roguelike Dungeon Crawler</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <h1>Roguelike</h1>
+    <div class="hud">
+      <span class="hud-item">HP: <strong id="health">20</strong>/<span id="max-health">20</span></span>
+      <span class="hud-item">Floor: <strong id="floor">1</strong></span>
+      <span class="hud-item">Atk <strong id="atk">2</strong> Def <strong id="def">1</strong></span>
+    </div>
+    <div class="health-bar-wrap">
+      <div id="health-bar" class="health-bar"></div>
+    </div>
+    <canvas id="game-canvas" width="640" height="480"></canvas>
+    <p class="hint">Arrow keys or WASD move/attack · I inventory · Restart on death</p>
+    <div id="msg-log" class="msg-log"></div>
+    <div id="overlay" class="overlay hidden">
+      <p id="overlay-msg" class="overlay-msg">You died</p>
+      <button type="button" class="btn" id="btn-restart">Restart</button>
+    </div>
+    <div id="inventory-panel" class="inventory-panel hidden">
+      <h2>Inventory</h2>
+      <ul id="inventory-list"></ul>
+      <p class="inv-hint">Click to equip · I to close</p>
+    </div>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+/* Mindustry — factory + tower defense */
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  font-family: 'Share Tech Mono', system-ui, monospace;
+  background: #1a1e28;
+  color: #c0d0e0;
+  padding: 0.75rem;
+}
+
+.game-wrap {
+  max-width: 100%;
+  text-align: center;
+}
+
+h1 {
+  font-size: 1.6rem;
+  color: #6b9eff;
+  margin-bottom: 0.5rem;
+  text-shadow: 0 0 12px rgba(107, 158, 255, 0.3);
+}
+
+.hud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+.hud .res strong { color: #e8b84a; }
+.hud .wave strong { color: #6b9eff; }
+.hud .core-hp strong { color: #5ae85a; }
+.hud .core-hp strong.low { color: #e85a5a; }
+
+.btn {
+  padding: 0.4rem 0.9rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  background: #3b5a9e;
+  border: 1px solid #5a7ac0;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn:hover { background: #4a6ab0; }
+
+.build-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.build-btn {
+  padding: 0.4rem 0.7rem;
+  font-family: inherit;
+  font-size: 0.8rem;
+  background: #2d3548;
+  border: 1px solid #4a5568;
+  border-radius: 4px;
+  color: #a0b0c8;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.build-btn:hover {
+  border-color: #6b9eff;
+  color: #6b9eff;
+}
+.build-btn.active {
+  background: #3b5a9e;
+  border-color: #6b9eff;
+  color: #fff;
+}
+.build-bar .selected {
+  font-size: 0.8rem;
+  color: #6a7a8a;
+  margin-left: 0.5rem;
+}
+
+.map-wrap {
+  position: relative;
+  display: inline-block;
+  background: #0d1018;
+  border-radius: 8px;
+  padding: 4px;
+  border: 2px solid #2d3548;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+#map {
+  display: block;
+  border-radius: 4px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  max-width: 100%;
+  height: auto;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+.overlay.hidden { display: none; }
+.overlay-msg { font-size: 1.2rem; font-weight: 600; color: #e0e8f0; }
+
+.hint {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: #6a7a8a;
+}

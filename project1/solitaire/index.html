@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solitaire</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <h1>Solitaire</h1>
+    <div class="toolbar">
+      <button type="button" class="btn" id="btn-new">New game</button>
+      <span class="moves">Moves: <strong id="moves">0</strong></span>
+    </div>
+    <div id="table" class="table"></div>
+    <p class="hint">Drag cards to build columns (alternating colors, descending rank). Build foundations A→K by suit. Double-click a card to auto-move if possible.</p>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>

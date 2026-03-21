@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xdg-open /home/petru/code/project1/geometrydash/index.html)",
+      "Bash(xdg-open /home/petru/code/project1/tabs.html)",
+      "Bash(git clone:*)",
+      "Bash(sudo apt:*)"
+    ]
+  }
+}

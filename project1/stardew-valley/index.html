@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stardew Valley</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <div class="header">
+      <h1>Stardew Valley</h1>
+      <div class="top-bar">
+        <span class="stat">Day <strong id="day">1</strong></span>
+        <span class="stat">Season: <strong id="season">Spring</strong></span>
+        <span class="stat">Energy: <strong id="energy">100</strong> / 100</span>
+        <span class="stat gold">Gold: <strong id="gold">50</strong></span>
+      </div>
+    </div>
+    <div class="main">
+      <div class="tools-panel">
+        <p class="panel-title">Tools</p>
+        <button type="button" class="tool-btn active" data-tool="hoe" title="Till soil">Hoe</button>
+        <button type="button" class="tool-btn" data-tool="water" title="Water">Water</button>
+        <button type="button" class="tool-btn" data-tool="plant" title="Plant seeds">Seeds</button>
+        <button type="button" class="tool-btn" data-tool="harvest" title="Harvest">Harvest</button>
+        <p class="panel-title">Seeds</p>
+        <select id="seed-type">
+          <option value="parsnip">Parsnip (20g)</option>
+          <option value="potato">Potato (40g)</option>
+          <option value="cauliflower">Cauliflower (80g)</option>
+        </select>
+        <p class="panel-title">Shop</p>
+        <button type="button" class="btn" id="btn-shop">Buy seeds</button>
+        <p class="hint">Click a tile to use tool</p>
+      </div>
+      <div class="farm-wrap">
+        <canvas id="farm" width="512" height="384"></canvas>
+      </div>
+      <div class="right-panel">
+        <div class="inventory">
+          <p class="panel-title">Inventory</p>
+          <p>Parsnip seeds: <strong id="inv-parsnip">5</strong></p>
+          <p>Potato seeds: <strong id="inv-potato">3</strong></p>
+          <p>Cauliflower seeds: <strong id="inv-cauliflower">1</strong></p>
+        </div>
+        <button type="button" class="btn sleep-btn" id="btn-sleep">Go to sleep (next day)</button>
+        <p id="day-msg" class="day-msg"></p>
+      </div>
+    </div>
+    <div id="shop-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2>Pierre's Shop</h2>
+        <p class="gold">Gold: <strong id="shop-gold">50</strong></p>
+        <div class="shop-items">
+          <label>Parsnip seeds (10g) <input type="number" id="buy-parsnip" min="0" value="0"></label>
+          <label>Potato seeds (15g) <input type="number" id="buy-potato" min="0" value="0"></label>
+          <label>Cauliflower seeds (25g) <input type="number" id="buy-cauliflower" min="0" value="0"></label>
+        </div>
+        <button type="button" class="btn" id="btn-buy">Buy</button>
+        <button type="button" class="btn" id="btn-close-shop">Close</button>
+      </div>
+    </div>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>

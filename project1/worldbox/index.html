@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WorldBox-like God Simulator</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <h1>God Simulator</h1>
+    <div class="toolbar">
+      <span class="label">Terrain:</span>
+      <button type="button" class="tool-btn active" data-tool="grass">Grass</button>
+      <button type="button" class="tool-btn" data-tool="water">Water</button>
+      <button type="button" class="tool-btn" data-tool="sand">Sand</button>
+      <button type="button" class="tool-btn" data-tool="wall">Wall</button>
+      <button type="button" class="tool-btn" data-tool="erase">Erase</button>
+      <span class="sep">|</span>
+      <span class="label">Spawn:</span>
+      <button type="button" class="tool-btn" data-tool="spawnRed">Spawn Red</button>
+      <button type="button" class="tool-btn" data-tool="spawnBlue">Spawn Blue</button>
+      <span class="sep">|</span>
+      <button type="button" class="tool-btn" data-tool="bomb">Bomb</button>
+      <button type="button" class="tool-btn" data-tool="heal">Heal</button>
+      <span class="sep">|</span>
+      <button type="button" id="btn-war">War: OFF</button>
+      <span class="sep">|</span>
+      <button type="button" id="btn-new">New World</button>
+      <button type="button" id="btn-save">Save</button>
+      <button type="button" id="btn-load">Load</button>
+    </div>
+    <div class="hud">
+      <span id="hud-tool">Tool: Grass</span>
+      <span id="hud-pop">Red: 0, Blue: 0</span>
+      <span id="hud-war">War: OFF</span>
+    </div>
+    <canvas id="canvas" width="800" height="500"></canvas>
+    <p class="hint">Drag to paint terrain (Grass, Water, Sand, Wall). Erase removes walls. Red/Blue units build walls when standing still on grass. Pan: middle mouse or arrow keys.</p>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>

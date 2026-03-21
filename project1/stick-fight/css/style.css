@@ -1,0 +1,95 @@
+/* Stick Fight */
+@import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  font-family: system-ui, sans-serif;
+  background: #0f0f14;
+  color: #e0e4eb;
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-wrap {
+  text-align: center;
+  max-width: 100%;
+}
+
+h1 {
+  font-family: 'Black Ops One', cursive;
+  font-size: 1.8rem;
+  color: #ff4444;
+  text-shadow: 0 0 20px rgba(255, 68, 68, 0.5);
+  margin-bottom: 0.35rem;
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: #8a9098;
+  margin-bottom: 0.5rem;
+}
+
+.hud {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 0.4rem;
+  font-size: 1rem;
+}
+.p1-hp strong { color: #4fc3f7; }
+.p2-hp strong { color: #ff6b6b; }
+.vs { color: #555; font-weight: 700; }
+
+.canvas-wrap {
+  position: relative;
+  display: inline-block;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 3px solid #2a2a35;
+  box-shadow: 0 6px 28px rgba(0,0,0,0.5);
+}
+
+#game {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  background: #1a1a24;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+.overlay.hidden { display: none; }
+.overlay-msg {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fff;
+}
+.btn {
+  padding: 0.5rem 1.25rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  background: #e53935;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+.btn:hover {
+  background: #ef5350;
+  transform: scale(1.05);
+}

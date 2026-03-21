@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Whack-a-Mole</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <h1>Whack-a-Mole</h1>
+    <p class="score-line">Score: <strong id="score">0</strong></p>
+    <p class="timer-line">Time: <strong id="timer">30</strong></p>
+    <div id="holes" class="holes" aria-label="Whack-a-mole holes">
+      <button type="button" class="hole" data-idx="0"></button>
+      <button type="button" class="hole" data-idx="1"></button>
+      <button type="button" class="hole" data-idx="2"></button>
+      <button type="button" class="hole" data-idx="3"></button>
+      <button type="button" class="hole" data-idx="4"></button>
+      <button type="button" class="hole" data-idx="5"></button>
+      <button type="button" class="hole" data-idx="6"></button>
+      <button type="button" class="hole" data-idx="7"></button>
+      <button type="button" class="hole" data-idx="8"></button>
+    </div>
+    <div id="overlay" class="overlay hidden">
+      <p id="overlay-msg" class="overlay-msg"></p>
+      <button type="button" class="btn" id="btn-again">Play again</button>
+    </div>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>

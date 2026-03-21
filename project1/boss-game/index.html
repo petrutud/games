@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Boss Flip — You Are The Boss</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #111; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+  canvas { border: 2px solid #444; border-radius: 8px; image-rendering: pixelated; }
+  #ui-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; justify-content: center; align-items: center;
+    pointer-events: none; z-index: 10;
+  }
+  #ui-overlay.active { pointer-events: all; background: rgba(0,0,0,0.6); }
+  #menu {
+    display: none; text-align: center; color: #fff;
+    background: rgba(20,20,40,0.95); padding: 40px 60px; border-radius: 16px;
+    border: 2px solid #f44;
+  }
+  #menu h1 { font-size: 36px; color: #f66; margin-bottom: 8px; }
+  #menu h2 { font-size: 18px; color: #aaa; margin-bottom: 24px; font-weight: normal; }
+  #menu p { color: #ccc; margin-bottom: 6px; font-size: 14px; }
+  #menu button {
+    margin-top: 20px; padding: 12px 32px; font-size: 18px;
+    background: #d33; color: #fff; border: none; border-radius: 8px; cursor: pointer;
+  }
+  #menu button:hover { background: #f44; }
+  #hud {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    color: #fff; font-size: 14px; z-index: 5; display: flex; gap: 30px;
+    background: rgba(0,0,0,0.5); padding: 8px 20px; border-radius: 8px;
+  }
+  .hud-item span { color: #f88; font-weight: bold; }
+  #abilities-bar {
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; z-index: 5;
+  }
+  .ability-slot {
+    width: 52px; height: 52px; background: rgba(0,0,0,0.7); border: 2px solid #555;
+    border-radius: 8px; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; color: #fff; font-size: 10px; position: relative;
+  }
+  .ability-slot.active { border-color: #f44; background: rgba(180,30,30,0.5); }
+  .ability-slot.locked { opacity: 0.3; }
+  .ability-slot .key { font-size: 11px; color: #ff8; font-weight: bold; }
+  .ability-slot .icon { font-size: 20px; }
+  .ability-slot .cooldown-overlay {
+    position: absolute; bottom: 0; left: 0; width: 100%;
+    background: rgba(0,0,0,0.7); transition: height 0.1s;
+  }
+  #phase-announce {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    color: #f44; font-size: 48px; font-weight: bold; z-index: 20;
+    text-shadow: 0 0 20px #f00, 0 0 40px #900; display: none;
+    animation: pulse 0.5s ease-in-out infinite alternate;
+  }
+  @keyframes pulse { from { transform: translate(-50%,-50%) scale(1); } to { transform: translate(-50%,-50%) scale(1.1); } }
+
+  /* Side buttons */
+  .side-buttons {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    display: none; flex-direction: column; gap: 10px; z-index: 6;
+  }
+  .side-buttons.left { left: 12px; }
+  .side-buttons.right { right: 12px; }
+  .side-btn {
+    width: 64px; height: 64px; border-radius: 14px; border: 2px solid #555;
+    background: rgba(0,0,0,0.7); color: #fff; font-size: 24px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none; -webkit-user-select: none;
+    transition: background 0.1s, border-color 0.1s;
+  }
+  .side-btn:active, .side-btn.pressed { background: rgba(200,50,50,0.6); border-color: #f44; }
+  .side-btn .btn-label { font-size: 10px; color: #aaa; margin-top: 2px; }
+  .side-btn.locked { opacity: 0.25; pointer-events: none; }
+  .side-btn .btn-cd {
+    position: absolute; bottom: 0; left: 0; width: 100%;
+    background: rgba(0,0,0,0.7); border-radius: 0 0 12px 12px;
+    pointer-events: none;
+  }
+  .side-btn { position: relative; overflow: hidden; }
+</style>
+</head>
+<body>
+
+<canvas id="game" width="800" height="500"></canvas>
+
+<div id="hud" style="display:none">
+  <div class="hud-item">Phase: <span id="hud-phase">1</span></div>
+  <div class="hud-item">Boss HP: <span id="hud-boss-hp">100</span></div>
+  <div class="hud-item">Hero HP: <span id="hud-hero-hp">50</span></div>
+  <div class="hud-item">Hero Defeated: <span id="hud-kills">0</span>x</div>
+</div>
+
+<div id="abilities-bar" style="display:none"></div>
+<div id="phase-announce"></div>
+
+<!-- Left side: movement buttons -->
+<div class="side-buttons left" id="move-buttons">
+  <div class="side-btn" data-key="w" id="btn-jump">⬆<div class="btn-label">Jump</div></div>
+  <div class="side-btn" data-key="a" id="btn-left">⬅<div class="btn-label">Left</div></div>
+  <div class="side-btn" data-key="d" id="btn-right">➡<div class="btn-label">Right</div></div>
+</div>
+
+<!-- Right side: ability buttons -->
+<div class="side-buttons right" id="ability-buttons">
+  <div class="side-btn" data-ability="Punch" data-key="j" id="abtn-Punch">👊<div class="btn-label">Punch</div><div class="btn-cd" id="bcd-Punch"></div></div>
+  <div class="side-btn locked" data-ability="Fireball" data-key="k" id="abtn-Fireball">🔥<div class="btn-label">Fireball</div><div class="btn-cd" id="bcd-Fireball"></div></div>
+  <div class="side-btn locked" data-ability="Stomp" data-key="l" id="abtn-Stomp">💥<div class="btn-label">Stomp</div><div class="btn-cd" id="bcd-Stomp"></div></div>
+  <div class="side-btn locked" data-ability="Dark Beam" data-key=";" id="abtn-Dark Beam">⚡<div class="btn-label">Beam</div><div class="btn-cd" id="bcd-Dark Beam"></div></div>
+</div>
+
+<div id="ui-overlay" class="active">
+  <div id="menu" style="display:block">
+    <h1>BOSS FLIP</h1>
+    <h2>You Are The Boss.</h2>
+    <p>A brave AI hero keeps coming to defeat you.</p>
+    <p>Beat them — but they get stronger each time.</p>
+    <p>If they defeat YOU, enter a new phase with new powers!</p>
+    <br>
+    <p><b>Move:</b> A / D &nbsp; <b>Jump:</b> W</p>
+    <p><b>Punch:</b> J &nbsp; <b>Abilities:</b> K, L, ; (unlock in later phases)</p>
+    <button id="start-btn">BEGIN</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const GROUND = H - 60;
+const GRAVITY = 0.6;
+
+// ── State ──
+let gameRunning = false;
+let phase = 1;
+let heroDefeats = 0; // how many times boss defeated the hero
+let boss, hero, particles, projectiles, shockwaves;
+let keys = {};
+let phaseTransitioning = false;
+
+// ── Abilities Definition ──
+const ABILITIES = [
+  { name: 'Punch', icon: '👊', key: 'j', description: 'Melee punch', phase: 1, cooldown: 400 },
+  { name: 'Fireball', icon: '🔥', key: 'k', description: 'Ranged fireball', phase: 2, cooldown: 1200 },
+  { name: 'Stomp', icon: '💥', key: 'l', description: 'Ground shockwave', phase: 3, cooldown: 2000 },
+  { name: 'Dark Beam', icon: '⚡', key: ';', description: 'Piercing beam', phase: 4, cooldown: 2500 },
+];
+
+function getUnlockedAbilities() {
+  return ABILITIES.filter(a => a.phase <= phase);
+}
+
+// ── Entity Factories ──
+function createBoss() {
+  return {
+    x: 400, y: GROUND - 64, w: 48, h: 64,
+    vx: 0, vy: 0, onGround: false, facing: 1,
+    hp: 100 + (phase - 1) * 50,
+    maxHp: 100 + (phase - 1) * 50,
+    cooldowns: {},
+    punchAnim: 0,
+    hurtTimer: 0,
+    color: '#d33',
+  };
+}
+
+function createHero() {
+  let str = 1 + heroDefeats * 0.35;
+  let baseHp = 50 + heroDefeats * 20;
+  return {
+    x: 50, y: GROUND - 52, w: 40, h: 52,
+    vx: 0, vy: 0, onGround: false, facing: 1,
+    hp: baseHp, maxHp: baseHp,
+    speed: 2.5 + heroDefeats * 0.3,
+    damage: 8 + heroDefeats * 3,
+    jumpForce: -11 - heroDefeats * 0.3,
+    attackCooldown: 0,
+    attackRange: 55,
+    str: str,
+    color: '#38f',
+    hurtTimer: 0,
+    aiState: 'approach',
+    aiTimer: 0,
+    dodgeTimer: 0,
+    comboCount: 0,
+  };
+}
+
+function init() {
+  boss = createBoss();
+  hero = createHero();
+  particles = [];
+  projectiles = [];
+  shockwaves = [];
+}
+
+// ── Input ──
+window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; });
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+document.getElementById('start-btn').addEventListener('click', () => {
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('ui-overlay').classList.remove('active');
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('abilities-bar').style.display = 'flex';
+  document.getElementById('move-buttons').style.display = 'flex';
+  document.getElementById('ability-buttons').style.display = 'flex';
+  init();
+  gameRunning = true;
+  updateAbilitiesBar();
+  updateSideButtons();
+  loop();
+});
+
+// ── Side Button Handlers ──
+function setupSideButtons() {
+  // Movement buttons (hold to move)
+  document.querySelectorAll('#move-buttons .side-btn').forEach(btn => {
+    let key = btn.dataset.key;
+
+    btn.addEventListener('mousedown', e => { e.preventDefault(); keys[key] = true; btn.classList.add('pressed'); });
+    btn.addEventListener('mouseup', e => { keys[key] = false; btn.classList.remove('pressed'); });
+    btn.addEventListener('mouseleave', e => { keys[key] = false; btn.classList.remove('pressed'); });
+
+    btn.addEventListener('touchstart', e => { e.preventDefault(); keys[key] = true; btn.classList.add('pressed'); });
+    btn.addEventListener('touchend', e => { e.preventDefault(); keys[key] = false; btn.classList.remove('pressed'); });
+    btn.addEventListener('touchcancel', e => { keys[key] = false; btn.classList.remove('pressed'); });
+  });
+
+  // Ability buttons (press to fire)
+  document.querySelectorAll('#ability-buttons .side-btn').forEach(btn => {
+    let key = btn.dataset.key;
+
+    function fireAbility(e) {
+      e.preventDefault();
+      keys[key] = true;
+      btn.classList.add('pressed');
+      setTimeout(() => { keys[key] = false; btn.classList.remove('pressed'); }, 120);
+    }
+
+    btn.addEventListener('mousedown', fireAbility);
+    btn.addEventListener('touchstart', fireAbility);
+  });
+}
+setupSideButtons();
+
+function updateSideButtons() {
+  for (let ab of ABILITIES) {
+    let btn = document.getElementById('abtn-' + ab.name);
+    if (!btn) continue;
+    if (ab.phase <= phase) {
+      btn.classList.remove('locked');
+    } else {
+      btn.classList.add('locked');
+    }
+  }
+}
+
+function updateSideButtonCooldowns() {
+  let now = Date.now();
+  for (let ab of ABILITIES) {
+    let el = document.getElementById('bcd-' + ab.name);
+    if (!el) continue;
+    let cd = boss.cooldowns[ab.name];
+    if (cd && now < cd) {
+      let pct = (cd - now) / ab.cooldown;
+      el.style.height = (pct * 100) + '%';
+    } else {
+      el.style.height = '0%';
+    }
+  }
+}
+
+// ── Boss Movement ──
+function updateBoss(dt) {
+  if (phaseTransitioning) return;
+
+  let speed = 4;
+  if (keys['a']) { boss.vx = -speed; boss.facing = -1; }
+  else if (keys['d']) { boss.vx = speed; boss.facing = 1; }
+  else { boss.vx = 0; }
+
+  if (keys['w'] && boss.onGround) { boss.vy = -12; boss.onGround = false; }
+
+  // Abilities
+  let now = Date.now();
+  let unlocked = getUnlockedAbilities();
+  for (let ab of unlocked) {
+    if (keys[ab.key] && (!boss.cooldowns[ab.name] || now > boss.cooldowns[ab.name])) {
+      useAbility(ab, now);
+    }
+  }
+
+  boss.vy += GRAVITY;
+  boss.x += boss.vx;
+  boss.y += boss.vy;
+
+  if (boss.y + boss.h > GROUND) { boss.y = GROUND - boss.h; boss.vy = 0; boss.onGround = true; }
+  if (boss.x < 0) boss.x = 0;
+  if (boss.x + boss.w > W) boss.x = W - boss.w;
+
+  if (boss.hurtTimer > 0) boss.hurtTimer--;
+  if (boss.punchAnim > 0) boss.punchAnim--;
+}
+
+// ── Abilities ──
+function useAbility(ab, now) {
+  boss.cooldowns[ab.name] = now + ab.cooldown;
+
+  if (ab.name === 'Punch') {
+    boss.punchAnim = 10;
+    let punchX = boss.x + (boss.facing === 1 ? boss.w : -30);
+    let punchY = boss.y + 15;
+    let dmg = 15 + (phase - 1) * 5;
+    if (rectsOverlap(punchX, punchY, 30, 30, hero.x, hero.y, hero.w, hero.h)) {
+      damageHero(dmg, boss.facing * 6);
+    }
+    spawnParticles(punchX + 15, punchY + 15, '#ff0', 6);
+  }
+
+  if (ab.name === 'Fireball') {
+    projectiles.push({
+      x: boss.x + boss.w / 2, y: boss.y + 20,
+      vx: boss.facing * 7, vy: 0,
+      w: 20, h: 14, damage: 20 + phase * 3,
+      color: '#f80', life: 120, type: 'fireball', owner: 'boss'
+    });
+    spawnParticles(boss.x + boss.w / 2, boss.y + 20, '#f80', 4);
+  }
+
+  if (ab.name === 'Stomp') {
+    if (boss.onGround) {
+      shockwaves.push({ x: boss.x + boss.w / 2, y: GROUND, radius: 0, maxRadius: 200, damage: 25 + phase * 4, speed: 6, owner: 'boss', hit: false });
+      spawnParticles(boss.x + boss.w / 2, GROUND, '#fa0', 12);
+      boss.vy = -5; // small hop
+    }
+  }
+
+  if (ab.name === 'Dark Beam') {
+    let bx = boss.x + (boss.facing === 1 ? boss.w : 0);
+    let by = boss.y + 20;
+    // Beam hits everything in a line
+    let beamLen = 350;
+    let beamX = boss.facing === 1 ? bx : bx - beamLen;
+    if (rectsOverlap(beamX, by - 8, beamLen, 16, hero.x, hero.y, hero.w, hero.h)) {
+      damageHero(35 + phase * 5, boss.facing * 10);
+    }
+    // Visual
+    projectiles.push({
+      x: beamX, y: by - 8, vx: 0, vy: 0,
+      w: beamLen, h: 16, damage: 0,
+      color: '#c4f', life: 12, type: 'beam', owner: 'boss'
+    });
+    spawnParticles(bx, by, '#c4f', 8);
+  }
+}
+
+// ── Hero AI ──
+function updateHero(dt) {
+  if (phaseTransitioning) return;
+
+  let dx = boss.x - hero.x;
+  let dist = Math.abs(dx);
+  let dir = dx > 0 ? 1 : -1;
+  hero.facing = dir;
+
+  hero.aiTimer--;
+  if (hero.aiTimer <= 0) {
+    // Decide behavior
+    if (dist < 70) {
+      // Close: attack or dodge
+      hero.aiState = Math.random() < 0.4 + heroDefeats * 0.05 ? 'attack' : 'dodge';
+    } else if (dist < 200) {
+      hero.aiState = Math.random() < 0.6 ? 'approach' : 'circle';
+    } else {
+      hero.aiState = 'approach';
+    }
+    hero.aiTimer = 20 + Math.random() * 30;
+  }
+
+  // Dodge projectiles
+  let dangerProjectile = projectiles.find(p => p.owner === 'boss' && Math.abs(p.x - hero.x) < 100 && Math.abs(p.y - hero.y) < 60);
+  if (dangerProjectile && hero.dodgeTimer <= 0) {
+    hero.aiState = 'dodge';
+    hero.dodgeTimer = 30;
+  }
+  if (hero.dodgeTimer > 0) hero.dodgeTimer--;
+
+  // Dodge shockwaves
+  let dangerShock = shockwaves.find(s => s.owner === 'boss' && Math.abs(s.x - hero.x) < s.radius + 50 && !s.hit);
+  if (dangerShock && hero.onGround) {
+    hero.vy = hero.jumpForce;
+    hero.onGround = false;
+  }
+
+  switch (hero.aiState) {
+    case 'approach':
+      hero.vx = dir * hero.speed;
+      if (dist < hero.attackRange + 20 && hero.onGround && Math.random() < 0.02) {
+        hero.vy = hero.jumpForce * 0.7;
+        hero.onGround = false;
+      }
+      break;
+    case 'attack':
+      if (dist > hero.attackRange) {
+        hero.vx = dir * hero.speed;
+      } else {
+        hero.vx = dir * hero.speed * 0.3;
+        if (hero.attackCooldown <= 0) {
+          // Attack!
+          let atkX = hero.x + (hero.facing === 1 ? hero.w : -25);
+          if (rectsOverlap(atkX, hero.y + 10, 25, 30, boss.x, boss.y, boss.w, boss.h)) {
+            damageBoss(hero.damage);
+            hero.comboCount++;
+          }
+          hero.attackCooldown = Math.max(15, 30 - heroDefeats * 2);
+          spawnParticles(atkX + 12, hero.y + 25, '#8cf', 4);
+        }
+      }
+      break;
+    case 'dodge':
+      hero.vx = -dir * hero.speed * 1.3;
+      if (hero.onGround && Math.random() < 0.15) {
+        hero.vy = hero.jumpForce;
+        hero.onGround = false;
+      }
+      break;
+    case 'circle':
+      hero.vx = (Math.random() < 0.5 ? 1 : -1) * hero.speed * 0.8;
+      if (hero.onGround && Math.random() < 0.03) {
+        hero.vy = hero.jumpForce * 0.8;
+        hero.onGround = false;
+      }
+      break;
+  }
+
+  if (hero.attackCooldown > 0) hero.attackCooldown--;
+
+  hero.vy += GRAVITY;
+  hero.x += hero.vx;
+  hero.y += hero.vy;
+
+  if (hero.y + hero.h > GROUND) { hero.y = GROUND - hero.h; hero.vy = 0; hero.onGround = true; }
+  if (hero.x < 0) hero.x = 0;
+  if (hero.x + hero.w > W) hero.x = W - hero.w;
+
+  if (hero.hurtTimer > 0) hero.hurtTimer--;
+
+  // Contact damage to boss (minor)
+  if (rectsOverlap(hero.x, hero.y, hero.w, hero.h, boss.x, boss.y, boss.w, boss.h)) {
+    if (hero.attackCooldown <= 0 && hero.aiState === 'approach') {
+      hero.aiState = 'attack';
+    }
+  }
+}
+
+function damageHero(dmg, knockback) {
+  hero.hp -= dmg;
+  hero.hurtTimer = 10;
+  hero.vx = knockback || 0;
+  hero.vy = -4;
+  hero.onGround = false;
+  spawnParticles(hero.x + hero.w / 2, hero.y + hero.h / 2, '#8cf', 8);
+
+  if (hero.hp <= 0) {
+    heroDefeated();
+  }
+}
+
+function damageBoss(dmg) {
+  boss.hp -= dmg;
+  boss.hurtTimer = 8;
+  spawnParticles(boss.x + boss.w / 2, boss.y + boss.h / 2, '#f88', 6);
+
+  if (boss.hp <= 0) {
+    bossDefeated();
+  }
+}
+
+function heroDefeated() {
+  heroDefeats++;
+  spawnParticles(hero.x + hero.w / 2, hero.y + hero.h / 2, '#4af', 20);
+  // Respawn hero stronger after delay
+  setTimeout(() => {
+    if (!gameRunning) return;
+    hero = createHero();
+    hero.x = Math.random() < 0.5 ? 30 : W - 70;
+  }, 1500);
+  hero.x = -999; hero.y = -999;
+}
+
+function bossDefeated() {
+  phase++;
+  phaseTransitioning = true;
+  spawnParticles(boss.x + boss.w / 2, boss.y + boss.h / 2, '#f44', 30);
+
+  let ann = document.getElementById('phase-announce');
+  ann.style.display = 'block';
+  ann.textContent = `PHASE ${phase}!`;
+
+  let newAbility = ABILITIES.find(a => a.phase === phase);
+  if (newAbility) {
+    setTimeout(() => {
+      ann.style.fontSize = '28px';
+      ann.textContent = `New Ability: ${newAbility.icon} ${newAbility.name}!`;
+    }, 1500);
+  }
+
+  setTimeout(() => {
+    ann.style.display = 'none';
+    ann.style.fontSize = '48px';
+    boss = createBoss();
+    boss.x = 400;
+    hero = createHero();
+    hero.x = 50;
+    projectiles = [];
+    shockwaves = [];
+    phaseTransitioning = false;
+    updateAbilitiesBar();
+    updateSideButtons();
+  }, 3000);
+}
+
+// ── Projectiles & Shockwaves ──
+function updateProjectiles() {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    let p = projectiles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+
+    if (p.type === 'fireball') {
+      spawnParticles(p.x, p.y + 7, '#f80', 1);
+    }
+
+    if (p.life <= 0) { projectiles.splice(i, 1); continue; }
+
+    if (p.owner === 'boss' && p.type !== 'beam' && rectsOverlap(p.x, p.y, p.w, p.h, hero.x, hero.y, hero.w, hero.h)) {
+      damageHero(p.damage, p.vx > 0 ? 5 : -5);
+      projectiles.splice(i, 1);
+    }
+  }
+
+  for (let i = shockwaves.length - 1; i >= 0; i--) {
+    let s = shockwaves[i];
+    s.radius += s.speed;
+    if (s.radius >= s.maxRadius) { shockwaves.splice(i, 1); continue; }
+
+    if (!s.hit && s.owner === 'boss') {
+      let heroCX = hero.x + hero.w / 2;
+      let heroCY = hero.y + hero.h;
+      if (Math.abs(heroCX - s.x) < s.radius + 20 && heroCY > GROUND - 20) {
+        damageHero(s.damage, heroCX > s.x ? 8 : -8);
+        s.hit = true;
+      }
+    }
+  }
+}
+
+// ── Particles ──
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6 - 2,
+      life: 20 + Math.random() * 20, color, size: 2 + Math.random() * 4
+    });
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    let p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life--;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+// ── Collision ──
+function rectsOverlap(x1, y1, w1, h1, x2, y2, w2, h2) {
+  return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
+}
+
+// ── HUD ──
+function updateHUD() {
+  document.getElementById('hud-phase').textContent = phase;
+  document.getElementById('hud-boss-hp').textContent = Math.max(0, Math.ceil(boss.hp));
+  document.getElementById('hud-hero-hp').textContent = Math.max(0, Math.ceil(hero.hp));
+  document.getElementById('hud-kills').textContent = heroDefeats;
+}
+
+function updateAbilitiesBar() {
+  let bar = document.getElementById('abilities-bar');
+  bar.innerHTML = '';
+  for (let ab of ABILITIES) {
+    let unlocked = ab.phase <= phase;
+    let slot = document.createElement('div');
+    slot.className = 'ability-slot' + (unlocked ? '' : ' locked');
+    slot.innerHTML = `<div class="icon">${ab.icon}</div><div class="key">${ab.key.toUpperCase()}</div>`;
+    let cdOverlay = document.createElement('div');
+    cdOverlay.className = 'cooldown-overlay';
+    cdOverlay.id = 'cd-' + ab.name;
+    slot.appendChild(cdOverlay);
+    bar.appendChild(slot);
+  }
+}
+
+function updateAbilityCooldowns() {
+  let now = Date.now();
+  for (let ab of ABILITIES) {
+    let el = document.getElementById('cd-' + ab.name);
+    if (!el) continue;
+    let cd = boss.cooldowns[ab.name];
+    if (cd && now < cd) {
+      let pct = (cd - now) / ab.cooldown;
+      el.style.height = (pct * 100) + '%';
+    } else {
+      el.style.height = '0%';
+    }
+  }
+}
+
+// ── Drawing ──
+function draw() {
+  // Background gradient
+  let grad = ctx.createLinearGradient(0, 0, 0, H);
+  let bgColors = [
+    ['#1a0a2e', '#16213e'], // phase 1 — dark purple/blue
+    ['#2e0a0a', '#3e1616'], // phase 2 — dark red
+    ['#0a2e1a', '#163e16'], // phase 3 — dark green
+    ['#2e1a0a', '#3e2e16'], // phase 4+ — dark orange
+  ];
+  let bgIdx = Math.min(phase - 1, bgColors.length - 1);
+  grad.addColorStop(0, bgColors[bgIdx][0]);
+  grad.addColorStop(1, bgColors[bgIdx][1]);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  for (let i = 0; i < 40; i++) {
+    let sx = (i * 137.5 + phase * 50) % W;
+    let sy = (i * 73.1) % (GROUND - 60);
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+
+  // Ground
+  ctx.fillStyle = '#2a2a2a';
+  ctx.fillRect(0, GROUND, W, H - GROUND);
+  ctx.fillStyle = '#444';
+  ctx.fillRect(0, GROUND, W, 3);
+
+  // Pillars (decoration)
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  for (let i = 0; i < 5; i++) {
+    ctx.fillRect(80 + i * 170, GROUND - 200, 20, 200);
+  }
+
+  // Shockwaves
+  for (let s of shockwaves) {
+    ctx.strokeStyle = `rgba(255, 170, 0, ${1 - s.radius / s.maxRadius})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y, s.radius, 15, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Projectiles
+  for (let p of projectiles) {
+    if (p.type === 'beam') {
+      ctx.fillStyle = `rgba(200, 80, 255, ${p.life / 12})`;
+      ctx.shadowColor = '#c4f';
+      ctx.shadowBlur = 15;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.shadowBlur = 0;
+    } else if (p.type === 'fireball') {
+      ctx.fillStyle = '#f80';
+      ctx.shadowColor = '#f60';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.ellipse(p.x + p.w / 2, p.y + p.h / 2, p.w / 2, p.h / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    } else {
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+    }
+  }
+
+  // Particles
+  for (let p of particles) {
+    ctx.globalAlpha = p.life / 40;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x, p.y, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+
+  // Hero
+  if (hero.x > -100) {
+    drawCharacter(hero, '#38f', '#6af', '🗡️', false);
+    drawHPBar(hero, '#38f');
+    // Label
+    ctx.fillStyle = '#8cf';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('HERO', hero.x + hero.w / 2, hero.y - 20);
+  }
+
+  // Boss (you!)
+  drawCharacter(boss, '#d33', '#f66', '💀', true);
+  drawHPBar(boss, '#d33');
+
+  // Punch visual
+  if (boss.punchAnim > 0) {
+    let px = boss.x + (boss.facing === 1 ? boss.w + 5 : -25);
+    ctx.fillStyle = `rgba(255, 255, 0, ${boss.punchAnim / 10})`;
+    ctx.beginPath();
+    ctx.arc(px + 10, boss.y + 30, 15, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = '#f66';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`⬇ YOU ⬇`, boss.x + boss.w / 2, boss.y - 22);
+
+  // Phase crown for boss
+  if (phase > 1) {
+    ctx.font = '16px sans-serif';
+    ctx.fillText('👑', boss.x + boss.w / 2, boss.y - 6);
+  }
+}
+
+function drawCharacter(entity, bodyColor, lightColor, faceEmoji, isBoss) {
+  let hurt = entity.hurtTimer > 0;
+  let shake = hurt ? (Math.random() - 0.5) * 4 : 0;
+  let ex = entity.x + shake;
+  let ey = entity.y;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(ex + entity.w / 2, GROUND + 2, entity.w / 2 + 4, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = hurt ? '#fff' : bodyColor;
+  let bodyR = 6;
+
+  // Torso
+  roundRect(ctx, ex + 4, ey + 18, entity.w - 8, entity.h - 28, bodyR);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = hurt ? '#fff' : lightColor;
+  ctx.beginPath();
+  ctx.arc(ex + entity.w / 2, ey + 14, 14, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = isBoss ? '#f00' : '#fff';
+  let eyeDir = entity.facing;
+  ctx.beginPath();
+  ctx.arc(ex + entity.w / 2 + eyeDir * 4 - 4, ey + 12, 3, 0, Math.PI * 2);
+  ctx.arc(ex + entity.w / 2 + eyeDir * 4 + 4, ey + 12, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(ex + entity.w / 2 + eyeDir * 5 - 4, ey + 12, 1.5, 0, Math.PI * 2);
+  ctx.arc(ex + entity.w / 2 + eyeDir * 5 + 4, ey + 12, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs (simple)
+  ctx.fillStyle = hurt ? '#ddd' : (isBoss ? '#a22' : '#26a');
+  let legAnim = Math.sin(Date.now() / 100) * (Math.abs(entity.vx) > 0.5 ? 4 : 0);
+  ctx.fillRect(ex + 8, ey + entity.h - 14 + legAnim, 10, 14);
+  ctx.fillRect(ex + entity.w - 18, ey + entity.h - 14 - legAnim, 10, 14);
+
+  // Arms
+  ctx.fillStyle = hurt ? '#ddd' : bodyColor;
+  let armY = ey + 22;
+  if (isBoss && boss.punchAnim > 0) {
+    // Punching arm extends
+    let armX = entity.facing === 1 ? ex + entity.w : ex - 18;
+    ctx.fillRect(armX, armY, 18, 8);
+  } else {
+    ctx.fillRect(ex - 6, armY + Math.sin(Date.now() / 200) * 2, 8, 10);
+    ctx.fillRect(ex + entity.w - 2, armY - Math.sin(Date.now() / 200) * 2, 8, 10);
+  }
+
+  // Boss horns
+  if (isBoss) {
+    ctx.fillStyle = '#a00';
+    ctx.beginPath();
+    ctx.moveTo(ex + entity.w / 2 - 10, ey + 4);
+    ctx.lineTo(ex + entity.w / 2 - 14, ey - 10);
+    ctx.lineTo(ex + entity.w / 2 - 4, ey + 6);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(ex + entity.w / 2 + 10, ey + 4);
+    ctx.lineTo(ex + entity.w / 2 + 14, ey - 10);
+    ctx.lineTo(ex + entity.w / 2 + 4, ey + 6);
+    ctx.fill();
+  }
+}
+
+function drawHPBar(entity, color) {
+  let bw = entity.w + 10;
+  let bx = entity.x - 5;
+  let by = entity.y - 10;
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(bx, by, bw, 5);
+  let pct = Math.max(0, entity.hp / entity.maxHp);
+  ctx.fillStyle = pct > 0.5 ? color : (pct > 0.25 ? '#f80' : '#f22');
+  ctx.fillRect(bx, by, bw * pct, 5);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ── Game Loop ──
+function loop() {
+  if (!gameRunning) return;
+  updateBoss();
+  updateHero();
+  updateProjectiles();
+  updateParticles();
+  updateHUD();
+  updateAbilityCooldowns();
+  updateSideButtonCooldowns();
+  draw();
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>

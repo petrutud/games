@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Survival</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <h1>Survival</h1>
+    <div class="hud">
+      <span class="hud-item">Health: <strong id="health">100</strong>/100</span>
+      <span class="hud-item" id="time-label">Day</span>
+      <span class="hud-item">Weapon: <strong>Sword</strong></span>
+      <span class="hud-item">Block: <strong id="block-type">Grass</strong></span>
+    </div>
+    <div class="health-bar-wrap">
+      <div id="health-bar" class="health-bar"></div>
+    </div>
+    <canvas id="game-canvas" width="640" height="400"></canvas>
+    <p class="hint">WASD move, Space jump. Sword: Left-click enemy (when close) to attack. Left-click block to mine, Right-click to place. R respawn</p>
+    <div id="overlay" class="overlay hidden">
+      <p id="overlay-msg" class="overlay-msg">Game Over</p>
+      <button type="button" class="btn" id="btn-respawn">Respawn</button>
+    </div>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>

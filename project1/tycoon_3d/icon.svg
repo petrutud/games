@@ -1,0 +1,6 @@
+<svg height="128" width="128" xmlns="http://www.w3.org/2000/svg">
+  <rect x="2" y="2" width="124" height="124" rx="14" fill="#363d52" stroke="#212532" stroke-width="4"/>
+  <path fill="#478cbf" d="M64 24 98 44v40L64 104 30 84V44L64 24z"/>
+  <path fill="#478cbf" opacity=".8" d="M64 44v40l34-20V44L64 44z"/>
+  <path fill="#478cbf" opacity=".6" d="m30 44 34 20 34-20-34-20-34 20z"/>
+</svg>

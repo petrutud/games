@@ -1,0 +1,115 @@
+/* Tic-Tac-Toe — browser game */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #1a1d29;
+  color: #e8eaed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-wrap {
+  text-align: center;
+  padding: 1rem;
+}
+
+h1 {
+  margin: 0 0 1.5rem;
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.screen {
+  margin: 0 auto;
+}
+
+.screen.hidden {
+  display: none;
+}
+
+.screen p {
+  margin: 0 0 1rem;
+  color: #9aa0a6;
+}
+
+.turn-msg {
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  width: min(90vw, 280px);
+  aspect-ratio: 1;
+  margin: 0 auto 1rem;
+  background: #252936;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.cell {
+  background: #1e2433;
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  color: #e8eaed;
+  font-size: 2rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.cell:hover:not(:disabled) {
+  background: #2e3344;
+}
+
+.cell:disabled {
+  cursor: default;
+}
+
+.cell.x {
+  color: #7caf5e;
+}
+
+.cell.o {
+  color: #e8c547;
+}
+
+.btn-row {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  background: #252936;
+  color: #e8eaed;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn:hover {
+  background: #2e3344;
+}
+
+.result {
+  margin-bottom: 1rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.result.win-x { color: #7caf5e; }
+.result.win-o { color: #e8c547; }
+.result.tie { color: #9aa0a6; }

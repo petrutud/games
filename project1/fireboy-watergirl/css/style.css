@@ -1,0 +1,93 @@
+/* Fireboy & Watergirl */
+@import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@600;700&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  font-family: 'Nunito', system-ui, sans-serif;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  color: #e0e8f0;
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-wrap {
+  text-align: center;
+  max-width: 100%;
+}
+
+h1 {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.8rem;
+  color: #ff6b35;
+  text-shadow: 0 0 20px rgba(255, 107, 53, 0.5);
+  margin-bottom: 0.25rem;
+}
+h1 span { color: #4fc3f7; }
+
+.hint {
+  font-size: 0.85rem;
+  color: #8a9ab0;
+  margin-bottom: 0.35rem;
+}
+.hint strong { color: #fff; }
+.level-line {
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  color: #a0b0c8;
+}
+.level-line strong { color: #4fc3f7; }
+
+.canvas-wrap {
+  position: relative;
+  display: inline-block;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 4px solid #2d3548;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+#game {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  background: #1a1e2e;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+.overlay.hidden { display: none; }
+.overlay-msg {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff;
+}
+.overlay .btn {
+  padding: 0.6rem 1.25rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  background: #4fc3f7;
+  border: none;
+  border-radius: 10px;
+  color: #0d2137;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
+}
+.overlay .btn:hover {
+  background: #81d4fa;
+  transform: scale(1.05);
+}
+.overlay .btn#btn-next { background: #66bb6a; color: #fff; }
+.overlay .btn#btn-next:hover { background: #81c784; }

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mindustry</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <h1>Mindustry</h1>
+    <div class="hud">
+      <span class="res">Copper: <strong id="copper">50</strong></span>
+      <span class="wave">Wave <strong id="wave">1</strong></span>
+      <span class="core-hp">Core HP: <strong id="core-hp">500</strong></span>
+      <button type="button" class="btn" id="btn-wave">Start wave</button>
+    </div>
+    <div class="build-bar">
+      <button type="button" class="build-btn" data-build="conveyor" title="15 copper">Conveyor (15)</button>
+      <button type="button" class="build-btn" data-build="drill" title="20 copper">Drill (20)</button>
+      <button type="button" class="build-btn" data-build="turret" title="40 copper">Turret (40)</button>
+      <span class="selected" id="selected">Click a tile to build</span>
+    </div>
+    <div class="map-wrap">
+      <canvas id="map" width="640" height="400"></canvas>
+      <div id="overlay" class="overlay hidden">
+        <p id="overlay-msg" class="overlay-msg"></p>
+        <button type="button" class="btn" id="btn-restart">Restart</button>
+      </div>
+    </div>
+    <p class="hint">Place conveyors to route ore to core. Drills on ore → conveyor → core. Turrets auto-fire at enemies.</p>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>
