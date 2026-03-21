@@ -58,6 +58,17 @@ params:
     enable: true
     title: "Games"
     items:
+      - title: "Chess"
+        content: "A fully-featured chess game with move validation, castling, en passant, and check/checkmate detection."
+        image: "/images/games/chess.svg"
+        badges:
+          - "HTML5"
+          - "JavaScript"
+          - "Canvas"
+        featured:
+          name: Play Game
+          link: /games/chess/
+
       - title: "Space Shooter"
         content: "A classic arcade-style space shooter. Dodge asteroids and blast enemies in this fast-paced game."
         image: "/images/games/space-shooter.svg"
