@@ -1,0 +1,88 @@
+baseURL: "/"
+languageCode: "en-us"
+title: "Petru Tudorica"
+theme: hugo-profile
+
+enableRobotsTXT: true
+
+params:
+  title: "Petru Tudorica"
+  description: "JS/HTML browser games - play in your browser, no download required"
+  favicon: "/favicon.svg"
+
+  navbar:
+    disableSearch: true
+
+  theme:
+    defaultTheme: "dark"
+    navbar:
+      brandName: "Browser Games"
+      menus:
+        disableAbout: true
+        disableExperience: true
+        disableEducation: true
+        disableProjects: false
+        disableAchievements: true
+        disableContact: true
+
+  # Hero section - games-focused intro
+  hero:
+    enable: true
+    intro: "Welcome to"
+    title: "My Browser Games"
+    subtitle: "Play directly in your browser"
+    content: "A collection of JS / HTML games I've imagined. No installation required — just click play!"
+    image: "/images/petru-site.png"
+    bottomImage:
+      enable: false
+    button:
+      enable: false
+    socialLinks:
+      fontAwesomeIcons: []
+      customIcons: []
+
+  # Hide other sections - we only want games
+  about:
+    enable: false
+  experience:
+    enable: false
+  education:
+    enable: false
+  achievements:
+    enable: false
+  contact:
+    enable: false
+
+  # Games section (using projects)
+  projects:
+    enable: true
+    title: "Games"
+    items:
+      - title: "Space Shooter"
+        content: "A classic arcade-style space shooter. Dodge asteroids and blast enemies in this fast-paced game."
+        image: "/images/games/space-shooter.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+        featured:
+          name: Play Game
+          link: /games/space-shooter/
+
+      - title: "Snake"
+        content: "The timeless Snake game. Eat dots, grow longer, and avoid hitting yourself!"
+        image: "/images/games/snake.svg"
+        badges:
+          - "HTML5"
+          - "JavaScript"
+        featured:
+          name: Play Game
+          link: /games/snake/
+
+      - title: "Puzzle Blocks"
+        content: "Match the blocks and clear the board in this addictive puzzle game."
+        image: "/images/games/puzzle-blocks.svg"
+        badges:
+          - "HTML5"
+        featured:
+          name: Play Game
+          link: /games/puzzle-blocks/

@@ -1,0 +1,19 @@
+/* Override theme's min-height: 100vh which causes the huge gap */
+#hero {
+  min-height: auto !important;
+  padding-bottom: 1rem !important;
+}
+/* Prevent hero row from stretching to match tall image */
+#hero .row {
+  align-items: flex-start !important;
+}
+/* Constrain hero image height so it doesn't dominate the layout */
+#hero img {
+  max-height: 220px !important;
+  width: auto !important;
+  object-fit: cover !important;
+}
+#projects {
+  padding-top: 1.5rem !important;
+  padding-bottom: 2rem !important;
+}
