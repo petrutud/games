@@ -58,6 +58,17 @@ params:
     enable: true
     title: "Games"
     items:
+      - title: "Boss Flip"
+        content: "You are the boss! A canvas-based action game with multiple phases, abilities, and epic boss battles."
+        image: "/images/games/boss-game.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Action"
+        featured:
+          name: Play Game
+          link: /games/boss-game/
+
       - title: "Chess"
         content: "A fully-featured chess game with move validation, castling, en passant, and check/checkmate detection."
         image: "/images/games/chess.svg"
