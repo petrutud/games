@@ -206,3 +206,14 @@ params:
         featured:
           name: Play Game
           link: /games/plants-vs-zombies/
+
+      - title: "Formless"
+        content: "A shape-shifting action platformer. Absorb enemies to transform into slime, bat, golem, wolf and more — each with unique abilities!"
+        image: "/images/games/formless.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Platformer"
+        featured:
+          name: Play Game
+          link: /games/formless/

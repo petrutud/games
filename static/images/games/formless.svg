@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 225" width="400" height="225">
+  <rect width="400" height="225" fill="#0a0a14"/>
+  <!-- Platforms -->
+  <rect x="40" y="160" width="120" height="12" rx="3" fill="#2a2a3a"/>
+  <rect x="200" y="130" width="80" height="12" rx="3" fill="#2a2a3a"/>
+  <rect x="310" y="100" width="60" height="12" rx="3" fill="#2a2a3a"/>
+  <rect x="0" y="190" width="400" height="35" fill="#1a1a2e"/>
+  <!-- Slime form -->
+  <ellipse cx="80" cy="153" rx="14" ry="10" fill="#3a3"/>
+  <ellipse cx="80" cy="150" rx="10" ry="6" fill="#6f4" opacity="0.3"/>
+  <circle cx="76" cy="149" r="2" fill="#fff" opacity="0.6"/>
+  <circle cx="84" cy="149" r="2" fill="#fff" opacity="0.6"/>
+  <!-- Bat form -->
+  <ellipse cx="230" cy="122" rx="8" ry="7" fill="#734"/>
+  <polygon points="222,118 210,108 222,124" fill="#a5a" opacity="0.7"/>
+  <polygon points="238,118 250,108 238,124" fill="#a5a" opacity="0.7"/>
+  <circle cx="228" cy="120" r="1.5" fill="#f66"/>
+  <circle cx="233" cy="120" r="1.5" fill="#f66"/>
+  <!-- Golem form -->
+  <rect x="320" y="72" width="22" height="28" rx="4" fill="#665"/>
+  <rect x="318" y="68" width="26" height="6" rx="2" fill="#998" opacity="0.5"/>
+  <circle cx="327" cy="80" r="2" fill="#dda" opacity="0.5"/>
+  <circle cx="336" cy="80" r="2" fill="#dda" opacity="0.5"/>
+  <!-- Wolf form (running) -->
+  <ellipse cx="150" cy="183" rx="16" ry="8" fill="#654"/>
+  <circle cx="162" cy="178" r="6" fill="#a86" opacity="0.5"/>
+  <circle cx="160" cy="177" r="1.5" fill="#fff" opacity="0.7"/>
+  <!-- Absorb effect -->
+  <circle cx="80" cy="153" r="22" fill="none" stroke="rgba(100,255,100,0.15)" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <circle cx="230" cy="122" r="20" fill="none" stroke="rgba(170,100,170,0.12)" stroke-width="1" stroke-dasharray="3 5"/>
+  <!-- Particles -->
+  <circle cx="95" cy="145" r="1.5" fill="#6f4" opacity="0.4"/>
+  <circle cx="72" cy="148" r="1" fill="#3a3" opacity="0.5"/>
+  <circle cx="245" cy="115" r="1" fill="#a5a" opacity="0.4"/>
+  <circle cx="335" cy="65" r="1.5" fill="#998" opacity="0.3"/>
+  <text x="200" y="218" text-anchor="middle" fill="#556" font-family="sans-serif" font-size="12">Formless</text>
+</svg>

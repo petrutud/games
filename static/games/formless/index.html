@@ -1,0 +1,2629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Formless — Petru Tudorica</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;display:flex;flex-direction:column;min-height:100vh;font-family:'Segoe UI',sans-serif;overflow:hidden}
+.site-nav{background:rgba(0,0,0,0.85);backdrop-filter:blur(10px);padding:8px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.06);z-index:500;position:relative;flex-shrink:0}
+.site-nav a{color:#ccc;text-decoration:none;font-family:'Roboto',sans-serif;font-size:14px;transition:color 0.2s}
+.site-nav a:hover{color:#fff}
+.site-nav .brand{display:flex;align-items:center;gap:10px;font-weight:500;font-size:16px}
+.site-nav .brand img{width:28px;height:28px}
+.site-nav .nav-links{display:flex;gap:20px;align-items:center}
+.site-nav .nav-links a:hover{color:#a0f0a0}
+.game-area-wrapper{flex:1;display:flex;justify-content:center;align-items:center;overflow:hidden}
+canvas{display:block;image-rendering:auto}
+</style>
+</head>
+<body>
+<nav class="site-nav">
+  <a href="/" class="brand"><img src="/favicon.svg" alt="Home"> Petru Tudorica</a>
+  <div class="nav-links"><a href="/#projects">Games</a></div>
+</nav>
+<div class="game-area-wrapper">
+<canvas id="C"></canvas>
+</div>
+<script>
+const C=document.getElementById('C'),ctx=C.getContext('2d');
+const GW=960,GH=600;
+C.width=GW;C.height=GH;
+
+// ==================== CONSTANTS ====================
+const T=24;
+const GRAV=0.5;
+const MAX_FALL=12;
+const HIT_IFRAMES=45;
+const PARTICLE_MAX=500;
+const BASE_ABSORB_CD=180;
+
+// ==================== FORM DEFINITIONS ====================
+const FORMS={
+    slime:{
+        hp:60,speed:2.5,jumpForce:-9,w:22,h:16,
+        color:'#3a3',accentColor:'#6f4',
+        armor:0,attackDmg:4,attackRange:22,attackCd:18,
+        abilities:['squeeze','wallCling'],
+        passiveDesc:'Squeeze through gaps, cling to walls',
+        desc:'A gelatinous form. Immune to fall damage.'
+    },
+    bat:{
+        hp:35,speed:4.5,jumpForce:-7,w:18,h:16,
+        color:'#734',accentColor:'#a5a',
+        armor:0,attackDmg:5,attackRange:26,attackCd:14,
+        abilities:['fly','sonar'],
+        passiveDesc:'Free flight, dive bomb, sonar',
+        desc:'Winged form. Fly freely! Fast but fragile.'
+    },
+    golem:{
+        hp:120,speed:1.8,jumpForce:-8,w:26,h:30,
+        color:'#665',accentColor:'#998',
+        armor:3,attackDmg:12,attackRange:32,attackCd:35,
+        abilities:['stomp','block'],
+        passiveDesc:'Heavy armor, ground stomp',
+        desc:'Stone form. Slow but nearly indestructible.'
+    },
+    wolf:{
+        hp:55,speed:5,jumpForce:-11,w:24,h:20,
+        color:'#654',accentColor:'#a86',
+        armor:0,attackDmg:7,attackRange:30,attackCd:12,
+        abilities:['dash','sense'],
+        passiveDesc:'Dash attack, sense enemies',
+        desc:'Predator form. Lightning fast.'
+    },
+    spider:{
+        hp:45,speed:3.5,jumpForce:-10,w:20,h:18,
+        color:'#444',accentColor:'#777',
+        armor:1,attackDmg:5,attackRange:24,attackCd:18,
+        abilities:['wallWalk','web'],
+        passiveDesc:'Walk on walls, web shot',
+        desc:'Crawler form. Master of verticality.'
+    },
+    phantom:{
+        hp:40,speed:3,jumpForce:-9,w:18,h:26,
+        color:'#336',accentColor:'#66a',
+        armor:0,attackDmg:8,attackRange:28,attackCd:22,
+        abilities:['teleport','phase'],
+        passiveDesc:'Teleport, phase through walls',
+        desc:'Spectral form. Attacks ignore armor.'
+    }
+};
+
+// ==================== SYNERGIES ====================
+const SYNERGIES=[
+    {forms:['slime','spider'],name:'Sticky Predator',bonus:'webDuration',value:1.5,desc:'+50% web duration'},
+    {forms:['bat','phantom'],name:'Ethereal Wings',bonus:'flightFuel',value:1.3,desc:'+30% flight fuel'},
+    {forms:['golem','wolf'],name:'Unstoppable Force',bonus:'knockback',value:2,desc:'2x knockback'},
+    {forms:['wolf','bat'],name:'Predator Sense',bonus:'senseRange',value:2,desc:'Enemies always on minimap'},
+    {forms:['slime','phantom'],name:'Phase Ooze',bonus:'phaseDuration',value:1.5,desc:'Phase through walls'},
+    {forms:['golem','spider'],name:'Fortress Weaver',bonus:'armorBonus',value:2,desc:'+2 armor'},
+    {forms:['slime','bat'],name:'Air Blob',bonus:'fallImmune',value:1,desc:'No fall damage'},
+    {forms:['wolf','spider'],name:'Ambush Hunter',bonus:'critChance',value:0.25,desc:'25% crit chance'},
+    {forms:['golem','phantom'],name:'Spectral Fortress',bonus:'damageReflect',value:0.3,desc:'Reflect 30% damage'},
+];
+
+// ==================== ENEMY DEFINITIONS ====================
+const ENEMY_DEFS={
+    slime_e:{hp:25,speed:0.8,w:20,h:14,dmg:3,behavior:'hop',color:'#3a3',accent:'#6f4',form:'slime',xp:5},
+    bat_e:{hp:18,speed:1.5,w:16,h:14,dmg:3,behavior:'fly',color:'#734',accent:'#a5a',form:'bat',xp:8},
+    golem_e:{hp:55,speed:0.4,w:26,h:28,dmg:5,behavior:'walk',color:'#665',accent:'#998',form:'golem',xp:12},
+    wolf_e:{hp:35,speed:1.2,w:22,h:18,dmg:4,behavior:'chase',color:'#654',accent:'#a86',form:'wolf',xp:10},
+    spider_e:{hp:28,speed:0.9,w:18,h:16,dmg:3,behavior:'wallCrawl',color:'#444',accent:'#777',form:'spider',xp:10},
+    phantom_e:{hp:22,speed:1.0,w:16,h:24,dmg:4,behavior:'blink',color:'#336',accent:'#66a',form:'phantom',xp:12},
+    // Crystal variants
+    crystal_slime:{hp:35,speed:1.0,w:20,h:14,dmg:4,behavior:'hop',color:'#55a',accent:'#88f',form:'slime',xp:15},
+    crystal_bat:{hp:25,speed:1.8,w:16,h:14,dmg:4,behavior:'fly',color:'#a5a',accent:'#f8f',form:'bat',xp:18},
+    // Abyss variants
+    deep_phantom:{hp:35,speed:1.2,w:16,h:24,dmg:5,behavior:'blink',color:'#448',accent:'#88c',form:'phantom',xp:20},
+    eel:{hp:30,speed:1.5,w:24,h:12,dmg:4,behavior:'fly',color:'#2a5',accent:'#4f8',form:'bat',xp:18},
+    // Mutation variants
+    aberrant_wolf:{hp:50,speed:1.5,w:24,h:20,dmg:6,behavior:'chase',color:'#a44',accent:'#f66',form:'wolf',xp:25},
+    aberrant_golem:{hp:80,speed:0.6,w:28,h:30,dmg:7,behavior:'walk',color:'#a65',accent:'#f98',form:'golem',xp:28},
+    // Mini-bosses
+    moss_titan:{hp:200,speed:0.5,w:44,h:50,dmg:6,behavior:'boss_slam',color:'#2a4a2a',accent:'#4f6',boss:true,bossName:'Moss Titan',form:'golem',xp:100},
+    crystal_worm:{hp:160,speed:0.8,w:38,h:38,dmg:5,behavior:'boss_chase',color:'#4a4a8a',accent:'#88f',boss:true,bossName:'Crystal Worm',form:'spider',xp:100},
+    abyss_leviathan:{hp:220,speed:0.6,w:46,h:42,dmg:6,behavior:'boss_fly',color:'#1a3a5a',accent:'#4af',boss:true,bossName:'Abyss Leviathan',form:'phantom',xp:100},
+    mutant_amalgam:{hp:260,speed:0.7,w:40,h:44,dmg:7,behavior:'boss_shift',color:'#5a2a3a',accent:'#f4a',boss:true,bossName:'Mutant Amalgam',form:'wolf',xp:100},
+    the_hollow:{hp:350,speed:0.9,w:50,h:58,dmg:8,behavior:'boss_hollow',color:'#2a2a2a',accent:'#a6a',boss:true,bossName:'The Hollow',final:true,xp:500},
+};
+
+// ==================== BIOME DEFINITIONS ====================
+const BIOMES=[
+    {id:'ruins',name:'Overgrown Ruins',bg:'#0a120a',tileColor:'#2a3a2a',wallColor:'#1a2a1a',accent:'#4a6a3a',
+     platformColor:'#3a4a3a',miniBoss:'moss_titan',enemyPool:['slime_e','bat_e','slime_e'],roomCount:6},
+    {id:'crystal',name:'Crystal Caverns',bg:'#0a0a18',tileColor:'#2a2a4a',wallColor:'#1a1a3a',accent:'#5a5aaa',
+     platformColor:'#3a3a5a',miniBoss:'crystal_worm',enemyPool:['crystal_slime','crystal_bat','spider_e','golem_e'],roomCount:7},
+    {id:'abyss',name:'Sunken Abyss',bg:'#050810',tileColor:'#1a2a3a',wallColor:'#0a1a2a',accent:'#3a5a7a',
+     platformColor:'#2a3a4a',miniBoss:'abyss_leviathan',enemyPool:['deep_phantom','eel','phantom_e','bat_e'],roomCount:7},
+    {id:'mutation',name:'The Mutation',bg:'#120a0a',tileColor:'#3a2a2a',wallColor:'#2a1a1a',accent:'#7a3a4a',
+     platformColor:'#4a2a3a',miniBoss:'mutant_amalgam',enemyPool:['aberrant_wolf','aberrant_golem','wolf_e','spider_e'],roomCount:8},
+    {id:'cradle',name:"Shaper's Cradle",bg:'#0a0a0a',tileColor:'#2a2a2a',wallColor:'#1a1a1a',accent:'#5a5a5a',
+     platformColor:'#3a3a3a',miniBoss:'the_hollow',enemyPool:['deep_phantom','aberrant_wolf','golem_e','phantom_e'],roomCount:5},
+];
+
+// ==================== SUPER ABILITIES ====================
+const SUPER_ABILITIES={
+    slime:{name:'Acid Rain',icon:'☢',color:'#4f4',desc:'Rains acid on all enemies',
+        cooldown:300,use(){
+            for(const e of enemies){e.hp-=15;spawnBurst(e.x+e.w/2,e.y,12,'#4f4',4,20);}
+            screenShake=8;showEcho('Acid Rain!');
+        }},
+    bat:{name:'Sonic Boom',icon:'◉',color:'#a5a',desc:'Massive shockwave stuns all enemies',
+        cooldown:350,use(){
+            for(const e of enemies){e.stun=80;e.vy=-6;spawnBurst(e.x+e.w/2,e.y+e.h/2,10,'#a5a',5,15);}
+            screenShake=15;spawnBurst(player.x+getPlayerW()/2,player.y+getPlayerH()/2,40,'#a5a',8,25);showEcho('Sonic Boom!');
+        }},
+    golem:{name:'Earthquake',icon:'▲',color:'#fa0',desc:'Ground erupts dealing huge AoE damage',
+        cooldown:400,use(){
+            for(const e of enemies){
+                if(e.onGround||dist({x:player.x,y:player.y},{x:e.x,y:e.y})<200){
+                    e.hp-=25;e.vy=-10;e.stun=30;
+                }
+            }
+            screenShake=25;
+            for(let i=0;i<50;i++)spawnParticle(player.x+rngRange(-100,100),player.y+getPlayerH(),rngRange(-2,2),-rng()*6,30,'#fa0',rng()*4+2);
+            showEcho('Earthquake!');
+        }},
+    wolf:{name:'Frenzy',icon:'⚡',color:'#f80',desc:'Triple speed and damage for 5 seconds',
+        cooldown:360,use(){
+            player.frenzyTimer=300;
+            spawnBurst(player.x+getPlayerW()/2,player.y+getPlayerH()/2,25,'#f80',5,20);
+            showEcho('Frenzy! Speed and damage tripled!');
+        }},
+    spider:{name:'Web Prison',icon:'✦',color:'#ccc',desc:'Traps all enemies in webs for 4 seconds',
+        cooldown:320,use(){
+            for(const e of enemies){e.stun=240;e.vx=0;e.vy=0;spawnBurst(e.x+e.w/2,e.y+e.h/2,15,'#ccc',3,20);}
+            showEcho('Web Prison!');
+        }},
+    phantom:{name:'Soul Rip',icon:'◈',color:'#a6f',desc:'Teleport through all enemies, massive damage',
+        cooldown:380,use(){
+            const sorted=[...enemies].sort((a,b)=>dist({x:player.x,y:player.y},{x:a.x,y:a.y})-dist({x:player.x,y:player.y},{x:b.x,y:b.y}));
+            for(const e of sorted.slice(0,5)){
+                const ox=player.x,oy=player.y;
+                player.x=e.x;player.y=e.y-getPlayerH();
+                e.hp-=20;e.iFrames=5;
+                spawnBurst(e.x+e.w/2,e.y+e.h/2,15,'#a6f',5,15);
+                spawnBurst(ox+8,oy+8,8,'#a6f',3,10);
+            }
+            screenShake=12;showEcho('Soul Rip!');
+        }},
+};
+
+// ==================== GAME STATE ====================
+let player,camera,enemies,projectiles,particles,effects,drops;
+let rooms,currentRoom,currentBiome,currentFloor;
+let keys={},frame=0,screenShake=0,transition=0,transDir=0;
+let gameState='title';
+let pendingForm=null,sacrificeMode=false;
+let echo={x:0,y:0,msg:'',msgTimer:0,bobPhase:0};
+let dungeonMap=[],exploredRooms={};
+let totalKills=0,totalFormsAbsorbed=0;
+let bossHpBar=0,bossMaxHp=0,bossName='';
+let titleAnim=0;
+let deathTimer=0;
+let activeSynergies=[];
+let minimap={show:true};
+let echoHints=[
+    'Defeat enemies to absorb their forms...',
+    'Press 1, 2, 3 to switch between forms.',
+    'Some form combinations grant synergy bonuses!',
+    'Your base form has a desperate absorb attack.',
+    'Each form has unique abilities. Try Q and E.',
+    'Heavier forms deal more damage but move slower.',
+];
+let shownHints=new Set();
+let roomTransTimer=0;
+let roomTransFrom=null;
+let victoryTimer=0;
+
+// ==================== UTILITY ====================
+function lerp(a,b,t){return a+(b-a)*t}
+function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v))}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function rng(){return Math.random()}
+function rngRange(a,b){return a+rng()*(b-a)}
+function rngInt(a,b){return Math.floor(rngRange(a,b+1))}
+function rectOverlap(a,b){
+    return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+}
+
+// ==================== PARTICLES ====================
+function spawnParticle(x,y,vx,vy,life,color,size){
+    if(particles.length>=PARTICLE_MAX)return;
+    particles.push({x,y,vx,vy,life,maxLife:life,color,size:size||2});
+}
+function spawnBurst(x,y,count,color,speed,life){
+    for(let i=0;i<count;i++){
+        const a=rng()*Math.PI*2;
+        const s=rng()*speed;
+        spawnParticle(x,y,Math.cos(a)*s,Math.sin(a)*s,life||30,color,rng()*3+1);
+    }
+}
+function spawnFormParticles(x,y,formType){
+    const f=FORMS[formType];
+    spawnBurst(x,y,20,f.color,4,25);
+    spawnBurst(x,y,15,f.accentColor,3,20);
+}
+function updateParticles(){
+    for(let i=particles.length-1;i>=0;i--){
+        const p=particles[i];
+        p.x+=p.vx;p.y+=p.vy;
+        p.vy+=0.05;
+        p.vx*=0.98;
+        p.life--;
+        if(p.life<=0)particles.splice(i,1);
+    }
+}
+function drawParticles(){
+    for(const p of particles){
+        const a=p.life/p.maxLife;
+        ctx.globalAlpha=a;
+        ctx.fillStyle=p.color;
+        ctx.fillRect(p.x-camera.x,p.y-camera.y,p.size,p.size);
+    }
+    ctx.globalAlpha=1;
+}
+
+// ==================== ROOM GENERATION ====================
+function generateRoom(biome,w,h,roomIndex,isBoss,exits){
+    const tiles=[];
+    for(let y=0;y<h;y++){
+        tiles[y]=[];
+        for(let x=0;x<w;x++)tiles[y][x]=0;
+    }
+    // Border - 2 tiles thick on bottom to prevent falling through
+    for(let x=0;x<w;x++){tiles[0][x]=1;tiles[h-1][x]=1;tiles[h-2][x]=1;}
+    for(let y=0;y<h;y++){tiles[y][0]=1;tiles[y][w-1]=1;}
+    // Ground floor
+    for(let x=1;x<w-1;x++){
+        tiles[h-3][x]=1;
+    }
+    if(!isBoss){
+        // Random terrain
+        const groundY=h-3;
+        // Platforms
+        const platCount=3+rngInt(0,3);
+        for(let p=0;p<platCount;p++){
+            const px=rngInt(3,w-8);
+            const py=rngInt(4,groundY-4);
+            const pl=rngInt(3,7);
+            for(let x=px;x<Math.min(px+pl,w-1);x++){
+                tiles[py][x]=3;
+            }
+        }
+        // Some raised ground sections
+        const raised=rngInt(1,3);
+        for(let r=0;r<raised;r++){
+            const rx=rngInt(3,w-10);
+            const rl=rngInt(4,8);
+            const rh=rngInt(2,4);
+            for(let x=rx;x<Math.min(rx+rl,w-2);x++){
+                for(let y=groundY-rh;y<groundY;y++){
+                    tiles[y][x]=1;
+                }
+            }
+        }
+        // Occasional spikes
+        if(rng()>0.4){
+            const sx=rngInt(5,w-5);
+            const sl=rngInt(2,4);
+            for(let x=sx;x<Math.min(sx+sl,w-2);x++){
+                if(tiles[h-4][x]===0)tiles[h-4][x]=2;
+            }
+        }
+        // Narrow gaps for slime form
+        if(rng()>0.5){
+            const gx=rngInt(3,w-5);
+            for(let y=3;y<h-4;y++)tiles[y][gx]=1;
+            tiles[h-5][gx]=0; // small gap at bottom
+        }
+    }else{
+        // Boss arena - open with pillars
+        for(let y=4;y<h-4;y++){tiles[y][Math.floor(w*0.25)]=1;tiles[y][Math.floor(w*0.75)]=1;}
+    }
+    // Mark exits - carve door openings in walls (3 tiles tall, above ground)
+    if(exits){
+        for(const e of exits){
+            const doorY=h-6; // door starts well above the ground
+            if(e.side==='right'){
+                for(let dy=doorY;dy<doorY+3&&dy<h-3;dy++){
+                    tiles[dy][w-1]=0;
+                    if(w-2>=0)tiles[dy][w-2]=0; // carve 2 tiles deep so player can walk through
+                }
+                e.ty=doorY;
+            }else if(e.side==='left'){
+                for(let dy=doorY;dy<doorY+3&&dy<h-3;dy++){
+                    tiles[dy][0]=0;
+                    tiles[dy][1]=0; // carve 2 tiles deep
+                }
+                e.ty=doorY;
+            }else if(e.side==='top'){
+                tiles[0][e.tx]=0;
+                if(e.tx+1<w)tiles[0][e.tx+1]=0;
+            }else if(e.side==='bottom'){
+                // Don't cut bottom floor
+            }
+        }
+    }
+    return {tiles,w,h,biome:biome.id,objects:[],cleared:false,isBoss};
+}
+
+function generateFloor(biomeIndex){
+    const biome=BIOMES[biomeIndex];
+    const count=biome.roomCount;
+    const floorRooms=[];
+    // Generate rooms in a line with branches
+    for(let i=0;i<count;i++){
+        const isBoss=(i===count-1);
+        const w=isBoss?35:rngInt(30,50);
+        const h=isBoss?22:rngInt(18,26);
+        const exits=[];
+        // Connect to next room on right
+        if(i<count-1){
+            exits.push({side:'right',ty:Math.floor(h*0.6),toRoom:i+1});
+        }
+        // Connect to previous room on left
+        if(i>0){
+            exits.push({side:'left',ty:Math.floor(h*0.6),toRoom:i-1});
+        }
+        const room=generateRoom(biome,w,h,i,isBoss,exits);
+        room.exits=exits;
+        room.index=i;
+        room.biomeIndex=biomeIndex;
+        room.isBoss=isBoss;
+        // Populate enemies
+        if(!isBoss){
+            const enemyCount=rngInt(2,4);
+            for(let e=0;e<enemyCount;e++){
+                const etype=biome.enemyPool[rngInt(0,biome.enemyPool.length-1)];
+                const ex=rngInt(4,w-4)*T;
+                const ey=(h-5)*T;
+                room.objects.push({type:'enemy',x:ex,y:ey,kind:etype});
+            }
+            // First room of first floor - guaranteed form enemy
+            if(biomeIndex===0&&i===0){
+                room.objects.push({type:'enemy',x:15*T,y:(h-5)*T,kind:'slime_e',guaranteedDrop:true});
+            }
+        }else{
+            room.objects.push({type:'enemy',x:Math.floor(w/2)*T,y:(h-5)*T,kind:biome.miniBoss});
+        }
+        // Next floor stairs in boss room
+        if(isBoss&&biomeIndex<4){
+            room.objects.push({type:'stairs',x:Math.floor(w/2)*T,y:(h-4)*T});
+        }
+        floorRooms.push(room);
+    }
+    return floorRooms;
+}
+
+function loadRoom(floorIndex,roomIndex){
+    const room=dungeonMap[floorIndex][roomIndex];
+    currentRoom=room;
+    currentBiome=BIOMES[room.biomeIndex];
+    currentFloor=floorIndex;
+    enemies=[];
+    drops=[];
+    projectiles=[];
+    const roomKey=floorIndex+'-'+roomIndex;
+    if(!exploredRooms[roomKey]){
+        exploredRooms[roomKey]=true;
+        // Spawn enemies from room objects
+        for(const obj of room.objects){
+            if(obj.type==='enemy'){
+                spawnEnemy(obj.x,obj.y,obj.kind,obj.guaranteedDrop);
+            }
+        }
+    }else if(!room.cleared){
+        // Respawn enemies if room not cleared
+        for(const obj of room.objects){
+            if(obj.type==='enemy'){
+                spawnEnemy(obj.x,obj.y,obj.kind,obj.guaranteedDrop);
+            }
+        }
+    }
+    // Show biome name
+    if(!shownHints.has('biome_'+floorIndex)){
+        shownHints.add('biome_'+floorIndex);
+        showEcho(currentBiome.name+'...');
+    }
+}
+
+// ==================== ENEMY SYSTEM ====================
+function spawnEnemy(x,y,kind,guaranteedDrop){
+    const def=ENEMY_DEFS[kind];
+    if(!def)return;
+    // Place enemy on top of ground at this x position
+    const groundY=findGroundY(x,currentRoom);
+    const spawnY=groundY-def.h; // sit on top of ground
+    enemies.push({
+        x,y:spawnY,vx:0,vy:0,w:def.w,h:def.h,
+        hp:def.hp,maxHp:def.hp,
+        speed:def.speed,dmg:def.dmg,
+        behavior:def.behavior,
+        color:def.color,accent:def.accent,
+        form:def.form,kind,
+        boss:def.boss||false,
+        bossName:def.bossName||'',
+        final:def.final||false,
+        xp:def.xp||5,
+        iFrames:0,
+        dir:rng()>0.5?1:-1,
+        aiTimer:0,
+        aiState:'idle',
+        attackTimer:0,
+        phase:0,
+        animFrame:0,
+        guaranteedDrop:guaranteedDrop||false,
+        onGround:false,
+        stun:0,
+        phaseTimer:0,
+        blinkTimer:0,
+    });
+}
+
+function updateEnemies(){
+    for(let i=enemies.length-1;i>=0;i--){
+        const e=enemies[i];
+        if(e.stun>0){e.stun--;continue;}
+        if(e.iFrames>0)e.iFrames--;
+        e.animFrame++;
+        // Gravity for ground enemies
+        if(!['fly','boss_fly'].includes(e.behavior)){
+            e.vy+=GRAV;
+            if(e.vy>MAX_FALL)e.vy=MAX_FALL;
+        }
+        // AI
+        const dx=player.x-e.x,dy=player.y-e.y;
+        const distToPlayer=Math.hypot(dx,dy);
+        switch(e.behavior){
+            case 'hop':
+                e.aiTimer++;
+                if(e.aiTimer>60&&e.onGround){
+                    e.vy=-6;
+                    e.vx=dx>0?2:-2;
+                    e.aiTimer=0;
+                }
+                e.vx*=0.95;
+                break;
+            case 'fly':
+                if(distToPlayer<300){
+                    e.vx+=(dx>0?0.08:-0.08);
+                    e.vy+=(dy>0?0.06:-0.06);
+                }else{
+                    e.vx+=Math.sin(e.animFrame*0.02)*0.1;
+                    e.vy+=Math.cos(e.animFrame*0.03)*0.1;
+                }
+                e.vx*=0.96;e.vy*=0.96;
+                e.vy=clamp(e.vy,-3,3);
+                break;
+            case 'walk':
+                if(distToPlayer<250){
+                    e.vx+=(dx>0?0.05:-0.05);
+                }else{
+                    e.aiTimer++;
+                    if(e.aiTimer>120){e.dir*=-1;e.aiTimer=0;}
+                    e.vx=e.dir*e.speed;
+                }
+                e.vx=clamp(e.vx,-e.speed,e.speed);
+                e.vx*=0.9;
+                break;
+            case 'chase':
+                if(distToPlayer<350){
+                    e.vx+=(dx>0?0.15:-0.15);
+                    if(distToPlayer<60&&e.attackTimer<=0){
+                        e.attackTimer=40;
+                        e.vx=(dx>0?6:-6);
+                    }
+                }else{
+                    e.vx*=0.9;
+                }
+                if(e.attackTimer>0)e.attackTimer--;
+                e.vx=clamp(e.vx,-e.speed*2,e.speed*2);
+                e.vx*=0.95;
+                break;
+            case 'wallCrawl':
+                e.aiTimer++;
+                e.vy=-0.5;
+                e.vx=e.dir*e.speed;
+                if(e.aiTimer>80){e.dir*=-1;e.aiTimer=0;}
+                if(distToPlayer<150&&e.onGround===false){
+                    e.vy=2;
+                }
+                break;
+            case 'blink':
+                e.blinkTimer++;
+                if(e.blinkTimer>90&&distToPlayer<300){
+                    // Teleport near player
+                    e.x=player.x+(rng()>0.5?50:-50);
+                    e.y=player.y-20;
+                    e.blinkTimer=0;
+                    spawnBurst(e.x+e.w/2,e.y+e.h/2,10,e.accent,3,15);
+                }
+                e.vx*=0.9;
+                break;
+            // Boss behaviors
+            case 'boss_slam':
+                e.aiTimer++;
+                if(e.aiTimer>80){
+                    if(e.aiState==='idle'){
+                        e.aiState='jump';
+                        e.vy=-10;
+                        e.vx=(dx>0?2:-2);
+                    }else if(e.aiState==='jump'&&e.onGround){
+                        e.aiState='slam';
+                        screenShake=15;
+                        spawnBurst(e.x+e.w/2,e.y+e.h,30,'#4f6',5,20);
+                        // Damage player if close
+                        if(distToPlayer<80)damagePlayer(e.dmg);
+                        e.aiTimer=0;
+                        e.aiState='idle';
+                    }
+                }
+                e.vx*=0.92;
+                break;
+            case 'boss_chase':
+                e.vx+=(dx>0?0.12:-0.12);
+                e.vx=clamp(e.vx,-3,3);
+                if(e.aiTimer++>60){
+                    e.vy=-8;
+                    e.aiTimer=0;
+                }
+                e.vx*=0.95;
+                break;
+            case 'boss_fly':
+                e.vy+=((player.y-40)-e.y)*0.01;
+                e.vx+=(dx>0?0.08:-0.08);
+                e.vx*=0.97;e.vy*=0.97;
+                e.aiTimer++;
+                if(e.aiTimer>50){
+                    // Shoot projectile
+                    projectiles.push({x:e.x+e.w/2,y:e.y+e.h/2,vx:dx>0?4:-4,vy:1,dmg:e.dmg,life:120,color:e.accent,size:6,enemy:true});
+                    e.aiTimer=0;
+                }
+                break;
+            case 'boss_shift':
+                e.phaseTimer++;
+                if(e.phaseTimer>100){
+                    // Change behavior temporarily
+                    e.vx=(dx>0?5:-5);
+                    e.vy=-6;
+                    e.phaseTimer=0;
+                    spawnBurst(e.x+e.w/2,e.y+e.h/2,20,e.accent,4,20);
+                }
+                if(distToPlayer<100){
+                    e.vx+=(dx>0?0.2:-0.2);
+                }
+                e.vx*=0.93;
+                break;
+            case 'boss_hollow':
+                e.phaseTimer++;
+                // Multi-phase
+                if(e.hp<e.maxHp*0.66&&e.phase===0){
+                    e.phase=1;
+                    showEcho('The Hollow shifts... it grows stronger!');
+                    screenShake=20;
+                    spawnBurst(e.x+e.w/2,e.y+e.h/2,40,'#f4a',6,30);
+                }
+                if(e.hp<e.maxHp*0.33&&e.phase===1){
+                    e.phase=2;
+                    showEcho('It is desperate now... finish it!');
+                    screenShake=25;
+                    spawnBurst(e.x+e.w/2,e.y+e.h/2,50,'#f66',7,35);
+                }
+                switch(e.phase){
+                    case 0:
+                        e.vx+=(dx>0?0.08:-0.08);
+                        if(e.phaseTimer>70){
+                            e.vy=-8;e.phaseTimer=0;
+                        }
+                        break;
+                    case 1:
+                        e.vx+=(dx>0?0.12:-0.12);
+                        if(e.phaseTimer>50){
+                            projectiles.push({x:e.x+e.w/2,y:e.y+e.h/2,vx:dx>0?5:-5,vy:-1,dmg:e.dmg,life:100,color:'#f4a',size:8,enemy:true});
+                            e.phaseTimer=0;
+                        }
+                        if(e.phaseTimer%80===0)e.vy=-10;
+                        break;
+                    case 2:
+                        e.speed=1.5;
+                        e.vx+=(dx>0?0.2:-0.2);
+                        if(e.phaseTimer>30){
+                            const a=Math.atan2(dy,dx);
+                            projectiles.push({x:e.x+e.w/2,y:e.y+e.h/2,vx:Math.cos(a)*5,vy:Math.sin(a)*5,dmg:e.dmg,life:80,color:'#f66',size:6,enemy:true});
+                            e.phaseTimer=0;
+                        }
+                        if(e.phaseTimer%60===0)e.vy=-12;
+                        break;
+                }
+                e.vx=clamp(e.vx,-e.speed*2,e.speed*2);
+                e.vx*=0.93;
+                break;
+        }
+        // Apply movement with collision
+        moveEntity(e);
+        checkPlatforms(e);
+        // Check contact damage with player
+        if(player.iFrames<=0&&!player.dead){
+            if(rectOverlap(
+                {x:player.x,y:player.y,w:getPlayerW(),h:getPlayerH()},
+                {x:e.x,y:e.y,w:e.w,h:e.h}
+            )){
+                damagePlayer(e.dmg);
+            }
+        }
+        // Boss HP bar
+        if(e.boss){
+            bossHpBar=e.hp;bossMaxHp=e.maxHp;bossName=e.bossName;
+        }
+        // Death
+        if(e.hp<=0){
+            // Drop form orb
+            const shouldDrop=e.guaranteedDrop||e.boss||rng()<0.35;
+            if(shouldDrop&&e.form){
+                drops.push({x:e.x+e.w/2,y:e.y,form:e.form,life:600,bob:0});
+            }
+            spawnBurst(e.x+e.w/2,e.y+e.h/2,25,e.color,5,25);
+            spawnBurst(e.x+e.w/2,e.y+e.h/2,15,e.accent,3,20);
+            if(e.boss){
+                screenShake=30;
+                bossHpBar=0;
+                if(e.final){
+                    gameState='victory';
+                    victoryTimer=0;
+                }
+            }
+            totalKills++;
+            enemies.splice(i,1);
+            // Check if room cleared
+            if(enemies.length===0){
+                currentRoom.cleared=true;
+            }
+        }
+    }
+}
+
+// ==================== PHYSICS ====================
+// Get collision width/height for any entity (player uses dynamic size)
+function getW(e){return e===player?getPlayerW():e.w;}
+function getH(e){return e===player?getPlayerH():e.h;}
+
+function moveEntity(e){
+    e.onGround=false;
+    const w=getW(e), h=getH(e);
+    // Horizontal movement with step-based collision
+    const sx=Math.sign(e.vx);
+    let remaining=Math.abs(e.vx);
+    while(remaining>0){
+        const step=Math.min(remaining,1);
+        e.x+=sx*step;
+        if(tileCollisionWH(e.x,e.y,w,h)){
+            e.x-=sx*step;
+            e.vx=0;
+            if(e.behavior==='walk'||e.behavior==='wallCrawl')e.dir*=-1;
+            break;
+        }
+        remaining-=step;
+    }
+    // Vertical movement with step-based collision
+    const sy=Math.sign(e.vy);
+    remaining=Math.abs(e.vy);
+    while(remaining>0){
+        const step=Math.min(remaining,1);
+        e.y+=sy*step;
+        if(tileCollisionWH(e.x,e.y,w,h)){
+            e.y-=sy*step;
+            if(e.vy>0)e.onGround=true;
+            e.vy=0;
+            break;
+        }
+        remaining-=step;
+    }
+    // If still stuck in a solid tile, push upward until free
+    let safety=0;
+    while(tileCollisionWH(e.x,e.y,w,h)&&safety<40){
+        e.y-=1;
+        safety++;
+    }
+    if(safety>0){e.onGround=true;e.vy=0;}
+    // World bounds — allow getting close to walls for exit detection
+    const room=currentRoom;
+    e.x=clamp(e.x,2,(room.w)*T-w-2);
+    e.y=clamp(e.y,T,(room.h-3)*T-h);
+}
+
+// Find the ground Y position at a given x
+function findGroundY(x,room){
+    const tx=clamp(Math.floor(x/T),1,room.w-2);
+    for(let y=room.h-1;y>=2;y--){
+        const tile=room.tiles[y][tx];
+        const above=y>0?room.tiles[y-1][tx]:1;
+        if((tile===1||tile===2)&&(above===0||above===3)){
+            return y*T;
+        }
+    }
+    return (room.h-3)*T;
+}
+
+// Tile collision check using explicit width/height
+function tileCollisionWH(ex,ey,ew,eh){
+    const room=currentRoom;
+    const x1=Math.floor(ex/T);
+    const y1=Math.floor(ey/T);
+    const x2=Math.floor((ex+ew-1)/T);
+    const y2=Math.floor((ey+eh-1)/T);
+    for(let y=y1;y<=y2;y++){
+        for(let x=x1;x<=x2;x++){
+            if(y<0||y>=room.h||x<0||x>=room.w)return true;
+            const t=room.tiles[y][x];
+            if(t===1)return true;
+            if(t===2)return true;
+        }
+    }
+    return false;
+}
+
+// One-way platform check (separate, only for downward movement)
+function checkPlatforms(e){
+    const w=getW(e),h=getH(e);
+    const room=currentRoom;
+    const y2=Math.floor((e.y+h)/T);
+    const x1=Math.floor(e.x/T);
+    const x2=Math.floor((e.x+w-1)/T);
+    if(y2<0||y2>=room.h)return false;
+    for(let x=x1;x<=x2;x++){
+        if(x<0||x>=room.w)continue;
+        if(room.tiles[y2][x]===3){
+            // Only collide if feet are at or just above the platform
+            const platTop=y2*T;
+            if(e.vy>0&&e.y+h>=platTop&&e.y+h<=platTop+e.vy+2){
+                e.y=platTop-h;
+                e.vy=0;
+                e.onGround=true;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+function tileAt(x,y){
+    const room=currentRoom;
+    const tx=Math.floor(x/T);
+    const ty=Math.floor(y/T);
+    if(tx<0||tx>=room.w||ty<0||ty>=room.h)return 1;
+    return room.tiles[ty][tx];
+}
+
+function isSpike(x,y){
+    return tileAt(x,y)===2;
+}
+
+// ==================== PLAYER ====================
+const VESSEL_BASE={hp:30,maxHp:30,speed:2.2,jumpForce:-9,w:16,h:24,armor:0,attackDmg:2,attackRange:20,attackCd:25};
+
+function getActiveForm(){
+    if(player.activeForm>=0&&player.activeForm<player.forms.length){
+        const slot=player.forms[player.activeForm];
+        if(slot&&slot.hp>0)return FORMS[slot.type];
+    }
+    return null;
+}
+function isBatFormActive(){return player&&player.activeForm>=0&&player.forms[player.activeForm]&&player.forms[player.activeForm].type==='bat'&&player.forms[player.activeForm].hp>0;}
+function getPlayerW(){const f=getActiveForm();return f?f.w:VESSEL_BASE.w;}
+function getPlayerH(){const f=getActiveForm();return f?f.h:VESSEL_BASE.h;}
+function getPlayerSpeed(){const f=getActiveForm();let s=f?f.speed:VESSEL_BASE.speed;if(player&&player.frenzyTimer>0)s*=3;return s;}
+function getPlayerJump(){const f=getActiveForm();return f?f.jumpForce:VESSEL_BASE.jumpForce;}
+function getPlayerArmor(){
+    const f=getActiveForm();
+    let armor=f?f.armor:VESSEL_BASE.armor;
+    // Synergy bonus
+    for(const s of activeSynergies){
+        if(s.bonus==='armorBonus')armor+=s.value;
+    }
+    return armor;
+}
+
+function initPlayer(){
+    player={
+        x:5*T,y:10*T,vx:0,vy:0,
+        forms:[],
+        activeForm:-1,
+        iFrames:0,
+        attackTimer:0,
+        attackCd:0,
+        attackDir:0,
+        ability1Cd:0,
+        ability2Cd:0,
+        flightFuel:120,maxFlightFuel:120,
+        flying:false,
+        dashing:false,dashTimer:0,dashCd:0,dashDir:0,
+        phasing:false,phaseTimer:0,
+        sensing:false,senseTimer:0,
+        blocking:false,
+        webCd:0,
+        absorbing:false,absorbCd:0,
+        dir:1,
+        onGround:false,
+        onWall:0,
+        dead:false,
+        animFrame:0,
+        trail:[],
+        baseHp:VESSEL_BASE.hp,
+        baseMaxHp:VESSEL_BASE.maxHp,
+        superAbilities:[], // up to 5 slots: {type:'slime', cd:0}
+        frenzyTimer:0,
+    };
+}
+
+function switchForm(slot){
+    if(slot<0||slot>=player.forms.length)return;
+    if(player.forms[slot].hp<=0)return;
+    if(player.activeForm===slot)return;
+    const oldForm=player.activeForm;
+    player.activeForm=slot;
+    const f=FORMS[player.forms[slot].type];
+    spawnFormParticles(player.x+getPlayerW()/2,player.y+getPlayerH()/2,player.forms[slot].type);
+    player.flying=false;
+    player.phasing=false;
+    player.blocking=false;
+    recalcSynergies();
+    screenShake=3;
+}
+
+function recalcSynergies(){
+    activeSynergies=[];
+    const heldTypes=player.forms.filter(f=>f).map(f=>f.type);
+    for(const s of SYNERGIES){
+        if(s.forms.every(f=>heldTypes.includes(f))){
+            activeSynergies.push(s);
+        }
+    }
+}
+
+function damagePlayer(dmg){
+    if(player.iFrames>0||player.dead)return;
+    if(player.blocking)dmg=Math.ceil(dmg*0.2);
+    const armor=getPlayerArmor();
+    const actual=Math.max(1,dmg-armor);
+    // Synergy: damage reflect
+    for(const s of activeSynergies){
+        if(s.bonus==='damageReflect'){
+            // Reflect damage to nearby enemies
+            for(const e of enemies){
+                if(dist({x:player.x,y:player.y},{x:e.x,y:e.y})<100){
+                    e.hp-=Math.floor(actual*s.value);
+                }
+            }
+        }
+    }
+    if(player.activeForm>=0&&player.forms[player.activeForm]&&player.forms[player.activeForm].hp>0){
+        player.forms[player.activeForm].hp-=actual;
+        if(player.forms[player.activeForm].hp<=0){
+            player.forms[player.activeForm].hp=0;
+            spawnBurst(player.x+8,player.y+8,30,'#f44',5,30);
+            showEcho('Form destroyed!');
+            // Find next alive form
+            let found=false;
+            for(let i=0;i<player.forms.length;i++){
+                if(player.forms[i].hp>0){
+                    switchForm(i);
+                    found=true;
+                    break;
+                }
+            }
+            if(!found){
+                player.activeForm=-1;
+                showEcho('All forms depleted! Use absorb attack...');
+            }
+        }
+    }else{
+        player.baseHp-=actual;
+        if(player.baseHp<=0){
+            player.dead=true;
+            deathTimer=0;
+            gameState='dead';
+            screenShake=20;
+            spawnBurst(player.x+8,player.y+12,40,'#f44',6,40);
+        }
+    }
+    player.iFrames=HIT_IFRAMES;
+    screenShake=Math.max(screenShake,8);
+    // Knockback
+    player.vx=(player.x<getClosestEnemy()?-4:4);
+    player.vy=-3;
+}
+
+function getClosestEnemy(){
+    let closest=player.x+100;
+    for(const e of enemies){
+        if(Math.abs(e.x-player.x)<Math.abs(closest-player.x))closest=e.x;
+    }
+    return closest;
+}
+
+function playerAttack(){
+    if(player.attackCd>0)return;
+    const form=getActiveForm();
+    const dmg=form?form.attackDmg:VESSEL_BASE.attackDmg;
+    const range=form?form.attackRange:VESSEL_BASE.attackRange;
+    const cd=form?form.attackCd:VESSEL_BASE.attackCd;
+    let isCrit=false;
+    // Crit synergy
+    for(const s of activeSynergies){
+        if(s.bonus==='critChance'&&rng()<s.value)isCrit=true;
+    }
+    let finalDmg=isCrit?dmg*2:dmg;
+    if(player.frenzyTimer>0)finalDmg*=3;
+    const attackBox={
+        x:player.dir>0?player.x+getPlayerW():player.x-range,
+        y:player.y-4,
+        w:range,
+        h:getPlayerH()+8
+    };
+    player.attackTimer=12;
+    player.attackCd=cd;
+    player.attackDir=player.dir;
+    for(const e of enemies){
+        if(rectOverlap(attackBox,{x:e.x,y:e.y,w:e.w,h:e.h})){
+            if(e.iFrames<=0){
+                // Phantom form ignores armor
+                const formType=player.activeForm>=0?player.forms[player.activeForm].type:null;
+                const ignoreArmor=formType==='phantom';
+                e.hp-=finalDmg;
+                e.iFrames=10;
+                let kb=4;
+                for(const s of activeSynergies){if(s.bonus==='knockback')kb*=s.value;}
+                e.vx=player.dir*kb;
+                e.vy=-2;
+                e.stun=8;
+                spawnBurst(e.x+e.w/2,e.y+e.h/2,8,isCrit?'#ff0':'#fff',3,10);
+                if(isCrit)spawnBurst(e.x+e.w/2,e.y+e.h/2,12,'#ff0',5,15);
+            }
+        }
+    }
+    // Base vessel absorb attack
+    if(player.activeForm<0&&player.absorbCd<=0){
+        player.absorbCd=BASE_ABSORB_CD;
+        // One-hit absorb from enemy
+        for(const e of enemies){
+            if(rectOverlap(attackBox,{x:e.x,y:e.y,w:e.w,h:e.h})&&e.form&&!e.boss){
+                e.hp=0;
+                tryAbsorbForm(e.form);
+                break;
+            }
+        }
+    }
+}
+
+function useAbility1(){
+    if(player.ability1Cd>0)return;
+    const slot=player.activeForm>=0?player.forms[player.activeForm]:null;
+    if(!slot||slot.hp<=0)return;
+    const formDef=FORMS[slot.type];
+    switch(formDef.abilities[0]){
+        case 'squeeze':
+            // Auto - passive
+            showEcho('Squeeze is passive - walk into narrow gaps!');
+            break;
+        case 'fly':
+            // Bat dive-bomb: quick downward dash that damages enemies
+            player.vy=12;
+            player.ability1Cd=40;
+            spawnBurst(player.x+getPlayerW()/2,player.y+getPlayerH()/2,12,'#a5a',4,15);
+            showEcho('Dive bomb!');
+            break;
+        case 'stomp':
+            if(!player.onGround){
+                player.vy=12;
+                player.ability1Cd=50;
+                // Ground pound
+            }
+            break;
+        case 'dash':
+            player.dashing=true;
+            player.dashTimer=10;
+            player.dashDir=player.dir;
+            player.ability1Cd=30;
+            player.vx=player.dir*10;
+            player.vy=-1;
+            spawnBurst(player.x+getPlayerW()/2,player.y+getPlayerH()/2,15,FORMS.wolf.accentColor,4,15);
+            break;
+        case 'wallWalk':
+            // Toggle gravity
+            showEcho('Wall walk is passive near walls!');
+            break;
+        case 'teleport':
+            // Blink forward
+            player.x+=player.dir*80;
+            player.ability1Cd=40;
+            spawnBurst(player.x+getPlayerW()/2,player.y+getPlayerH()/2,20,FORMS.phantom.accentColor,4,20);
+            break;
+    }
+}
+
+function useAbility2(){
+    if(player.ability2Cd>0)return;
+    const slot=player.activeForm>=0?player.forms[player.activeForm]:null;
+    if(!slot||slot.hp<=0)return;
+    const formDef=FORMS[slot.type];
+    switch(formDef.abilities[1]){
+        case 'wallCling':
+            showEcho('Wall cling is passive near walls!');
+            break;
+        case 'sonar':
+            player.sensing=true;
+            player.senseTimer=120;
+            player.ability2Cd=180;
+            spawnBurst(player.x+getPlayerW()/2,player.y+getPlayerH()/2,30,FORMS.bat.accentColor,8,25);
+            break;
+        case 'block':
+            player.blocking=!player.blocking;
+            break;
+        case 'sense':
+            player.sensing=true;
+            player.senseTimer=90;
+            player.ability2Cd=150;
+            let senseMult=1;
+            for(const s of activeSynergies){if(s.bonus==='senseRange')senseMult=s.value;}
+            player.senseTimer*=senseMult;
+            break;
+        case 'web':{
+            player.ability2Cd=45;
+            let webLife=80;
+            for(const s of activeSynergies){if(s.bonus==='webDuration')webLife*=s.value;}
+            projectiles.push({x:player.x+getPlayerW()/2,y:player.y+getPlayerH()/2,
+                vx:player.dir*6,vy:-1,dmg:2,life:webLife,color:'#aaa',size:4,web:true,enemy:false});
+            break;
+        }
+        case 'phase':
+            player.phasing=true;
+            player.phaseTimer=40;
+            let phaseMult=1;
+            for(const s of activeSynergies){if(s.bonus==='phaseDuration')phaseMult=s.value;}
+            player.phaseTimer*=phaseMult;
+            player.ability2Cd=80;
+            break;
+    }
+}
+
+function grantSuperAbility(formType){
+    if(!SUPER_ABILITIES[formType])return;
+    // Check if already have this one
+    for(const sa of player.superAbilities){
+        if(sa.type===formType){
+            sa.cd=0; // Refresh cooldown
+            showEcho('Refreshed '+SUPER_ABILITIES[formType].name+'!');
+            return;
+        }
+    }
+    if(player.superAbilities.length<5){
+        player.superAbilities.push({type:formType,cd:0});
+        showEcho('Super: '+SUPER_ABILITIES[formType].name+'! Press '+(player.superAbilities.length)+' to use.');
+    }else{
+        // Replace oldest (first slot)
+        const old=player.superAbilities.shift();
+        player.superAbilities.push({type:formType,cd:0});
+        showEcho('Replaced '+SUPER_ABILITIES[old.type].name+' with '+SUPER_ABILITIES[formType].name+'!');
+    }
+}
+
+function useSuperAbility(slot){
+    if(slot<0||slot>=player.superAbilities.length)return;
+    const sa=player.superAbilities[slot];
+    if(sa.cd>0){
+        showEcho(SUPER_ABILITIES[sa.type].name+' on cooldown: '+Math.ceil(sa.cd/60)+'s');
+        return;
+    }
+    const def=SUPER_ABILITIES[sa.type];
+    def.use();
+    sa.cd=def.cooldown;
+}
+
+function tryAbsorbForm(formType){
+    pendingForm=formType;
+    if(player.forms.length<3){
+        absorbForm(formType);
+        pendingForm=null;
+    }else{
+        // Check if any slot is depleted (hp<=0)
+        let depletedSlot=-1;
+        for(let i=0;i<player.forms.length;i++){
+            if(player.forms[i].hp<=0){depletedSlot=i;break;}
+        }
+        if(depletedSlot>=0){
+            player.forms[depletedSlot]={type:formType,hp:FORMS[formType].hp,maxHp:FORMS[formType].hp};
+            player.activeForm=depletedSlot;
+            recalcSynergies();
+            showEcho('Absorbed '+formType+' form!');
+            spawnFormParticles(player.x+getPlayerW()/2,player.y+getPlayerH()/2,formType);
+            totalFormsAbsorbed++;
+            pendingForm=null;
+        }else{
+            sacrificeMode=true;
+            gameState='sacrifice';
+        }
+    }
+}
+
+function absorbForm(formType){
+    const f=FORMS[formType];
+    player.forms.push({type:formType,hp:f.hp,maxHp:f.hp});
+    if(player.activeForm<0)player.activeForm=player.forms.length-1;
+    recalcSynergies();
+    showEcho('Absorbed '+formType+' form! Press '+['Z','C','V'][player.forms.length-1]+' to use it.');
+    spawnFormParticles(player.x+getPlayerW()/2,player.y+getPlayerH()/2,formType);
+    totalFormsAbsorbed++;
+}
+
+function sacrificeForm(slotIndex){
+    if(slotIndex<0||slotIndex>=player.forms.length)return;
+    player.forms.splice(slotIndex,1);
+    // Absorb pending form
+    if(pendingForm){
+        absorbForm(pendingForm);
+        pendingForm=null;
+    }
+    if(player.activeForm>=player.forms.length)player.activeForm=player.forms.length-1;
+    if(player.activeForm<0&&player.forms.length>0)player.activeForm=0;
+    recalcSynergies();
+    sacrificeMode=false;
+    gameState='play';
+}
+
+function updatePlayer(){
+    if(player.dead)return;
+    if(player.iFrames>0)player.iFrames--;
+    if(player.attackCd>0)player.attackCd--;
+    if(player.attackTimer>0)player.attackTimer--;
+    if(player.ability1Cd>0)player.ability1Cd--;
+    if(player.ability2Cd>0)player.ability2Cd--;
+    if(player.absorbCd>0)player.absorbCd--;
+    // Super ability cooldowns
+    for(const sa of player.superAbilities){if(sa.cd>0)sa.cd--;}
+    if(player.senseTimer>0){player.senseTimer--;if(player.senseTimer<=0)player.sensing=false;}
+    if(player.phaseTimer>0){player.phaseTimer--;if(player.phaseTimer<=0)player.phasing=false;}
+    if(player.dashTimer>0){
+        player.dashTimer--;
+        if(player.dashTimer<=0)player.dashing=false;
+    }
+    player.animFrame++;
+    const speed=getPlayerSpeed();
+    // Movement
+    if(!player.dashing){
+        if(keys['ArrowLeft']||keys['KeyA']){
+            player.vx=-speed;
+            player.dir=-1;
+        }else if(keys['ArrowRight']||keys['KeyD']){
+            player.vx=speed;
+            player.dir=1;
+        }else{
+            player.vx*=0.7;
+        }
+    }
+    // Flying (bat form) — automatic flight when bat form is active
+    const isBatForm=player.activeForm>=0&&player.forms[player.activeForm]&&player.forms[player.activeForm].type==='bat'&&player.forms[player.activeForm].hp>0;
+    if(isBatForm){
+        // Bat always flies — up/down/float
+        if(keys['ArrowUp']||keys['KeyW']||keys['Space'])player.vy=-3.5;
+        else if(keys['ArrowDown']||keys['KeyS'])player.vy=2.5;
+        else{
+            player.vy+=GRAV*0.3; // very light gravity, float gently
+            if(player.vy>2)player.vy=2;
+        }
+        // Spawn wing particles
+        if(frame%4===0){
+            spawnParticle(player.x+getPlayerW()/2+rngRange(-8,8),player.y+getPlayerH(),rngRange(-0.5,0.5),rngRange(0.5,1.5),15,'#a5a',1.5);
+        }
+    }else{
+        // Normal gravity for all other forms
+        player.vy+=GRAV;
+        if(player.vy>MAX_FALL)player.vy=MAX_FALL;
+        // Jump
+        if((keys['ArrowUp']||keys['KeyW']||keys['Space'])&&player.onGround){
+            player.vy=getPlayerJump();
+            player.onGround=false;
+        }
+    }
+    // Wall cling (slime form)
+    const formType=player.activeForm>=0?player.forms[player.activeForm]?.type:null;
+    if(formType==='slime'&&!player.onGround&&player.vy>0){
+        const leftWall=tileAt(player.x-2,player.y+getPlayerH()/2)===1;
+        const rightWall=tileAt(player.x+getPlayerW()+2,player.y+getPlayerH()/2)===1;
+        if(leftWall||rightWall){
+            player.vy=Math.min(player.vy,1);
+            player.onWall=leftWall?-1:1;
+        }else{
+            player.onWall=0;
+        }
+    }else{
+        player.onWall=0;
+    }
+    // Spider wall walk
+    if(formType==='spider'&&!player.onGround){
+        const leftWall=tileAt(player.x-2,player.y+getPlayerH()/2)===1;
+        const rightWall=tileAt(player.x+getPlayerW()+2,player.y+getPlayerH()/2)===1;
+        if(leftWall||rightWall){
+            player.vy=0;
+            if(keys['ArrowUp']||keys['KeyW'])player.vy=-speed;
+            if(keys['ArrowDown']||keys['KeyS'])player.vy=speed;
+        }
+    }
+    // Phasing
+    if(!player.phasing){
+        moveEntity(player);
+        checkPlatforms(player);
+    }else{
+        player.x+=player.vx;
+        player.y+=player.vy;
+    }
+    // Head stomp detection — land on enemy head to get super ability
+    const pw=getPlayerW(),ph=getPlayerH();
+    const playerBottom=player.y+ph;
+    const playerCX=player.x+pw/2;
+    if(player.vy>=0&&!player.onGround===false||player.vy>=0){
+        for(let i=enemies.length-1;i>=0;i--){
+            const e=enemies[i];
+            const enemyTop=e.y;
+            const enemyCX=e.x+e.w/2;
+            // Check: player feet near enemy head, horizontally overlapping
+            if(playerBottom>=enemyTop&&playerBottom<=enemyTop+12&&
+               playerCX>e.x-4&&playerCX<e.x+e.w+4&&player.vy>0){
+                // Stomp! Bounce up
+                player.vy=-10;
+                player.onGround=false;
+                // Damage enemy heavily
+                e.hp-=Math.max(15,e.maxHp*0.4);
+                e.stun=20;
+                e.vy=3;
+                screenShake=8;
+                // Grant super ability if enemy has a form
+                if(e.form&&SUPER_ABILITIES[e.form]){
+                    grantSuperAbility(e.form);
+                }
+                // Big stomp particles
+                spawnBurst(e.x+e.w/2,e.y,20,'#ff0',5,20);
+                spawnBurst(e.x+e.w/2,e.y,15,'#fa0',4,15);
+                break;
+            }
+        }
+    }
+    // Golem stomp landing
+    if(formType==='golem'&&player.onGround&&player.vy===0&&player.ability1Cd>20){
+        screenShake=10;
+        for(const e of enemies){
+            if(dist({x:player.x,y:player.y},{x:e.x,y:e.y})<100){
+                e.hp-=8;e.vy=-5;e.stun=15;
+            }
+        }
+        spawnBurst(player.x+getPlayerW()/2,player.y+getPlayerH(),20,'#998',4,15);
+    }
+    // Frenzy timer
+    if(player.frenzyTimer>0)player.frenzyTimer--;
+    // Spike check
+    const spW=getPlayerW(),spH=getPlayerH();
+    for(let cx=player.x;cx<player.x+spW;cx+=T/2){
+        for(let cy=player.y;cy<player.y+spH;cy+=T/2){
+            if(isSpike(cx,cy)){
+                damagePlayer(5);
+                player.vy=-6;
+                break;
+            }
+        }
+    }
+    // Slime fall damage immunity
+    if(formType==='slime'){
+        // No fall damage
+    }
+    // Check form orb pickups
+    for(let i=drops.length-1;i>=0;i--){
+        const d=drops[i];
+        d.life--;
+        d.bob+=0.05;
+        if(d.life<=0){drops.splice(i,1);continue;}
+        if(Math.abs(player.x-d.x)<30&&Math.abs(player.y-d.y)<30){
+            tryAbsorbForm(d.form);
+            drops.splice(i,1);
+        }
+    }
+    // Check exit transitions
+    if(currentRoom.exits){
+        for(const exit of currentRoom.exits){
+            let atExit=false;
+            // Check if player is near exit wall AND at the right height (near door)
+            const doorTop=exit.ty*T;
+            const doorBottom=(exit.ty+3)*T;
+            const playerMidY=player.y+ph/2;
+            const nearDoorY=playerMidY>=doorTop-T*2&&playerMidY<=doorBottom+T*2;
+            if(exit.side==='right'&&player.x+pw>=(currentRoom.w-3)*T&&nearDoorY){
+                atExit=true;
+            }else if(exit.side==='left'&&player.x<=2*T&&nearDoorY){
+                atExit=true;
+            }
+            if(atExit&&exit.toRoom!==undefined){
+                const targetRoom=dungeonMap[currentFloor][exit.toRoom];
+                if(targetRoom){
+                    loadRoom(currentFloor,exit.toRoom);
+                    if(exit.side==='right'){
+                        player.x=3*T;
+                    }else{
+                        player.x=(currentRoom.w-4)*T;
+                    }
+                    // Place on ground in new room
+                    player.y=(currentRoom.h-6)*T;
+                    player.vy=0;
+                    player.vx=0;
+                    roomTransTimer=20;
+                }
+            }
+        }
+    }
+    // Check stairs (next floor) — need room cleared OR all enemies dead
+    const roomCleared=currentRoom.cleared||enemies.length===0;
+    if(enemies.length===0)currentRoom.cleared=true;
+    for(const obj of currentRoom.objects){
+        if(obj.type==='stairs'&&roomCleared){
+            if(Math.abs(player.x-obj.x)<40&&Math.abs(player.y-obj.y)<50){
+                if(currentFloor<4){
+                    currentFloor++;
+                    loadRoom(currentFloor,0);
+                    player.x=5*T;
+                    player.y=(currentRoom.h-6)*T;
+                    roomTransTimer=30;
+                    // Heal forms a bit on floor transition
+                    for(const f of player.forms){
+                        if(f.hp>0)f.hp=Math.min(f.maxHp,f.hp+Math.floor(f.maxHp*0.3));
+                    }
+                    player.baseHp=Math.min(VESSEL_BASE.maxHp,player.baseHp+10);
+                    showEcho('Descending deeper...');
+                }
+            }
+        }
+    }
+    // Safety net: if player falls below the map, teleport back
+    if(player.y>currentRoom.h*T+50){
+        player.y=(currentRoom.h-6)*T;
+        player.x=Math.max(3*T,Math.min(player.x,(currentRoom.w-4)*T));
+        player.vy=0;
+    }
+    // Trail for movement effects
+    if(frame%3===0){
+        player.trail.push({x:player.x,y:player.y,life:15});
+    }
+    for(let i=player.trail.length-1;i>=0;i--){
+        player.trail[i].life--;
+        if(player.trail[i].life<=0)player.trail.splice(i,1);
+    }
+}
+
+// ==================== PROJECTILES ====================
+function updateProjectiles(){
+    for(let i=projectiles.length-1;i>=0;i--){
+        const p=projectiles[i];
+        p.x+=p.vx;p.y+=p.vy;
+        p.life--;
+        if(p.life<=0||tileAt(p.x,p.y)===1){
+            // Web sticks to wall
+            if(p.web&&tileAt(p.x,p.y)===1){
+                spawnBurst(p.x,p.y,5,'#aaa',2,10);
+            }
+            projectiles.splice(i,1);
+            continue;
+        }
+        if(p.enemy){
+            // Hit player
+            if(player.iFrames<=0&&!player.dead){
+                if(Math.abs(p.x-player.x-getPlayerW()/2)<p.size+getPlayerW()/2&&
+                   Math.abs(p.y-player.y-getPlayerH()/2)<p.size+getPlayerH()/2){
+                    damagePlayer(p.dmg);
+                    projectiles.splice(i,1);
+                    continue;
+                }
+            }
+        }else{
+            // Hit enemies
+            for(const e of enemies){
+                if(Math.abs(p.x-e.x-e.w/2)<p.size+e.w/2&&
+                   Math.abs(p.y-e.y-e.h/2)<p.size+e.h/2){
+                    if(p.web){
+                        e.stun=40;
+                        e.vx*=0.2;
+                        spawnBurst(e.x+e.w/2,e.y+e.h/2,8,'#aaa',2,10);
+                    }else{
+                        e.hp-=p.dmg;
+                    }
+                    projectiles.splice(i,1);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+// ==================== ECHO COMPANION ====================
+function showEcho(msg){
+    echo.msg=msg;
+    echo.msgTimer=180;
+}
+
+function updateEcho(){
+    const tx=player.x-25;
+    const ty=player.y-35;
+    echo.x+=(tx-echo.x)*0.05;
+    echo.y+=(ty-echo.y)*0.05;
+    echo.bobPhase+=0.04;
+    echo.y+=Math.sin(echo.bobPhase)*0.3;
+    if(echo.msgTimer>0)echo.msgTimer--;
+    // Random hints
+    if(frame%600===0&&echo.msgTimer<=0){
+        const hint=echoHints[rngInt(0,echoHints.length-1)];
+        if(!shownHints.has(hint)){
+            showEcho(hint);
+            shownHints.add(hint);
+        }
+    }
+}
+
+// ==================== CAMERA ====================
+function updateCamera(){
+    const targetX=player.x-GW/2+getPlayerW()/2;
+    const targetY=player.y-GH/2+getPlayerH()/2;
+    camera.x+=(targetX-camera.x)*0.1;
+    camera.y+=(targetY-camera.y)*0.1;
+    camera.x=clamp(camera.x,0,Math.max(0,currentRoom.w*T-GW));
+    camera.y=clamp(camera.y,0,Math.max(0,currentRoom.h*T-GH));
+    if(screenShake>0){
+        camera.x+=rngRange(-screenShake,screenShake);
+        camera.y+=rngRange(-screenShake,screenShake);
+        screenShake*=0.85;
+        if(screenShake<0.5)screenShake=0;
+    }
+}
+
+// ==================== DRAWING ====================
+function drawTiles(){
+    const room=currentRoom;
+    const biome=currentBiome;
+    const sx=Math.floor(camera.x/T);
+    const sy=Math.floor(camera.y/T);
+    const ex=Math.ceil((camera.x+GW)/T)+1;
+    const ey=Math.ceil((camera.y+GH)/T)+1;
+    for(let y=Math.max(0,sy);y<Math.min(room.h,ey);y++){
+        for(let x=Math.max(0,sx);x<Math.min(room.w,ex);x++){
+            const t=room.tiles[y][x];
+            const px=x*T-camera.x;
+            const py=y*T-camera.y;
+            if(t===1){
+                ctx.fillStyle=biome.wallColor;
+                ctx.fillRect(px,py,T,T);
+                // Surface detail
+                const above=y>0?room.tiles[y-1][x]:1;
+                if(above===0||above===3){
+                    ctx.fillStyle=biome.tileColor;
+                    ctx.fillRect(px,py,T,4);
+                }
+                // Side detail
+                ctx.fillStyle=biome.tileColor;
+                ctx.fillRect(px,py,2,T);
+                ctx.fillRect(px+T-2,py,2,T);
+            }else if(t===2){
+                // Spikes
+                ctx.fillStyle='#a33';
+                for(let s=0;s<3;s++){
+                    ctx.beginPath();
+                    ctx.moveTo(px+s*8,py+T);
+                    ctx.lineTo(px+s*8+4,py+4);
+                    ctx.lineTo(px+s*8+8,py+T);
+                    ctx.fill();
+                }
+            }else if(t===3){
+                // One-way platform
+                ctx.fillStyle=biome.platformColor;
+                ctx.fillRect(px,py,T,5);
+                ctx.fillStyle=biome.accent;
+                ctx.fillRect(px+2,py,T-4,2);
+            }
+        }
+    }
+}
+
+function drawRoomObjects(){
+    // Draw stairs
+    for(const obj of currentRoom.objects){
+        if(obj.type==='stairs'){
+            const px=obj.x-camera.x;
+            const py=obj.y-camera.y;
+            const cleared=currentRoom.cleared||enemies.length===0;
+            // Stairway glow
+            ctx.fillStyle=cleared?'#ffa':'#553';
+            ctx.shadowColor=cleared?'#ff8':'#330';
+            ctx.shadowBlur=cleared?15:5;
+            ctx.fillRect(px-8,py-4,40,28);
+            // Steps
+            ctx.fillStyle=cleared?'#cc8':'#443';
+            for(let s=0;s<3;s++){
+                ctx.fillRect(px-4+s*4,py+20-s*8,32-s*4,6);
+            }
+            ctx.shadowBlur=0;
+            // Label
+            ctx.fillStyle=cleared?'#ff0':'#665';
+            ctx.font='bold 10px monospace';
+            ctx.textAlign='center';
+            ctx.fillText(cleared?'▼ DESCEND ▼':'CLEAR ROOM',px+12,py-10);
+        }
+    }
+    // Draw exit door markers
+    if(currentRoom.exits){
+        for(const exit of currentRoom.exits){
+            let dx,dy;
+            if(exit.side==='right'){
+                dx=(currentRoom.w-1)*T-camera.x;
+                dy=exit.ty*T-camera.y;
+            }else if(exit.side==='left'){
+                dx=-camera.x;
+                dy=exit.ty*T-camera.y;
+            }else continue;
+            // Arrow indicator
+            const pulse=Math.sin(frame*0.06)*0.3+0.7;
+            ctx.globalAlpha=pulse;
+            ctx.fillStyle='#fa0';
+            ctx.font='16px monospace';
+            ctx.textAlign='center';
+            if(exit.side==='right'){
+                ctx.fillText('►',dx-8,dy+T*1.5);
+            }else{
+                ctx.fillText('◄',dx+T+8,dy+T*1.5);
+            }
+            ctx.globalAlpha=1;
+        }
+    }
+}
+
+function drawBackground(){
+    const biome=currentBiome;
+    ctx.fillStyle=biome.bg;
+    ctx.fillRect(0,0,GW,GH);
+    // Ambient particles
+    ctx.globalAlpha=0.15;
+    for(let i=0;i<20;i++){
+        const bx=((frame*0.3+i*150)%GW);
+        const by=((frame*0.2+i*80+Math.sin(frame*0.01+i)*30)%GH);
+        ctx.fillStyle=biome.accent;
+        ctx.beginPath();
+        ctx.arc(bx,by,1+Math.sin(frame*0.02+i)*1,0,Math.PI*2);
+        ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    // Vignette
+    const grad=ctx.createRadialGradient(GW/2,GH/2,GW*0.3,GW/2,GH/2,GW*0.7);
+    grad.addColorStop(0,'transparent');
+    grad.addColorStop(1,'rgba(0,0,0,0.4)');
+    ctx.fillStyle=grad;
+    ctx.fillRect(0,0,GW,GH);
+}
+
+function drawPlayer(){
+    if(player.dead)return;
+    const px=player.x-camera.x;
+    const py=player.y-camera.y;
+    const w=getPlayerW(),h=getPlayerH();
+    // I-frame flashing
+    if(player.iFrames>0&&frame%4<2)return;
+    // Phase transparency
+    if(player.phasing)ctx.globalAlpha=0.4;
+    // Trail
+    const formSlot=player.activeForm>=0?player.forms[player.activeForm]:null;
+    const formType=formSlot?formSlot.type:null;
+    ctx.globalAlpha=0.2;
+    for(const t of player.trail){
+        const a=t.life/15*0.15;
+        ctx.globalAlpha=a;
+        const tx=t.x-camera.x,ty=t.y-camera.y;
+        ctx.fillStyle=formType?FORMS[formType].color:'#88f';
+        ctx.fillRect(tx,ty,w,h);
+    }
+    ctx.globalAlpha=player.phasing?0.4:1;
+    // Draw form-specific sprite
+    if(formType){
+        drawFormSprite(formType,px,py,w,h,player.dir,player.animFrame);
+    }else{
+        // Base Vessel
+        drawVessel(px,py,w,h,player.dir,player.animFrame);
+    }
+    // Attack visual
+    if(player.attackTimer>0){
+        ctx.globalAlpha=player.attackTimer/12;
+        const form=getActiveForm();
+        ctx.strokeStyle=formType?FORMS[formType].accentColor:'#aaf';
+        ctx.lineWidth=3;
+        const ax=player.attackDir>0?px+w:px;
+        const range=form?form.attackRange:VESSEL_BASE.attackRange;
+        ctx.beginPath();
+        ctx.arc(ax,py+h/2,range,player.attackDir>0?-0.5:Math.PI-0.5,player.attackDir>0?0.5:Math.PI+0.5);
+        ctx.stroke();
+        ctx.lineWidth=1;
+    }
+    ctx.globalAlpha=1;
+}
+
+function drawFormSprite(type,x,y,w,h,dir,anim){
+    const f=FORMS[type];
+    ctx.save();
+    ctx.translate(x+w/2,y+h/2);
+    if(dir<0)ctx.scale(-1,1);
+    ctx.translate(-w/2,-h/2);
+    switch(type){
+        case 'slime':
+            // Blobby form
+            const wobble=Math.sin(anim*0.15)*3;
+            ctx.fillStyle=f.color;
+            ctx.beginPath();
+            ctx.ellipse(w/2,h/2+2,w/2+wobble,h/2-wobble/2,0,0,Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle=f.accentColor;
+            ctx.globalAlpha=0.6;
+            ctx.beginPath();
+            ctx.ellipse(w/2,h/2,w/3,h/3,0,0,Math.PI*2);
+            ctx.fill();
+            ctx.globalAlpha=1;
+            // Eyes
+            ctx.fillStyle='#fff';
+            ctx.fillRect(w*0.3,h*0.3,4,4);
+            ctx.fillRect(w*0.6,h*0.3,4,4);
+            ctx.fillStyle='#000';
+            ctx.fillRect(w*0.35,h*0.35,2,2);
+            ctx.fillRect(w*0.65,h*0.35,2,2);
+            break;
+        case 'bat':
+            // Wings
+            const wingFlap=Math.sin(anim*0.3)*8;
+            ctx.fillStyle=f.color;
+            // Body
+            ctx.beginPath();
+            ctx.ellipse(w/2,h/2,6,8,0,0,Math.PI*2);
+            ctx.fill();
+            // Left wing
+            ctx.beginPath();
+            ctx.moveTo(w/2-4,h/2-2);
+            ctx.lineTo(-4,h/2-10+wingFlap);
+            ctx.lineTo(-2,h/2+4);
+            ctx.closePath();
+            ctx.fill();
+            // Right wing
+            ctx.beginPath();
+            ctx.moveTo(w/2+4,h/2-2);
+            ctx.lineTo(w+4,h/2-10+wingFlap);
+            ctx.lineTo(w+2,h/2+4);
+            ctx.closePath();
+            ctx.fill();
+            // Eyes
+            ctx.fillStyle=f.accentColor;
+            ctx.fillRect(w*0.35,h*0.35,3,3);
+            ctx.fillRect(w*0.55,h*0.35,3,3);
+            break;
+        case 'golem':
+            // Blocky body
+            ctx.fillStyle=f.color;
+            ctx.fillRect(2,4,w-4,h-6);
+            // Darker core
+            ctx.fillStyle=f.accentColor;
+            ctx.fillRect(4,6,w-8,h-10);
+            // Head
+            ctx.fillStyle=f.color;
+            ctx.fillRect(w*0.2,0,w*0.6,8);
+            // Eyes (glowing)
+            ctx.fillStyle='#fa0';
+            ctx.fillRect(w*0.3,2,4,3);
+            ctx.fillRect(w*0.6,2,4,3);
+            // Legs
+            const legOff=Math.sin(anim*0.1)*2;
+            ctx.fillStyle=f.color;
+            ctx.fillRect(4,h-4+legOff,6,4);
+            ctx.fillRect(w-10,h-4-legOff,6,4);
+            break;
+        case 'wolf':
+            // Body
+            ctx.fillStyle=f.color;
+            ctx.beginPath();
+            ctx.ellipse(w/2,h/2+2,w/2,h/3,0,0,Math.PI*2);
+            ctx.fill();
+            // Head
+            ctx.fillStyle=f.accentColor;
+            ctx.beginPath();
+            ctx.ellipse(w*0.75,h*0.3,6,5,0,0,Math.PI*2);
+            ctx.fill();
+            // Ears
+            ctx.fillStyle=f.color;
+            ctx.beginPath();
+            ctx.moveTo(w*0.65,h*0.15);
+            ctx.lineTo(w*0.7,0);
+            ctx.lineTo(w*0.75,h*0.15);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(w*0.8,h*0.15);
+            ctx.lineTo(w*0.85,0);
+            ctx.lineTo(w*0.9,h*0.15);
+            ctx.fill();
+            // Eye
+            ctx.fillStyle='#ff0';
+            ctx.fillRect(w*0.78,h*0.25,3,3);
+            // Tail
+            const tailWag=Math.sin(anim*0.2)*5;
+            ctx.strokeStyle=f.color;
+            ctx.lineWidth=3;
+            ctx.beginPath();
+            ctx.moveTo(2,h*0.4);
+            ctx.quadraticCurveTo(-5,h*0.2+tailWag,-8,h*0.3);
+            ctx.stroke();
+            ctx.lineWidth=1;
+            // Legs
+            const lo=Math.sin(anim*0.15)*3;
+            ctx.fillStyle=f.color;
+            ctx.fillRect(w*0.2,h*0.65+lo,4,h*0.35);
+            ctx.fillRect(w*0.4,h*0.65-lo,4,h*0.35);
+            ctx.fillRect(w*0.6,h*0.65+lo,4,h*0.35);
+            ctx.fillRect(w*0.75,h*0.65-lo,4,h*0.35);
+            break;
+        case 'spider':
+            // Body
+            ctx.fillStyle=f.color;
+            ctx.beginPath();
+            ctx.ellipse(w/2,h/2,7,6,0,0,Math.PI*2);
+            ctx.fill();
+            // Abdomen
+            ctx.beginPath();
+            ctx.ellipse(w*0.3,h*0.5,5,5,0,0,Math.PI*2);
+            ctx.fill();
+            // Legs (8)
+            ctx.strokeStyle=f.accent||f.color;
+            ctx.lineWidth=1.5;
+            for(let l=0;l<4;l++){
+                const la=l*0.4-0.6;
+                const ll=Math.sin(anim*0.15+l)*3;
+                // Right legs
+                ctx.beginPath();
+                ctx.moveTo(w/2+3,h/2);
+                ctx.lineTo(w/2+10+ll,h/2-8+l*4);
+                ctx.lineTo(w/2+14+ll,h/2-4+l*5);
+                ctx.stroke();
+                // Left legs
+                ctx.beginPath();
+                ctx.moveTo(w/2-3,h/2);
+                ctx.lineTo(w/2-10-ll,h/2-8+l*4);
+                ctx.lineTo(w/2-14-ll,h/2-4+l*5);
+                ctx.stroke();
+            }
+            ctx.lineWidth=1;
+            // Eyes (many small)
+            ctx.fillStyle='#f44';
+            for(let e=0;e<4;e++){
+                ctx.fillRect(w*0.45+e*3,h*0.3,2,2);
+            }
+            break;
+        case 'phantom':
+            // Ethereal form
+            const flicker=Math.sin(anim*0.1)*0.15;
+            ctx.globalAlpha=0.7+flicker;
+            ctx.fillStyle=f.color;
+            ctx.beginPath();
+            ctx.ellipse(w/2,h*0.3,8,10,0,0,Math.PI*2);
+            ctx.fill();
+            // Wispy body
+            ctx.fillStyle=f.accentColor;
+            ctx.globalAlpha=0.5+flicker;
+            ctx.beginPath();
+            ctx.moveTo(w*0.2,h*0.4);
+            ctx.quadraticCurveTo(w*0.5,h*0.5,w*0.8,h*0.4);
+            ctx.quadraticCurveTo(w*0.7,h*0.9+Math.sin(anim*0.08)*4,w*0.5,h);
+            ctx.quadraticCurveTo(w*0.3,h*0.9-Math.sin(anim*0.08)*4,w*0.2,h*0.4);
+            ctx.fill();
+            ctx.globalAlpha=1;
+            // Eyes (glowing)
+            ctx.fillStyle='#aaf';
+            ctx.shadowColor='#66f';
+            ctx.shadowBlur=6;
+            ctx.fillRect(w*0.3,h*0.25,4,4);
+            ctx.fillRect(w*0.6,h*0.25,4,4);
+            ctx.shadowBlur=0;
+            break;
+    }
+    ctx.restore();
+}
+
+function drawVessel(x,y,w,h,dir,anim){
+    // Base vessel - translucent humanoid
+    ctx.save();
+    ctx.translate(x+w/2,y+h/2);
+    if(dir<0)ctx.scale(-1,1);
+    ctx.translate(-w/2,-h/2);
+    // Body
+    ctx.globalAlpha=0.6;
+    ctx.fillStyle='#88a';
+    ctx.beginPath();
+    ctx.ellipse(w/2,h*0.35,6,8,0,0,Math.PI*2);
+    ctx.fill();
+    // Torso
+    ctx.fillRect(w*0.3,h*0.4,w*0.4,h*0.35);
+    // Legs
+    const lo=Math.sin(anim*0.15)*2;
+    ctx.fillRect(w*0.3,h*0.7+lo,4,h*0.3);
+    ctx.fillRect(w*0.55,h*0.7-lo,4,h*0.3);
+    ctx.globalAlpha=1;
+    // Core glow
+    ctx.fillStyle='#aaf';
+    ctx.shadowColor='#66f';
+    ctx.shadowBlur=10;
+    ctx.beginPath();
+    ctx.arc(w/2,h*0.5,3+Math.sin(anim*0.08),0,Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur=0;
+    // Eyes
+    ctx.fillStyle='#ccf';
+    ctx.fillRect(w*0.3,h*0.28,3,3);
+    ctx.fillRect(w*0.6,h*0.28,3,3);
+    ctx.restore();
+}
+
+function drawEnemies(){
+    for(const e of enemies){
+        const px=e.x-camera.x;
+        const py=e.y-camera.y;
+        if(px<-50||px>GW+50||py<-50||py>GH+50)continue;
+        if(e.iFrames>0&&frame%3<1)continue;
+        ctx.save();
+        ctx.translate(px+e.w/2,py+e.h/2);
+        if(e.dir<0)ctx.scale(-1,1);
+        ctx.translate(-e.w/2,-e.h/2);
+        if(e.boss){
+            // Boss - larger, more detailed
+            ctx.fillStyle=e.color;
+            ctx.fillRect(0,0,e.w,e.h);
+            ctx.fillStyle=e.accent;
+            ctx.fillRect(3,3,e.w-6,e.h-6);
+            // Eyes
+            ctx.fillStyle='#f44';
+            ctx.shadowColor='#f00';
+            ctx.shadowBlur=8;
+            const eyeY=e.h*0.2;
+            ctx.fillRect(e.w*0.25,eyeY,6,5);
+            ctx.fillRect(e.w*0.6,eyeY,6,5);
+            ctx.shadowBlur=0;
+            // Phase indicator for The Hollow
+            if(e.final){
+                ctx.fillStyle=['#a6a','#f4a','#f66'][e.phase];
+                ctx.globalAlpha=0.3+Math.sin(frame*0.1)*0.2;
+                ctx.fillRect(0,0,e.w,e.h);
+                ctx.globalAlpha=1;
+                // Extra details for The Hollow - amalgam appendages
+                ctx.strokeStyle=e.accent;
+                ctx.lineWidth=2;
+                for(let a=0;a<5;a++){
+                    ctx.beginPath();
+                    ctx.moveTo(rng()*e.w,0);
+                    ctx.lineTo(rng()*e.w+Math.sin(frame*0.05+a)*10,-10-a*5);
+                    ctx.stroke();
+                }
+                ctx.lineWidth=1;
+            }
+        }else{
+            // Use form drawing for matching enemies
+            if(e.form&&FORMS[e.form]){
+                // Draw enemy version (slightly different tint)
+                ctx.globalAlpha=0.9;
+                drawFormSprite(e.form,0,0,e.w,e.h,1,e.animFrame);
+                // Red tint for corruption
+                ctx.globalAlpha=0.15;
+                ctx.fillStyle='#f00';
+                ctx.fillRect(0,0,e.w,e.h);
+                ctx.globalAlpha=1;
+            }else{
+                ctx.fillStyle=e.color;
+                ctx.fillRect(0,0,e.w,e.h);
+            }
+        }
+        ctx.restore();
+        // HP bar for damaged enemies
+        if(e.hp<e.maxHp){
+            const barW=e.w+4;
+            const barH=3;
+            const barX=px-2;
+            const barY=py-8;
+            ctx.fillStyle='#300';
+            ctx.fillRect(barX,barY,barW,barH);
+            ctx.fillStyle='#f44';
+            ctx.fillRect(barX,barY,barW*(e.hp/e.maxHp),barH);
+        }
+        // Sense highlight
+        if(player.sensing){
+            ctx.strokeStyle='#ff0';
+            ctx.globalAlpha=0.5+Math.sin(frame*0.1)*0.2;
+            ctx.strokeRect(px-2,py-2,e.w+4,e.h+4);
+            ctx.globalAlpha=1;
+        }
+    }
+}
+
+function drawDrops(){
+    for(const d of drops){
+        const px=d.x-camera.x;
+        const py=d.y-camera.y+Math.sin(d.bob)*5;
+        const f=FORMS[d.form];
+        // Glowing orb
+        ctx.fillStyle=f.color;
+        ctx.shadowColor=f.accentColor;
+        ctx.shadowBlur=15;
+        ctx.beginPath();
+        ctx.arc(px,py,10+Math.sin(frame*0.08)*2,0,Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle=f.accentColor;
+        ctx.beginPath();
+        ctx.arc(px,py,5,0,Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur=0;
+        // Label
+        ctx.fillStyle='#fff';
+        ctx.font='10px monospace';
+        ctx.textAlign='center';
+        ctx.fillText(d.form.toUpperCase(),px,py-16);
+    }
+}
+
+function drawEcho(){
+    const px=echo.x-camera.x;
+    const py=echo.y-camera.y;
+    // Floating light
+    ctx.fillStyle='#ffa';
+    ctx.shadowColor='#ff8';
+    ctx.shadowBlur=12;
+    ctx.beginPath();
+    ctx.arc(px,py,3+Math.sin(frame*0.08)*1,0,Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur=0;
+    // Small sparkles
+    ctx.globalAlpha=0.5;
+    for(let i=0;i<3;i++){
+        const sx=px+Math.sin(frame*0.05+i*2)*8;
+        const sy=py+Math.cos(frame*0.06+i*2)*6;
+        ctx.fillStyle='#ff8';
+        ctx.fillRect(sx,sy,1,1);
+    }
+    ctx.globalAlpha=1;
+    // Message bubble
+    if(echo.msgTimer>0){
+        const alpha=Math.min(1,echo.msgTimer/30);
+        ctx.globalAlpha=alpha;
+        ctx.font='12px monospace';
+        ctx.textAlign='center';
+        const tw=ctx.measureText(echo.msg).width+16;
+        ctx.fillStyle='rgba(0,0,0,0.7)';
+        ctx.fillRect(px-tw/2,py-30,tw,20);
+        ctx.fillStyle='#ffa';
+        ctx.fillText(echo.msg,px,py-16);
+        ctx.globalAlpha=1;
+    }
+}
+
+function drawProjectiles(){
+    for(const p of projectiles){
+        const px=p.x-camera.x;
+        const py=p.y-camera.y;
+        ctx.fillStyle=p.color;
+        ctx.shadowColor=p.color;
+        ctx.shadowBlur=6;
+        ctx.beginPath();
+        ctx.arc(px,py,p.size,0,Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur=0;
+    }
+}
+
+// ==================== HUD ====================
+function drawSuperAbilitySlots(){
+    const slotSize=40,gap=6;
+    const totalW=5*(slotSize+gap)-gap;
+    const sx=(GW-totalW)/2;
+    const sy=8;
+    for(let i=0;i<5;i++){
+        const x=sx+i*(slotSize+gap);
+        const sa=i<player.superAbilities.length?player.superAbilities[i]:null;
+        // Slot bg
+        ctx.fillStyle=sa?'rgba(20,20,30,0.8)':'rgba(10,10,15,0.5)';
+        ctx.strokeStyle=sa?'#555':'#333';
+        ctx.lineWidth=1;
+        ctx.fillRect(x,sy,slotSize,slotSize);
+        ctx.strokeRect(x,sy,slotSize,slotSize);
+        if(sa){
+            const def=SUPER_ABILITIES[sa.type];
+            const onCd=sa.cd>0;
+            // Icon
+            ctx.font='18px monospace';
+            ctx.textAlign='center';
+            ctx.fillStyle=onCd?'#555':def.color;
+            ctx.fillText(def.icon,x+slotSize/2,sy+25);
+            // Cooldown overlay
+            if(onCd){
+                ctx.fillStyle='rgba(0,0,0,0.6)';
+                const cdPct=sa.cd/def.cooldown;
+                ctx.fillRect(x,sy,slotSize,slotSize*cdPct);
+                ctx.fillStyle='#aaa';
+                ctx.font='10px monospace';
+                ctx.fillText(Math.ceil(sa.cd/60)+'s',x+slotSize/2,sy+35);
+            }
+            // Name below
+            ctx.fillStyle=onCd?'#555':def.color;
+            ctx.font='7px monospace';
+            ctx.fillText(def.name.split(' ')[0],x+slotSize/2,sy+slotSize-2);
+        }
+        // Key number
+        ctx.fillStyle=sa?'#aaa':'#444';
+        ctx.font='bold 10px monospace';
+        ctx.textAlign='center';
+        ctx.fillText(''+(i+1),x+slotSize/2,sy-2);
+    }
+    // Frenzy indicator
+    if(player.frenzyTimer>0){
+        ctx.fillStyle='#f80';
+        ctx.font='bold 14px monospace';
+        ctx.textAlign='center';
+        ctx.globalAlpha=0.7+Math.sin(frame*0.2)*0.3;
+        ctx.fillText('⚡ FRENZY ⚡  '+Math.ceil(player.frenzyTimer/60)+'s',GW/2,sy+slotSize+16);
+        ctx.globalAlpha=1;
+    }
+}
+
+function drawHUD(){
+    // Form slots at bottom center
+    const slotW=70,slotH=50,gap=8;
+    const totalW=3*(slotW+gap)-gap;
+    const startX=(GW-totalW)/2;
+    const startY=GH-slotH-15;
+    for(let i=0;i<3;i++){
+        const sx=startX+i*(slotW+gap);
+        const isActive=(i===player.activeForm);
+        const form=i<player.forms.length?player.forms[i]:null;
+        // Slot background
+        ctx.fillStyle=isActive?'rgba(255,255,255,0.15)':'rgba(0,0,0,0.5)';
+        ctx.strokeStyle=isActive?'#fff':'#555';
+        ctx.lineWidth=isActive?2:1;
+        ctx.fillRect(sx,startY,slotW,slotH);
+        ctx.strokeRect(sx,startY,slotW,slotH);
+        ctx.lineWidth=1;
+        if(form){
+            const fDef=FORMS[form.type];
+            // Form icon
+            if(form.hp>0){
+                ctx.fillStyle=fDef.color;
+            }else{
+                ctx.fillStyle='#333';
+            }
+            ctx.beginPath();
+            ctx.arc(sx+slotW/2,startY+18,12,0,Math.PI*2);
+            ctx.fill();
+            if(form.hp>0){
+                ctx.fillStyle=fDef.accentColor;
+                ctx.beginPath();
+                ctx.arc(sx+slotW/2,startY+18,6,0,Math.PI*2);
+                ctx.fill();
+            }
+            // HP bar
+            const hpW=slotW-8;
+            const hpH=5;
+            ctx.fillStyle='#300';
+            ctx.fillRect(sx+4,startY+34,hpW,hpH);
+            if(form.hp>0){
+                const hpPct=form.hp/form.maxHp;
+                ctx.fillStyle=hpPct>0.5?'#4a4':hpPct>0.25?'#aa4':'#a44';
+                ctx.fillRect(sx+4,startY+34,hpW*hpPct,hpH);
+            }
+            // Form name
+            ctx.fillStyle=form.hp>0?'#fff':'#666';
+            ctx.font='9px monospace';
+            ctx.textAlign='center';
+            ctx.fillText(form.type.toUpperCase(),sx+slotW/2,startY+47);
+            // Depleted overlay
+            if(form.hp<=0){
+                ctx.fillStyle='rgba(0,0,0,0.5)';
+                ctx.fillRect(sx,startY,slotW,slotH);
+                ctx.fillStyle='#f44';
+                ctx.font='8px monospace';
+                ctx.fillText('DEPLETED',sx+slotW/2,startY+25);
+            }
+        }else{
+            ctx.fillStyle='#333';
+            ctx.font='10px monospace';
+            ctx.textAlign='center';
+            ctx.fillText('EMPTY',sx+slotW/2,startY+28);
+        }
+        // Key label
+        ctx.fillStyle='#888';
+        ctx.font='bold 11px monospace';
+        ctx.textAlign='center';
+        ctx.fillText(['Z','C','V'][i],sx+slotW/2,startY-3);
+    }
+    // Super ability slots (top center)
+    drawSuperAbilitySlots();
+    // Base vessel HP (top left)
+    ctx.fillStyle='#fff';
+    ctx.font='12px monospace';
+    ctx.textAlign='left';
+    if(player.activeForm<0){
+        ctx.fillText('VESSEL',10,20);
+        const barW=100,barH=8;
+        ctx.fillStyle='#300';
+        ctx.fillRect(10,24,barW,barH);
+        ctx.fillStyle='#88f';
+        ctx.fillRect(10,24,barW*(player.baseHp/player.baseMaxHp),barH);
+        // Absorb cooldown
+        if(player.absorbCd>0){
+            ctx.fillStyle='#aaf';
+            ctx.font='10px monospace';
+            ctx.fillText('Absorb: '+Math.ceil(player.absorbCd/60)+'s',10,46);
+        }else{
+            ctx.fillStyle='#aaf';
+            ctx.font='10px monospace';
+            ctx.fillText('Absorb: READY',10,46);
+        }
+    }else{
+        const slot=player.forms[player.activeForm];
+        if(slot){
+            const fDef=FORMS[slot.type];
+            ctx.fillStyle=fDef.accentColor;
+            ctx.fillText(slot.type.toUpperCase()+' FORM',10,20);
+            // Abilities
+            ctx.fillStyle='#aaa';
+            ctx.font='10px monospace';
+            ctx.fillText('Q: '+fDef.abilities[0]+(player.ability1Cd>0?' ('+Math.ceil(player.ability1Cd/60)+'s)':' Ready'),10,36);
+            ctx.fillText('E: '+fDef.abilities[1]+(player.ability2Cd>0?' ('+Math.ceil(player.ability2Cd/60)+'s)':' Ready'),10,48);
+        }
+    }
+    // Bat flying indicator
+    if(isBatFormActive()){
+        ctx.fillStyle='#a5a';
+        ctx.font='10px monospace';
+        ctx.textAlign='left';
+        ctx.fillText('FLYING',10,62);
+    }
+    // Biome name and floor
+    ctx.fillStyle='#888';
+    ctx.font='12px monospace';
+    ctx.textAlign='right';
+    ctx.fillText(currentBiome.name,GW-10,20);
+    ctx.fillText('Floor '+(currentFloor+1)+' - Room '+(currentRoom.index+1),GW-10,36);
+    if(currentRoom.cleared){
+        ctx.fillStyle='#4a4';
+        ctx.fillText('CLEARED',GW-10,50);
+    }
+    // Synergies
+    if(activeSynergies.length>0){
+        ctx.textAlign='right';
+        ctx.font='10px monospace';
+        for(let i=0;i<activeSynergies.length;i++){
+            ctx.fillStyle='#fa0';
+            ctx.fillText('★ '+activeSynergies[i].name+': '+activeSynergies[i].desc,GW-10,66+i*14);
+        }
+    }
+    // Boss HP bar
+    if(bossHpBar>0){
+        const barW=400,barH=12;
+        const bx=(GW-barW)/2;
+        ctx.fillStyle='rgba(0,0,0,0.7)';
+        ctx.fillRect(bx-5,55,barW+10,barH+20);
+        ctx.fillStyle='#f44';
+        ctx.font='bold 12px monospace';
+        ctx.textAlign='center';
+        ctx.fillText(bossName,GW/2,68);
+        ctx.fillStyle='#400';
+        ctx.fillRect(bx,72,barW,barH);
+        ctx.fillStyle='#f44';
+        ctx.fillRect(bx,72,barW*(bossHpBar/bossMaxHp),barH);
+    }
+    // Minimap
+    drawMinimap();
+    // Controls hint
+    ctx.fillStyle='#444';
+    ctx.font='9px monospace';
+    ctx.textAlign='left';
+    ctx.fillText('WASD:Move  J:Attack  Q/E:Abilities  Z/C/V:Forms  1-5:Supers (stomp enemies!)',10,GH-5);
+}
+
+function drawMinimap(){
+    const mw=140,mh=40;
+    const mx=GW-mw-10,my=GH-mh-35;
+    ctx.fillStyle='rgba(0,0,0,0.6)';
+    ctx.fillRect(mx,my,mw,mh);
+    ctx.strokeStyle='#444';
+    ctx.strokeRect(mx,my,mw,mh);
+    const floor=dungeonMap[currentFloor];
+    if(!floor)return;
+    const rw=mw/floor.length;
+    for(let i=0;i<floor.length;i++){
+        const rx=mx+i*rw+2;
+        const ry=my+10;
+        const roomKey=currentFloor+'-'+i;
+        if(exploredRooms[roomKey]){
+            ctx.fillStyle=floor[i].cleared?'#4a4':'#664';
+            ctx.fillRect(rx,ry,rw-4,mh-20);
+            if(floor[i].isBoss){
+                ctx.fillStyle='#f44';
+                ctx.fillRect(rx+2,ry+2,rw-8,mh-24);
+            }
+        }else{
+            ctx.fillStyle='#222';
+            ctx.fillRect(rx,ry,rw-4,mh-20);
+        }
+        // Current room indicator
+        if(i===currentRoom.index){
+            ctx.strokeStyle='#fff';
+            ctx.lineWidth=2;
+            ctx.strokeRect(rx,ry,rw-4,mh-20);
+            ctx.lineWidth=1;
+        }
+        // Connections
+        if(i<floor.length-1){
+            ctx.strokeStyle='#555';
+            ctx.beginPath();
+            ctx.moveTo(rx+rw-4,ry+10);
+            ctx.lineTo(rx+rw,ry+10);
+            ctx.stroke();
+        }
+    }
+}
+
+// ==================== SCREENS ====================
+function drawTitle(){
+    titleAnim+=0.02;
+    ctx.fillStyle='#050505';
+    ctx.fillRect(0,0,GW,GH);
+    // Ambient particles
+    for(let i=0;i<40;i++){
+        const px=((frame*0.2+i*100)%GW);
+        const py=((frame*0.15+i*70+Math.sin(frame*0.008+i)*40)%GH);
+        ctx.fillStyle=['#336','#363','#633','#663','#366'][i%5];
+        ctx.globalAlpha=0.2+Math.sin(frame*0.01+i)*0.1;
+        ctx.beginPath();
+        ctx.arc(px,py,1.5,0,Math.PI*2);
+        ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    // Title
+    ctx.font='bold 72px monospace';
+    ctx.textAlign='center';
+    ctx.fillStyle='#88a';
+    ctx.shadowColor='#66f';
+    ctx.shadowBlur=20;
+    ctx.fillText('FORMLESS',GW/2,GH*0.3);
+    ctx.shadowBlur=0;
+    // Subtitle
+    ctx.font='16px monospace';
+    ctx.fillStyle='#668';
+    ctx.fillText('Become Everything. Become Nothing.',GW/2,GH*0.3+40);
+    // Vessel preview - morphing silhouette
+    const morphPhase=Math.floor(titleAnim*2)%6;
+    const formKeys=Object.keys(FORMS);
+    const showForm=formKeys[morphPhase];
+    const f=FORMS[showForm];
+    ctx.save();
+    ctx.translate(GW/2,GH*0.55);
+    ctx.globalAlpha=0.5+Math.sin(titleAnim*3)*0.2;
+    drawFormSprite(showForm,-f.w/2*2,-f.h/2*2,f.w*2,f.h*2,1,Math.floor(titleAnim*60));
+    ctx.restore();
+    ctx.globalAlpha=1;
+    // Start prompt
+    const blink=Math.sin(frame*0.05)>0;
+    if(blink){
+        ctx.font='18px monospace';
+        ctx.fillStyle='#aac';
+        ctx.fillText('Press ENTER or SPACE to begin',GW/2,GH*0.82);
+    }
+    // Story blurb
+    ctx.font='11px monospace';
+    ctx.fillStyle='#445';
+    ctx.fillText('You are Vessel, a hollow being who absorbs the forms of others.',GW/2,GH*0.9);
+    ctx.fillText('Reach the Shaper\'s Cradle. Become whole. Restart creation.',GW/2,GH*0.9+16);
+    // Controls
+    ctx.font='10px monospace';
+    ctx.fillStyle='#334';
+    ctx.fillText('WASD: Move | J: Attack | Q/E: Abilities | Z/C/V: Forms | 1-5: Supers',GW/2,GH-15);
+}
+
+function drawDeath(){
+    deathTimer++;
+    ctx.fillStyle='rgba(10,0,0,'+Math.min(0.8,deathTimer/60)+')';
+    ctx.fillRect(0,0,GW,GH);
+    if(deathTimer>30){
+        ctx.font='bold 48px monospace';
+        ctx.textAlign='center';
+        ctx.fillStyle='#f44';
+        ctx.fillText('ALL FORMS DEPLETED',GW/2,GH*0.4);
+        ctx.font='16px monospace';
+        ctx.fillStyle='#a66';
+        ctx.fillText('The Vessel crumbles...',GW/2,GH*0.4+40);
+        if(deathTimer>90){
+            const blink=Math.sin(frame*0.05)>0;
+            if(blink){
+                ctx.fillStyle='#888';
+                ctx.fillText('Press ENTER to try again',GW/2,GH*0.65);
+            }
+        }
+        // Stats
+        ctx.font='12px monospace';
+        ctx.fillStyle='#666';
+        ctx.fillText('Enemies defeated: '+totalKills+' | Forms absorbed: '+totalFormsAbsorbed+' | Floor reached: '+(currentFloor+1),GW/2,GH*0.8);
+    }
+}
+
+function drawVictory(){
+    victoryTimer++;
+    ctx.fillStyle='rgba(5,5,15,'+Math.min(0.85,victoryTimer/80)+')';
+    ctx.fillRect(0,0,GW,GH);
+    if(victoryTimer>40){
+        // Radiant particles
+        for(let i=0;i<30;i++){
+            const a=(frame*0.01+i*0.21)%(Math.PI*2);
+            const r=100+Math.sin(frame*0.005+i)*50;
+            const px=GW/2+Math.cos(a)*r;
+            const py=GH*0.4+Math.sin(a)*r*0.5;
+            ctx.fillStyle=['#ffa','#aaf','#faf','#afa'][i%4];
+            ctx.globalAlpha=0.3+Math.sin(frame*0.02+i)*0.2;
+            ctx.beginPath();
+            ctx.arc(px,py,2,0,Math.PI*2);
+            ctx.fill();
+        }
+        ctx.globalAlpha=1;
+        ctx.font='bold 48px monospace';
+        ctx.textAlign='center';
+        ctx.fillStyle='#ffa';
+        ctx.shadowColor='#ff8';
+        ctx.shadowBlur=15;
+        ctx.fillText('CREATION RESTARTED',GW/2,GH*0.35);
+        ctx.shadowBlur=0;
+        ctx.font='16px monospace';
+        ctx.fillStyle='#aaf';
+        ctx.fillText('The Vessel becomes whole.',GW/2,GH*0.35+35);
+        ctx.fillText('The Shapers can return.',GW/2,GH*0.35+55);
+    }
+    if(victoryTimer>100){
+        ctx.font='12px monospace';
+        ctx.fillStyle='#888';
+        ctx.fillText('Enemies defeated: '+totalKills+' | Forms absorbed: '+totalFormsAbsorbed,GW/2,GH*0.65);
+        const blink=Math.sin(frame*0.05)>0;
+        if(blink){
+            ctx.fillStyle='#aac';
+            ctx.font='16px monospace';
+            ctx.fillText('Press ENTER to play again',GW/2,GH*0.8);
+        }
+    }
+}
+
+function drawSacrifice(){
+    ctx.fillStyle='rgba(0,0,0,0.8)';
+    ctx.fillRect(0,0,GW,GH);
+    ctx.font='bold 24px monospace';
+    ctx.textAlign='center';
+    ctx.fillStyle='#fa0';
+    ctx.fillText('FORM SACRIFICE',GW/2,80);
+    ctx.font='14px monospace';
+    ctx.fillStyle='#aaa';
+    ctx.fillText('You already hold 3 forms. Choose one to discard:',GW/2,110);
+    // Show current 3 forms
+    const slotW=180,slotH=120,gap=20;
+    const totalW=3*(slotW+gap)-gap;
+    const sx=(GW-totalW)/2;
+    const sy=140;
+    for(let i=0;i<player.forms.length;i++){
+        const fx=sx+i*(slotW+gap);
+        const form=player.forms[i];
+        const fDef=FORMS[form.type];
+        const hover=sacrificeHover===i;
+        ctx.fillStyle=hover?'rgba(100,30,30,0.8)':'rgba(30,30,30,0.8)';
+        ctx.strokeStyle=hover?'#f44':'#555';
+        ctx.lineWidth=hover?2:1;
+        ctx.fillRect(fx,sy,slotW,slotH);
+        ctx.strokeRect(fx,sy,slotW,slotH);
+        ctx.lineWidth=1;
+        // Form icon
+        ctx.save();
+        ctx.translate(fx+slotW/2,sy+35);
+        drawFormSprite(form.type,-fDef.w,-fDef.h,fDef.w*2,fDef.h*2,1,frame);
+        ctx.restore();
+        // Info
+        ctx.fillStyle=fDef.accentColor;
+        ctx.font='bold 14px monospace';
+        ctx.textAlign='center';
+        ctx.fillText(form.type.toUpperCase(),fx+slotW/2,sy+75);
+        ctx.fillStyle='#aaa';
+        ctx.font='10px monospace';
+        ctx.fillText('HP: '+form.hp+'/'+form.maxHp,fx+slotW/2,sy+90);
+        ctx.fillText(fDef.passiveDesc,fx+slotW/2,sy+103);
+        // Key
+        ctx.fillStyle=hover?'#f44':'#888';
+        ctx.font='bold 12px monospace';
+        ctx.fillText('Press '+['Z','C','V'][i]+' to discard',fx+slotW/2,sy+slotH-5);
+    }
+    // New form preview
+    if(pendingForm){
+        const fDef=FORMS[pendingForm];
+        ctx.fillStyle='#fa0';
+        ctx.font='bold 16px monospace';
+        ctx.textAlign='center';
+        ctx.fillText('New form: '+pendingForm.toUpperCase(),GW/2,sy+slotH+40);
+        ctx.fillStyle='#aaa';
+        ctx.font='12px monospace';
+        ctx.fillText(fDef.desc,GW/2,sy+slotH+60);
+        ctx.fillText(fDef.passiveDesc,GW/2,sy+slotH+76);
+    }
+    // Cancel
+    ctx.fillStyle='#666';
+    ctx.font='12px monospace';
+    ctx.fillText('Press ESC to decline the new form',GW/2,GH-30);
+}
+
+let sacrificeHover=-1;
+
+// ==================== INPUT ====================
+document.addEventListener('keydown',e=>{
+    keys[e.code]=true;
+    if(gameState==='title'){
+        if(e.code==='Enter'||e.code==='Space'){
+            startGame();
+        }
+    }else if(gameState==='play'){
+        if(e.code==='KeyJ'||e.code==='KeyX'){
+            playerAttack();
+        }
+        if(e.code==='KeyQ'){
+            useAbility1();
+        }
+        if(e.code==='KeyE'){
+            useAbility2();
+        }
+        // 1-5: Super abilities (from head stomps)
+        if(e.code==='Digit1')useSuperAbility(0);
+        if(e.code==='Digit2')useSuperAbility(1);
+        if(e.code==='Digit3')useSuperAbility(2);
+        if(e.code==='Digit4')useSuperAbility(3);
+        if(e.code==='Digit5')useSuperAbility(4);
+        // Z/X/C: Switch forms
+        if(e.code==='KeyZ')switchForm(0);
+        if(e.code==='KeyC')switchForm(1);
+        if(e.code==='KeyV')switchForm(2);
+    }else if(gameState==='sacrifice'){
+        if(e.code==='KeyZ')sacrificeForm(0);
+        if(e.code==='KeyC')sacrificeForm(1);
+        if(e.code==='KeyV')sacrificeForm(2);
+        if(e.code==='Escape'){
+            pendingForm=null;
+            sacrificeMode=false;
+            gameState='play';
+        }
+    }else if(gameState==='dead'){
+        if(e.code==='Enter'&&deathTimer>90){
+            startGame();
+        }
+    }else if(gameState==='victory'){
+        if(e.code==='Enter'&&victoryTimer>100){
+            startGame();
+        }
+    }
+    e.preventDefault();
+});
+document.addEventListener('keyup',e=>{
+    keys[e.code]=false;
+});
+// Mouse for sacrifice hover
+C.addEventListener('mousemove',e=>{
+    if(gameState!=='sacrifice')return;
+    const rect=C.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(GW/rect.width);
+    const my=(e.clientY-rect.top)*(GH/rect.height);
+    const slotW=180,gap=20;
+    const totalW=3*(slotW+gap)-gap;
+    const sx=(GW-totalW)/2;
+    const sy=140;
+    sacrificeHover=-1;
+    for(let i=0;i<3;i++){
+        const fx=sx+i*(slotW+gap);
+        if(mx>=fx&&mx<=fx+slotW&&my>=sy&&my<=sy+120){
+            sacrificeHover=i;
+        }
+    }
+});
+C.addEventListener('click',e=>{
+    if(gameState==='sacrifice'&&sacrificeHover>=0){
+        sacrificeForm(sacrificeHover);
+    }
+});
+
+// ==================== GAME INIT ====================
+function startGame(){
+    gameState='play';
+    initPlayer();
+    enemies=[];projectiles=[];particles=[];effects=[];drops=[];
+    dungeonMap=[];
+    exploredRooms={};
+    totalKills=0;totalFormsAbsorbed=0;
+    shownHints=new Set();
+    bossHpBar=0;bossMaxHp=0;
+    camera={x:0,y:0};
+    echo={x:0,y:0,msg:'',msgTimer:0,bobPhase:0};
+    // Generate all floors
+    for(let i=0;i<5;i++){
+        dungeonMap.push(generateFloor(i));
+    }
+    currentFloor=0;
+    loadRoom(0,0);
+    player.x=4*T;
+    player.y=(currentRoom.h-6)*T;
+    showEcho('Vessel awakens... find and absorb your first form.');
+}
+
+// ==================== GAME LOOP ====================
+function update(){
+    if(gameState==='play'){
+        updatePlayer();
+        updateEnemies();
+        updateProjectiles();
+        updateParticles();
+        updateEcho();
+        updateCamera();
+        if(roomTransTimer>0)roomTransTimer--;
+    }
+    frame++;
+}
+
+function draw(){
+    ctx.clearRect(0,0,GW,GH);
+    if(gameState==='title'){
+        drawTitle();
+        return;
+    }
+    drawBackground();
+    drawTiles();
+    drawRoomObjects();
+    drawDrops();
+    drawEnemies();
+    drawPlayer();
+    drawProjectiles();
+    drawParticles();
+    drawEcho();
+    // Room transition overlay
+    if(roomTransTimer>0){
+        ctx.fillStyle='rgba(0,0,0,'+roomTransTimer/30+')';
+        ctx.fillRect(0,0,GW,GH);
+    }
+    drawHUD();
+    if(gameState==='dead'){
+        drawDeath();
+    }else if(gameState==='victory'){
+        drawVictory();
+    }else if(gameState==='sacrifice'){
+        drawSacrifice();
+    }
+}
+
+function gameLoop(){
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+// ==================== SCALING ====================
+function resize(){
+    const ratio=GW/GH;
+    const nav=document.querySelector('.site-nav');
+    const navH=nav?nav.offsetHeight:0;
+    let w=window.innerWidth,h=window.innerHeight-navH;
+    if(w/h>ratio){w=h*ratio;}else{h=w/ratio;}
+    C.style.width=w+'px';
+    C.style.height=h+'px';
+}
+window.addEventListener('resize',resize);
+resize();
+gameLoop();
+</script>
+</body>
+</html>
