@@ -174,3 +174,14 @@ params:
         featured:
           name: Play Game
           link: /games/geometry-dash/
+
+      - title: "Kingdom Rush"
+        content: "Build archer, mage, barracks, and cannon towers to defend the realm across 15 levels with 12 enemy types and boss fights!"
+        image: "/images/games/kingdom-rush.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Tower Defense"
+        featured:
+          name: Play Game
+          link: /games/kingdom-rush/
