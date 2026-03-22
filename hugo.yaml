@@ -195,3 +195,14 @@ params:
         featured:
           name: Play Game
           link: /games/tic-tac-toe/
+
+      - title: "Plants vs Zombies"
+        content: "Defend your garden across 80 levels! Plant sunflowers, peashooters, wall-nuts and more to stop waves of zombies."
+        image: "/images/games/plants-vs-zombies.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Strategy"
+        featured:
+          name: Play Game
+          link: /games/plants-vs-zombies/

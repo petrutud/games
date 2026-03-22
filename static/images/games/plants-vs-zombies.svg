@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 225" width="400" height="225">
+  <defs>
+    <linearGradient id="bg1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#87CEEB"/>
+      <stop offset="60%" style="stop-color:#4CAF50"/>
+      <stop offset="100%" style="stop-color:#2E7D32"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="225" fill="url(#bg1)"/>
+  <!-- Lawn grid -->
+  <rect x="60" y="60" width="280" height="130" rx="4" fill="#4CAF50" opacity="0.6"/>
+  <rect x="60" y="60" width="56" height="26" fill="#66BB6A" opacity="0.5"/>
+  <rect x="172" y="60" width="56" height="26" fill="#66BB6A" opacity="0.5"/>
+  <rect x="284" y="60" width="56" height="26" fill="#66BB6A" opacity="0.5"/>
+  <rect x="116" y="86" width="56" height="26" fill="#66BB6A" opacity="0.5"/>
+  <rect x="228" y="86" width="56" height="26" fill="#66BB6A" opacity="0.5"/>
+  <!-- Sunflower -->
+  <circle cx="88" cy="80" r="12" fill="#FFD700"/>
+  <circle cx="88" cy="80" r="7" fill="#8B6914"/>
+  <circle cx="82" cy="74" r="4" fill="#FDD835"/>
+  <circle cx="94" cy="74" r="4" fill="#FDD835"/>
+  <circle cx="82" cy="86" r="4" fill="#FDD835"/>
+  <circle cx="94" cy="86" r="4" fill="#FDD835"/>
+  <!-- Peashooter -->
+  <circle cx="88" cy="106" r="10" fill="#4CAF50"/>
+  <circle cx="88" cy="103" r="7" fill="#66BB6A"/>
+  <rect x="95" y="102" width="10" height="6" rx="2" fill="#388E3C"/>
+  <circle cx="85" cy="101" r="2.5" fill="white"/>
+  <circle cx="85" cy="101" r="1.5" fill="black"/>
+  <!-- Pea projectile -->
+  <circle cx="130" cy="105" r="4" fill="#8BC34A"/>
+  <circle cx="150" cy="105" r="4" fill="#8BC34A" opacity="0.6"/>
+  <!-- Wall-nut -->
+  <ellipse cx="88" cy="138" rx="10" ry="12" fill="#8D6E63"/>
+  <ellipse cx="85" cy="134" rx="3" ry="3.5" fill="#5D4037"/>
+  <ellipse cx="92" cy="134" rx="3" ry="3.5" fill="#5D4037"/>
+  <ellipse cx="88" cy="141" rx="4" ry="2.5" fill="#5D4037"/>
+  <!-- Zombie -->
+  <g transform="translate(310, 100)">
+    <rect x="-6" y="-12" width="12" height="18" rx="2" fill="#6D4C41"/>
+    <circle cx="0" cy="-16" r="8" fill="#A5D6A7"/>
+    <rect x="-3" y="-19" width="6" height="3" fill="#5D4037"/>
+    <circle cx="-3" cy="-17" r="2" fill="white"/>
+    <circle cx="3" cy="-17" r="2" fill="white"/>
+    <circle cx="-3" cy="-17" r="1" fill="#B71C1C"/>
+    <circle cx="3" cy="-17" r="1" fill="#B71C1C"/>
+    <rect x="6" y="-10" width="8" height="3" rx="1" fill="#A5D6A7"/>
+  </g>
+  <!-- Another zombie -->
+  <g transform="translate(350, 130)">
+    <rect x="-5" y="-10" width="10" height="15" rx="2" fill="#795548"/>
+    <circle cx="0" cy="-14" r="7" fill="#81C784"/>
+    <circle cx="-2" cy="-15" r="1.5" fill="white"/>
+    <circle cx="2" cy="-15" r="1.5" fill="white"/>
+    <circle cx="-2" cy="-15" r="0.8" fill="#B71C1C"/>
+    <circle cx="2" cy="-15" r="0.8" fill="#B71C1C"/>
+  </g>
+  <!-- Sun -->
+  <circle cx="160" cy="35" r="10" fill="#FFD700" opacity="0.8"/>
+  <circle cx="160" cy="35" r="6" fill="#FFF9C4"/>
+  <text x="200" y="215" text-anchor="middle" fill="#E8F5E9" font-family="sans-serif" font-size="12">Plants vs Zombies</text>
+</svg>
