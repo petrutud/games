@@ -119,3 +119,14 @@ params:
         featured:
           name: Play Game
           link: /games/battle-simulator/
+
+      - title: "Backgammon"
+        content: "The classic board game with AI opponents. Roll dice, move checkers, and bear off before your opponent!"
+        image: "/images/games/backgammon.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Board Game"
+        featured:
+          name: Play Game
+          link: /games/backgammon/

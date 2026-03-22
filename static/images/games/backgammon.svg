@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 225" width="400" height="225">
+  <defs>
+    <linearGradient id="bg1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#151208"/>
+      <stop offset="100%" style="stop-color:#0e0c08"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="225" fill="url(#bg1)"/>
+  <!-- Board -->
+  <g transform="translate(120, 30)">
+    <rect x="0" y="0" width="160" height="110" rx="6" fill="#5a3a18"/>
+    <rect x="4" y="4" width="68" height="102" fill="#1a5030"/>
+    <rect x="88" y="4" width="68" height="102" fill="#1a5030"/>
+    <!-- Bar -->
+    <rect x="72" y="0" width="16" height="110" fill="#3a2a14"/>
+    <!-- Triangles top -->
+    <polygon points="8,4 18,44 28,4" fill="#c8a870"/>
+    <polygon points="30,4 40,44 50,4" fill="#6b3a1a"/>
+    <polygon points="52,4 62,44 72,4" fill="#c8a870"/>
+    <polygon points="88,4 98,44 108,4" fill="#6b3a1a"/>
+    <polygon points="110,4 120,44 130,4" fill="#c8a870"/>
+    <polygon points="132,4 142,44 152,4" fill="#6b3a1a"/>
+    <!-- Triangles bottom -->
+    <polygon points="8,106 18,66 28,106" fill="#6b3a1a"/>
+    <polygon points="30,106 40,66 50,106" fill="#c8a870"/>
+    <polygon points="52,106 62,66 72,106" fill="#6b3a1a"/>
+    <polygon points="88,106 98,66 108,106" fill="#c8a870"/>
+    <polygon points="110,106 120,66 130,106" fill="#6b3a1a"/>
+    <polygon points="132,106 142,66 152,106" fill="#c8a870"/>
+    <!-- White checkers -->
+    <circle cx="18" cy="18" r="8" fill="#e8dcc8" stroke="#c8b898" stroke-width="1"/>
+    <circle cx="18" cy="34" r="8" fill="#e8dcc8" stroke="#c8b898" stroke-width="1"/>
+    <circle cx="120" cy="92" r="8" fill="#e8dcc8" stroke="#c8b898" stroke-width="1"/>
+    <!-- Black checkers -->
+    <circle cx="142" cy="18" r="8" fill="#2a1a0e" stroke="#4a3020" stroke-width="1"/>
+    <circle cx="142" cy="34" r="8" fill="#2a1a0e" stroke="#4a3020" stroke-width="1"/>
+    <circle cx="40" cy="92" r="8" fill="#2a1a0e" stroke="#4a3020" stroke-width="1"/>
+  </g>
+  <!-- Dice -->
+  <g transform="translate(175, 150)">
+    <rect x="0" y="0" width="22" height="22" rx="4" fill="#f5edd8"/>
+    <circle cx="7" cy="7" r="2" fill="#3a2a18"/>
+    <circle cx="15" cy="15" r="2" fill="#3a2a18"/>
+    <rect x="28" y="0" width="22" height="22" rx="4" fill="#f5edd8"/>
+    <circle cx="39" cy="7" r="2" fill="#3a2a18"/>
+    <circle cx="39" cy="15" r="2" fill="#3a2a18"/>
+    <circle cx="45" cy="7" r="2" fill="#3a2a18"/>
+    <circle cx="45" cy="15" r="2" fill="#3a2a18"/>
+  </g>
+  <!-- Warm glow -->
+  <circle cx="200" cy="85" r="60" fill="none" stroke="rgba(180,110,30,0.1)" stroke-width="1"/>
+  <text x="200" y="200" text-anchor="middle" fill="#998877" font-family="sans-serif" font-size="12">Backgammon</text>
+</svg>
