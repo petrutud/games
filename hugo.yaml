@@ -62,6 +62,17 @@ params:
     enable: true
     title: "Games"
     items:
+      - title: "Tower Defense"
+        content: "Build towers, defend the path! Multiple levels, 8 visual themes, a shop for buffs, and a super ability to wipe enemies."
+        image: "/images/games/tawer-defense.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Strategy"
+        featured:
+          name: Play Game
+          link: /games/tawer-defense/
+
       - title: "Business Tycoon"
         content: "Build your empire from a single office! Buy buildings, hire employees, complete contracts, prestige, and chase the high score."
         image: "/images/games/business-tycoon.svg"

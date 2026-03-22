@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a1d29"/>
+      <stop offset="100%" stop-color="#252936"/>
+    </linearGradient>
+    <linearGradient id="tower" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#9aa0a6"/>
+      <stop offset="100%" stop-color="#6a7080"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8fc76a"/>
+      <stop offset="100%" stop-color="#5e9040"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="24" fill="url(#bg)"/>
+  <!-- Path -->
+  <path d="M 20 100 Q 60 100 70 70 Q 80 40 110 50 Q 140 60 140 90 Q 140 120 170 130 L 200 135" fill="none" stroke="#3a3e48" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+  <path d="M 20 100 Q 60 100 70 70 Q 80 40 110 50 Q 140 60 140 90 Q 140 120 170 130 L 200 135" fill="none" stroke="#4a4e58" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/>
+  <!-- Tower 1 -->
+  <rect x="55" y="85" width="18" height="24" rx="2" fill="url(#tower)"/>
+  <rect x="52" y="82" width="24" height="6" rx="2" fill="#7caf5e"/>
+  <rect x="58" y="78" width="12" height="6" rx="1" fill="#7caf5e" opacity="0.8"/>
+  <!-- Tower 2 -->
+  <rect x="105" y="65" width="18" height="24" rx="2" fill="url(#tower)"/>
+  <rect x="102" y="62" width="24" height="6" rx="2" fill="#e8c547"/>
+  <rect x="108" y="58" width="12" height="6" rx="1" fill="#e8c547" opacity="0.8"/>
+  <!-- Tower 3 -->
+  <rect x="145" y="100" width="18" height="24" rx="2" fill="url(#tower)"/>
+  <rect x="142" y="97" width="24" height="6" rx="2" fill="#d9655c"/>
+  <rect x="148" y="93" width="12" height="6" rx="1" fill="#d9655c" opacity="0.8"/>
+  <!-- Range circles -->
+  <circle cx="64" cy="96" r="22" fill="none" stroke="#7caf5e" stroke-width="1" opacity="0.25"/>
+  <circle cx="114" cy="76" r="26" fill="none" stroke="#e8c547" stroke-width="1" opacity="0.25"/>
+  <circle cx="154" cy="111" r="20" fill="none" stroke="#d9655c" stroke-width="1" opacity="0.25"/>
+  <!-- Enemies on path -->
+  <circle cx="35" cy="100" r="5" fill="#c44" opacity="0.7"/>
+  <circle cx="90" cy="48" r="5" fill="#c44" opacity="0.7"/>
+  <circle cx="155" cy="125" r="6" fill="#c44" opacity="0.8"/>
+  <!-- Projectiles -->
+  <circle cx="72" cy="92" r="2.5" fill="#7caf5e" opacity="0.9"/>
+  <circle cx="120" cy="60" r="2.5" fill="#e8c547" opacity="0.9"/>
+  <!-- Title -->
+  <text x="100" y="165" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="12" fill="#e8c547" letter-spacing="2">TOWER DEFENSE</text>
+  <text x="100" y="182" text-anchor="middle" font-family="sans-serif" font-weight="600" font-size="9" fill="#9aa0a6" letter-spacing="1">8 THEMES · LEVELS</text>
+</svg>

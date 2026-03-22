@@ -6,10 +6,12 @@
       "Bash(git ls-tree:*)",
       "Bash(ls /home/petru/code/games/static/images/games/backgammon*)",
       "Bash(ls /home/petru/code/games/project1/bisnes-tycoon*)",
-      "Bash(gh run:*)"
+      "Bash(gh run:*)",
+      "Bash(wc -l /home/petru/code/games/project1/tower-defense/js/*.js)"
     ],
     "additionalDirectories": [
-      "/home/petru/code/games/static/games"
+      "/home/petru/code/games/static/games",
+      "/home/petru/code/games/project1/tower-defense/js"
     ]
   }
 }
