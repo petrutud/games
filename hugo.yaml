@@ -36,7 +36,10 @@ params:
     bottomImage:
       enable: false
     button:
-      enable: false
+      enable: true
+      name: "Play Business Tycoon"
+      url: "/games/bisnes-tycoon/"
+      newPage: false
     socialLinks:
       fontAwesomeIcons: []
       customIcons: []
@@ -58,6 +61,17 @@ params:
     enable: true
     title: "Games"
     items:
+      - title: "Business Tycoon"
+        content: "Build your empire from a single office! Buy buildings, hire employees, complete contracts, prestige, and chase the high score."
+        image: "/images/games/business-tycoon.svg"
+        badges:
+          - "HTML5"
+          - "JavaScript"
+          - "Idle"
+        featured:
+          name: Play Game
+          link: /games/bisnes-tycoon/
+
       - title: "Strike Force Heroes"
         content: "A wave-based shooter with 4 classes — Commando, Medic, Tank, Assassin. Survive 25 waves of enemies!"
         image: "/images/games/strike-force-heroes.svg"
