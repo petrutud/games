@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cold Echoes — Petru Tudorica</title>
+  <meta name="theme-color" content="#050508">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    .site-nav {
+      background: rgba(5,5,8,0.85);
+      backdrop-filter: blur(10px);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      z-index: 500;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .site-nav a {
+      color: #ccc;
+      text-decoration: none;
+      font-family: system-ui, sans-serif;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+    .site-nav a:hover { color: #fff; }
+    .site-nav .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 500;
+      font-size: 16px;
+    }
+    .site-nav .brand img { width: 28px; height: 28px; }
+    .site-nav .nav-links { display: flex; gap: 20px; align-items: center; }
+    .site-nav .nav-links a:hover { color: #a78bfa; }
+    .ce-shell { flex: 1; width: 100%; position: relative; z-index: 1; }
+    .site-footer {
+      text-align: center;
+      padding: 16px;
+      color: rgba(255,255,255,0.3);
+      font-size: 12px;
+      font-family: system-ui, sans-serif;
+      flex-shrink: 0;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .site-footer a { color: rgba(255,255,255,0.5); text-decoration: none; }
+    .site-footer a:hover { color: #fff; }
+  </style>
+</head>
+<body class="ch1">
+  <nav class="site-nav">
+    <a href="/" class="brand">
+      <img src="/favicon.svg" alt="Home">
+      Petru Tudorica
+    </a>
+    <div class="nav-links">
+      <a href="/#projects">Games</a>
+    </div>
+  </nav>
+
+  <div class="ce-shell">
+  <div class="page">
+    <header class="top">
+      <h1>Cold Echoes</h1>
+      <p class="tagline">Fractured time · layered souls</p>
+    </header>
+
+    <div class="hud">
+      <div class="hud-cluster" title="Tick — active Echoes">
+        <span class="sprite tick" aria-hidden="true"></span>
+        <span class="hud-label">Echoes</span>
+        <strong id="tick-count">0</strong><span class="hud-cap">/5</span>
+      </div>
+      <div class="hud-cluster" title="Tock — recording time left">
+        <span class="sprite tock" aria-hidden="true"></span>
+        <span class="hud-label">Rec</span>
+        <strong id="tock-time">&mdash;</strong>
+      </div>
+      <div class="hud-cluster paradox-meter" id="paradox-wrap" title="Paradox buildup">
+        <span class="hud-label">Paradox</span>
+        <div class="paradox-bar"><div id="paradox-fill"></div></div>
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="game" width="800" height="450" tabindex="0" aria-label="Cold Echoes playfield"></canvas>
+      <div id="rewind-overlay" class="rewind-overlay" aria-hidden="true"></div>
+    </div>
+
+    <div class="bubble-host" id="bubble-host"></div>
+
+    <div class="controls">
+      <p>Click the playfield if keys don't respond. Gear block starts by you. <kbd>N</kbd> next &mdash; 45 chambers.</p>
+    </div>
+
+    <footer class="foot">
+      <span>Loop &middot; Chapter <span id="chapter-num">1</span> &mdash; <span id="level-name">&mdash;</span></span>
+    </footer>
+  </div>
+  </div>
+
+  <footer class="site-footer">
+    &copy; 2026 Petru Tudorica &middot; All Rights Reserved
+  </footer>
+
+  <script src="js/game.js"></script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050508"/>
+      <stop offset="100%" stop-color="#10101e"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="24" fill="url(#bg)"/>
+  <!-- Gear bg -->
+  <circle cx="100" cy="95" r="40" fill="none" stroke="rgba(167,139,250,0.08)" stroke-width="1.5"/>
+  <circle cx="100" cy="95" r="16" fill="none" stroke="rgba(167,139,250,0.08)" stroke-width="1"/>
+  <!-- Echo 3 -->
+  <g opacity="0.12">
+    <rect x="62" y="82" width="12" height="20" rx="1" fill="#a78bfa"/>
+    <path d="M68 74 L58 86 L78 86 Z" fill="#a78bfa"/>
+  </g>
+  <!-- Echo 2 -->
+  <g opacity="0.25">
+    <rect x="76" y="80" width="12" height="20" rx="1" fill="#a78bfa"/>
+    <path d="M82 72 L72 84 L92 84 Z" fill="#a78bfa"/>
+  </g>
+  <!-- Echo 1 -->
+  <g opacity="0.4">
+    <rect x="90" y="78" width="12" height="20" rx="1" fill="#a78bfa"/>
+    <path d="M96 70 L86 82 L106 82 Z" fill="#a78bfa"/>
+    <circle cx="96" cy="88" r="2" fill="#fff" opacity="0.5"/>
+  </g>
+  <!-- Player -->
+  <g>
+    <rect x="104" y="76" width="12" height="20" rx="1" fill="#14142a"/>
+    <path d="M110 68 L100 80 L120 80 Z" fill="#14142a"/>
+    <circle cx="110" cy="86" r="2.5" fill="#e8c547" opacity="0.9"/>
+    <circle cx="110" cy="86" r="6" fill="#e8c547" opacity="0.12"/>
+  </g>
+  <!-- Platform -->
+  <rect x="40" y="102" width="120" height="6" rx="2" fill="#2a2a3a"/>
+  <!-- Switch glow -->
+  <rect x="50" y="99" width="20" height="4" rx="1.5" fill="#a78bfa" opacity="0.5"/>
+  <!-- Snowflake/frost particles -->
+  <circle cx="45" cy="55" r="1.5" fill="#8ac" opacity="0.3"/>
+  <circle cx="150" cy="45" r="1" fill="#8ac" opacity="0.25"/>
+  <circle cx="130" cy="120" r="1.5" fill="#8ac" opacity="0.2"/>
+  <circle cx="60" cy="130" r="1" fill="#8ac" opacity="0.15"/>
+  <circle cx="155" cy="75" r="1.2" fill="#a78bfa" opacity="0.2"/>
+  <!-- Rewind arrows -->
+  <g opacity="0.15" fill="#a78bfa">
+    <path d="M80 130 L72 136 L80 142 Z"/>
+    <path d="M90 130 L82 136 L90 142 Z"/>
+  </g>
+  <!-- Title -->
+  <text x="100" y="168" text-anchor="middle" font-family="sans-serif" font-weight="800" font-size="13" fill="#e0e4eb" letter-spacing="2">COLD ECHOES</text>
+  <text x="100" y="184" text-anchor="middle" font-family="sans-serif" font-weight="500" font-size="8" fill="#4a4a60" letter-spacing="1">FRACTURED TIME</text>
+</svg>

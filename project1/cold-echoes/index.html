@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cold Echoes</title>
+  <meta name="theme-color" content="#050508">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="ch1">
+  <div class="page">
+    <header class="top">
+      <h1>Cold Echoes</h1>
+      <p class="tagline">Fractured time · layered souls</p>
+    </header>
+
+    <div class="hud">
+      <div class="hud-cluster" title="Tick — active Echoes">
+        <span class="sprite tick" aria-hidden="true"></span>
+        <span class="hud-label">Echoes</span>
+        <strong id="tick-count">0</strong><span class="hud-cap">/5</span>
+      </div>
+      <div class="hud-cluster" title="Tock — recording time left">
+        <span class="sprite tock" aria-hidden="true"></span>
+        <span class="hud-label">Rec</span>
+        <strong id="tock-time">—</strong>
+      </div>
+      <div class="hud-cluster paradox-meter" id="paradox-wrap" title="Paradox buildup">
+        <span class="hud-label">Paradox</span>
+        <div class="paradox-bar"><div id="paradox-fill"></div></div>
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="game" width="800" height="450" tabindex="0" aria-label="Cold Echoes playfield — click to focus for keyboard"></canvas>
+      <div id="rewind-overlay" class="rewind-overlay" aria-hidden="true"></div>
+    </div>
+
+    <div class="bubble-host" id="bubble-host"></div>
+
+    <div class="controls">
+      <p>Click the playfield if keys don’t respond. Gear block starts by you. <kbd>N</kbd> next — 45 chambers.</p>
+    </div>
+
+    <footer class="foot">
+      <span>Loop · Chapter <span id="chapter-num">1</span> — <span id="level-name">—</span></span>
+    </footer>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>

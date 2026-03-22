@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echoes — Petru Tudorica</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh; background: #0a0a12; color: #e0e4eb;
+    font-family: 'Inter', system-ui, sans-serif;
+    display: flex; flex-direction: column; overflow-x: hidden;
+  }
+  .site-nav {
+    background: rgba(10,10,18,0.85); backdrop-filter: blur(10px);
+    padding: 12px 24px; display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,0.06); z-index: 500; position: relative;
+  }
+  .site-nav a { color: #ccc; text-decoration: none; font-family: 'Roboto', sans-serif; font-size: 14px; transition: color 0.2s; }
+  .site-nav a:hover { color: #fff; }
+  .site-nav .brand { display: flex; align-items: center; gap: 10px; font-weight: 500; font-size: 16px; }
+  .site-nav .brand img { width: 28px; height: 28px; }
+  .site-nav .nav-links { display: flex; gap: 20px; align-items: center; }
+  .site-nav .nav-links a:hover { color: #a78bfa; }
+  .game-shell { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+  #bg {
+    position: fixed; inset: 0; z-index: 0;
+    background: radial-gradient(ellipse at 30% 40%, rgba(167,139,250,0.04) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 60%, rgba(74,158,255,0.03) 0%, transparent 60%),
+                linear-gradient(180deg, #0a0a12 0%, #10101e 50%, #0a0a12 100%);
+  }
+  .game-content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; padding: 12px; gap: 6px; }
+  canvas { display: block; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06); box-shadow: 0 8px 40px rgba(0,0,0,0.5); max-width: 100%; height: auto; }
+  .site-footer { text-align: center; padding: 12px; color: rgba(255,255,255,0.25); font-size: 11px; font-family: 'Roboto', sans-serif; position: relative; z-index: 1; }
+  @media (max-width: 840px) { .game-content { padding: 6px; } }
+</style>
+</head>
+<body>
+<nav class="site-nav">
+  <a href="/" class="brand"><img src="/favicon.svg" alt="Home"> Petru Tudorica</a>
+  <div class="nav-links"><a href="/#projects">Games</a></div>
+</nav>
+<div class="game-shell">
+<div id="bg"></div>
+<div class="game-content">
+  <canvas id="c" width="800" height="500"></canvas>
+</div>
+</div>
+<footer class="site-footer">&copy; 2026 Petru Tudorica &middot; All Rights Reserved</footer>
+<script>
+(function(){
+'use strict';
+
+/* ═══════ CONSTANTS ═══════ */
+const W=800,H=500,PW=16,PH=28;
+const GRAVITY=1400,JUMP=-620,SPEED=200,FDT=1/60;
+const MAX_REC=600; // 10s @60fps
+const BW=20,BH=20; // box size
+const CHCOL={1:'#4a9eff',2:'#e8c547',3:'#4ade80',4:'#f472b6',5:'#a78bfa',6:'#e8eaed'};
+
+/* ═══════ LEVELS ═══════ */
+const LEVELS=[
+  // 1: Awakening (tutorial, no echoes)
+  {ch:1,name:'Awakening',max:0,
+   hint:'Arrow keys / WASD to move, Up / Space to jump. Reach the exit.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40},{x:280,y:390,w:90,h:14},{x:480,y:330,w:90,h:14}],
+   sw:[],doors:[],bridges:[],boxes:[],
+   exit:{x:720,y:414,w:32,h:46}},
+  // 2: First Echo (1 echo, basic switch)
+  {ch:1,name:'First Echo',max:1,
+   hint:'Press R to record. Stand on the switch, then press R to stop. Your Echo replays!',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:340,h:40},{x:440,y:460,w:360,h:40}],
+   sw:[{x:140,y:448,w:55,h:12,id:'A'}],
+   doors:[{x:355,y:375,w:28,h:85,s:['A']}],bridges:[],boxes:[],
+   exit:{x:720,y:414,w:32,h:46}},
+  // 3: The Bridge (box or echo, bridge platform)
+  {ch:1,name:'The Bridge',max:1,
+   hint:'Push the crate onto the switch to make the bridge appear. Or use an Echo!',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40},{x:580,y:300,w:180,h:14}],
+   sw:[{x:100,y:448,w:55,h:12,id:'A'}],
+   doors:[],bridges:[{x:340,y:360,w:140,h:14,s:['A']}],
+   boxes:[{x:220,y:440}],
+   exit:{x:700,y:254,w:32,h:46}},
+  // 4: Box Intro (0 echoes, push box onto switch)
+  {ch:2,name:'Heavy Thought',max:0,
+   hint:'Push the crate onto the switch to hold the door open. Walk into it to push.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40}],
+   sw:[{x:300,y:448,w:55,h:12,id:'A'}],
+   doors:[{x:500,y:365,w:28,h:95,s:['A']}],bridges:[],
+   boxes:[{x:180,y:440}],
+   exit:{x:720,y:414,w:32,h:46}},
+  // 5: Two Gates (2 echoes, sequential doors)
+  {ch:2,name:'Two Gates',max:2,
+   hint:'Two switches, two doors. You need two Echoes.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:260,h:40},{x:330,y:460,w:190,h:40},{x:590,y:460,w:210,h:40}],
+   sw:[{x:100,y:448,w:55,h:12,id:'A'},{x:400,y:448,w:55,h:12,id:'B'}],
+   doors:[{x:272,y:375,w:28,h:85,s:['A']},{x:540,y:375,w:28,h:85,s:['B']}],bridges:[],boxes:[],
+   exit:{x:720,y:414,w:32,h:46}},
+  // 6: Box & Echo (1 echo + box, combined)
+  {ch:3,name:'Teamwork',max:1,
+   hint:'Push the crate onto one switch, then record an Echo for the other.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40}],
+   sw:[{x:200,y:448,w:55,h:12,id:'A'},{x:450,y:448,w:55,h:12,id:'B'}],
+   doors:[{x:600,y:365,w:28,h:95,s:['A','B']}],bridges:[],
+   boxes:[{x:120,y:440}],
+   exit:{x:720,y:414,w:32,h:46}},
+  // 7: Lockdown (2 echoes, AND switches)
+  {ch:3,name:'Lockdown',max:2,
+   hint:'Both switches must be active at the same time to open the gate.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40}],
+   sw:[{x:100,y:448,w:55,h:12,id:'A'},{x:340,y:448,w:55,h:12,id:'B'}],
+   doors:[{x:560,y:365,w:28,h:95,s:['A','B']}],bridges:[],boxes:[],
+   exit:{x:720,y:414,w:32,h:46}},
+  // 8: Rush (1 echo, timing puzzle)
+  {ch:4,name:'Rush',max:1,
+   hint:'One Echo, two switches. Record a path between both, then time your run!',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40}],
+   sw:[{x:80,y:448,w:55,h:12,id:'A'},{x:620,y:448,w:55,h:12,id:'B'}],
+   doors:[{x:260,y:365,w:28,h:95,s:['A']},{x:510,y:365,w:28,h:95,s:['B']}],bridges:[],boxes:[],
+   exit:{x:720,y:414,w:32,h:46}},
+  // 9: Drop It (1 echo, push box off ledge onto switch below)
+  {ch:4,name:'Drop It',max:1,
+   hint:'Push the crate off the ledge so it lands on the switch below.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40},{x:200,y:340,w:250,h:14}],
+   sw:[{x:380,y:448,w:55,h:12,id:'A'}],
+   doors:[{x:560,y:365,w:28,h:95,s:['A']}],bridges:[],
+   boxes:[{x:250,y:320}],
+   exit:{x:720,y:414,w:32,h:46}},
+  // 10: Stairway (platforming + 1 echo)
+  {ch:4,name:'Stairway',max:1,
+   hint:'Your Echo can hold the bridge while you climb.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40},{x:0,y:360,w:120,h:14},{x:180,y:300,w:120,h:14},
+          {x:380,y:240,w:120,h:14},{x:560,y:180,w:200,h:14}],
+   sw:[{x:30,y:448,w:55,h:12,id:'A'}],
+   doors:[],bridges:[{x:130,y:360,w:60,h:14,s:['A']}],boxes:[{x:400,y:420}],
+   exit:{x:700,y:134,w:32,h:46}},
+  // 11: Conveyor (2 boxes, 2 switches)
+  {ch:4,name:'Conveyor',max:0,
+   hint:'Two crates, two switches. No echoes needed — just push!',
+   spawn:{x:400,y:420},
+   plats:[{x:0,y:460,w:800,h:40}],
+   sw:[{x:100,y:448,w:55,h:12,id:'A'},{x:600,y:448,w:55,h:12,id:'B'}],
+   doors:[{x:380,y:340,w:28,h:120,s:['A','B']}],bridges:[],
+   boxes:[{x:250,y:440},{x:500,y:440}],
+   exit:{x:390,y:294,w:32,h:46}},
+  // 12: Elevator (echo on switch, bridge + box stacking)
+  {ch:5,name:'Elevator',max:1,
+   hint:'Use the crate as a stepping stone on the bridge to reach higher.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40},{x:550,y:220,w:200,h:14}],
+   sw:[{x:100,y:448,w:55,h:12,id:'A'}],
+   doors:[],bridges:[{x:300,y:340,w:180,h:14,s:['A']}],
+   boxes:[{x:350,y:440}],
+   exit:{x:680,y:174,w:32,h:46}},
+  // 13: Gauntlet (2 echoes, 3 doors in sequence)
+  {ch:5,name:'Gauntlet',max:2,
+   hint:'Three doors, two echoes, one crate. Plan your recordings carefully.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40}],
+   sw:[{x:80,y:448,w:55,h:12,id:'A'},{x:320,y:448,w:55,h:12,id:'B'},{x:550,y:448,w:55,h:12,id:'C'}],
+   doors:[{x:200,y:365,w:28,h:95,s:['A']},{x:430,y:365,w:28,h:95,s:['B']},{x:640,y:365,w:28,h:95,s:['C']}],
+   bridges:[],boxes:[{x:470,y:440}],
+   exit:{x:740,y:414,w:32,h:46}},
+  // 14: Catapult (push box off high ledge across gap)
+  {ch:5,name:'Catapult',max:1,
+   hint:'Push the crate off the ledge onto the far switch. Use an Echo to open the first door.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:350,h:40},{x:500,y:460,w:300,h:40},
+          {x:100,y:340,w:250,h:14}],
+   sw:[{x:150,y:448,w:55,h:12,id:'A'},{x:540,y:448,w:55,h:12,id:'B'}],
+   doors:[{x:360,y:365,w:28,h:95,s:['A']},{x:650,y:365,w:28,h:95,s:['B']}],
+   bridges:[{x:360,y:460,w:130,h:14,s:['A']}],
+   boxes:[{x:280,y:320}],
+   exit:{x:740,y:414,w:32,h:46}},
+  // 15: Twin Towers (2 echoes on high platforms)
+  {ch:5,name:'Twin Towers',max:2,
+   hint:'Two high switches, two echoes. The bridge connects them.',
+   spawn:{x:380,y:420},
+   plats:[{x:0,y:460,w:800,h:40},{x:20,y:400,w:70,h:12},{x:0,y:330,w:130,h:14},
+          {x:710,y:400,w:70,h:12},{x:670,y:330,w:130,h:14},{x:320,y:230,w:160,h:14}],
+   sw:[{x:40,y:318,w:55,h:12,id:'A'},{x:710,y:318,w:55,h:12,id:'B'}],
+   doors:[],bridges:[{x:140,y:330,w:520,h:14,s:['A','B']}],boxes:[],
+   exit:{x:380,y:184,w:32,h:46}},
+  // 16: Switchback (timing, 1 echo runs back and forth)
+  {ch:5,name:'Switchback',max:1,
+   hint:'Record a path: switch A, then B, then back to A. Time your run through all three doors!',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40}],
+   sw:[{x:60,y:448,w:55,h:12,id:'A'},{x:370,y:448,w:55,h:12,id:'B'},{x:680,y:448,w:55,h:12,id:'C'}],
+   doors:[{x:180,y:365,w:28,h:95,s:['A']},{x:470,y:365,w:28,h:95,s:['B']},{x:590,y:365,w:28,h:95,s:['C']}],
+   bridges:[],boxes:[],
+   exit:{x:740,y:414,w:32,h:46}},
+  // 17: Stack Up (2 boxes stacked to reach high exit)
+  {ch:6,name:'Stack Up',max:1,
+   hint:'Stack two crates and climb them to reach the exit. Use an Echo to hold the door.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:500,h:40},{x:560,y:460,w:240,h:40},{x:600,y:300,w:160,h:14}],
+   sw:[{x:100,y:448,w:55,h:12,id:'A'}],
+   doors:[{x:510,y:375,w:28,h:85,s:['A']}],bridges:[],
+   boxes:[{x:300,y:440},{x:350,y:440}],
+   exit:{x:700,y:254,w:32,h:46}},
+  // 18: Cascade (3 echoes, chain reaction)
+  {ch:6,name:'Cascade',max:3,
+   hint:'Three echoes open three doors in sequence. Rush through them all!',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40},{x:0,y:360,w:140,h:14},{x:300,y:320,w:140,h:14},{x:550,y:280,w:140,h:14}],
+   sw:[{x:40,y:348,w:55,h:12,id:'A'},{x:340,y:308,w:55,h:12,id:'B'},{x:590,y:268,w:55,h:12,id:'C'}],
+   doors:[{x:200,y:365,w:28,h:95,s:['A']},{x:400,y:365,w:28,h:95,s:['B']},{x:600,y:365,w:28,h:95,s:['C']}],
+   bridges:[],boxes:[],
+   exit:{x:740,y:414,w:32,h:46}},
+  // 19: The Vault (box + 2 echoes + bridge + door)
+  {ch:6,name:'The Vault',max:2,
+   hint:'Push the crate onto switch C. Two echoes handle A and B. All three open the vault.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40},{x:550,y:320,w:200,h:14}],
+   sw:[{x:80,y:448,w:55,h:12,id:'A'},{x:280,y:448,w:55,h:12,id:'B'},{x:480,y:448,w:55,h:12,id:'C'}],
+   doors:[],bridges:[{x:350,y:320,w:190,h:14,s:['A','B','C']}],
+   boxes:[{x:400,y:440}],
+   exit:{x:680,y:274,w:32,h:46}},
+  // 20: Zigzag (platforming gauntlet)
+  {ch:5,name:'Zigzag',max:1,
+   hint:'Jump between platforms. Your Echo opens the way.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:200,h:40},{x:250,y:400,w:80,h:14},{x:400,y:340,w:80,h:14},
+          {x:250,y:280,w:80,h:14},{x:500,y:250,w:80,h:14},{x:630,y:460,w:170,h:40}],
+   sw:[{x:60,y:448,w:55,h:12,id:'A'}],
+   doors:[{x:620,y:375,w:28,h:85,s:['A']}],bridges:[],boxes:[],
+   exit:{x:740,y:414,w:32,h:46}},
+  // 21: Pit Stop (box bridge over pit)
+  {ch:5,name:'Pit Stop',max:0,
+   hint:'Push the crate into the pit to make a stepping stone.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:300,h:40},{x:340,y:460,w:40,h:40},{x:420,y:460,w:380,h:40}],
+   sw:[],doors:[],bridges:[],
+   boxes:[{x:200,y:440}],
+   exit:{x:720,y:414,w:32,h:46}},
+  // 22: Mirror (2 echoes doing same thing on opposite sides)
+  {ch:5,name:'Mirror',max:2,
+   hint:'Symmetry. Both sides need a switch held at the same time.',
+   spawn:{x:380,y:420},
+   plats:[{x:0,y:460,w:800,h:40},{x:0,y:340,w:140,h:14},{x:660,y:340,w:140,h:14},
+          {x:330,y:260,w:140,h:14}],
+   sw:[{x:30,y:328,w:55,h:12,id:'A'},{x:710,y:328,w:55,h:12,id:'B'}],
+   doors:[],bridges:[{x:150,y:340,w:500,h:14,s:['A','B']}],boxes:[],
+   exit:{x:380,y:214,w:32,h:46}},
+  // 23: Seesaw (two boxes, need one on each side)
+  {ch:5,name:'Seesaw',max:1,
+   hint:'Push one crate left, one right. Use an Echo for the door.',
+   spawn:{x:400,y:420},
+   plats:[{x:0,y:460,w:800,h:40}],
+   sw:[{x:60,y:448,w:55,h:12,id:'A'},{x:690,y:448,w:55,h:12,id:'B'},{x:350,y:448,w:55,h:12,id:'C'}],
+   doors:[{x:350,y:300,w:28,h:95,s:['A','B']}],bridges:[],
+   boxes:[{x:250,y:440},{x:550,y:440}],
+   exit:{x:360,y:254,w:32,h:46}},
+  // 24: Shortcut (echo opens shortcut door, you take long route then short)
+  {ch:6,name:'Shortcut',max:1,
+   hint:'Record an Echo walking the long way. Use the shortcut it opens for you.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40},{x:0,y:320,w:300,h:14},{x:500,y:320,w:300,h:14}],
+   sw:[{x:650,y:308,w:55,h:12,id:'A'}],
+   doors:[{x:310,y:235,w:28,h:85,s:['A']}],
+   bridges:[{x:310,y:320,w:180,h:14,s:['A']}],boxes:[],
+   exit:{x:60,y:274,w:32,h:46}},
+  // 25: Leap of Faith (invisible bridge revealed by echo)
+  {ch:6,name:'Leap of Faith',max:1,
+   hint:'The bridge only appears when the switch is held. Jump onto it!',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:200,h:40},{x:600,y:460,w:200,h:40}],
+   sw:[{x:60,y:448,w:55,h:12,id:'A'}],
+   doors:[],bridges:[{x:210,y:420,w:380,h:14,s:['A']}],boxes:[],
+   exit:{x:720,y:414,w:32,h:46}},
+  // 26: Three Floors (vertical level, echoes on each floor)
+  {ch:6,name:'Three Floors',max:2,
+   hint:'Echoes hold switches on different floors. You climb to the top.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40},{x:0,y:340,w:350,h:14},{x:450,y:340,w:350,h:14},
+          {x:0,y:220,w:350,h:14},{x:450,y:220,w:350,h:14},{x:300,y:140,w:200,h:14}],
+   sw:[{x:600,y:448,w:55,h:12,id:'A'},{x:100,y:328,w:55,h:12,id:'B'}],
+   doors:[],bridges:[{x:360,y:340,w:80,h:14,s:['A']},{x:360,y:220,w:80,h:14,s:['B']}],boxes:[],
+   exit:{x:380,y:94,w:32,h:46}},
+  // 27: Crate Run (push crate while echo opens doors)
+  {ch:6,name:'Crate Run',max:2,
+   hint:'Push the crate to the end. Echoes open doors along the way.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40}],
+   sw:[{x:60,y:448,w:55,h:12,id:'A'},{x:300,y:448,w:55,h:12,id:'B'},{x:650,y:448,w:55,h:12,id:'C'}],
+   doors:[{x:200,y:365,w:28,h:95,s:['A']},{x:450,y:365,w:28,h:95,s:['B']}],bridges:[],
+   boxes:[{x:120,y:440}],
+   exit:{x:740,y:414,w:32,h:46}},
+  // 28: Pendulum (tight timing between 3 doors)
+  {ch:6,name:'Pendulum',max:2,
+   hint:'Two Echoes walk between switches. Thread through the doors as they open and close.',
+   spawn:{x:400,y:420},
+   plats:[{x:0,y:460,w:800,h:40}],
+   sw:[{x:40,y:448,w:55,h:12,id:'A'},{x:240,y:448,w:55,h:12,id:'B'},
+       {x:520,y:448,w:55,h:12,id:'C'},{x:720,y:448,w:55,h:12,id:'D'}],
+   doors:[{x:150,y:365,w:28,h:95,s:['A']},{x:350,y:365,w:28,h:95,s:['B']},
+          {x:550,y:365,w:28,h:95,s:['C']},{x:680,y:365,w:28,h:95,s:['D']}],
+   bridges:[],boxes:[],
+   exit:{x:750,y:414,w:32,h:46}},
+  // 29: Sky Bridge (multi-level with bridges and boxes)
+  {ch:6,name:'Sky Bridge',max:2,
+   hint:'Build your path upward. Echoes hold bridges, crates fill gaps.',
+   spawn:{x:60,y:420},
+   plats:[{x:0,y:460,w:800,h:40},{x:0,y:360,w:180,h:14},{x:600,y:360,w:200,h:14},
+          {x:200,y:270,w:150,h:14},{x:500,y:200,w:250,h:14}],
+   sw:[{x:40,y:348,w:55,h:12,id:'A'},{x:660,y:348,w:55,h:12,id:'B'}],
+   doors:[],bridges:[{x:190,y:360,w:400,h:14,s:['A']},{x:360,y:270,w:130,h:14,s:['B']}],
+   boxes:[{x:300,y:440}],
+   exit:{x:680,y:154,w:32,h:46}},
+  // 30: The Clock (grand finale)
+  {ch:6,name:'The Clock',max:4,
+   hint:'The Master Clock. Four Echoes, four switches. Repair time itself.',
+   spawn:{x:380,y:420},
+   plats:[{x:0,y:460,w:800,h:40},{x:10,y:390,w:70,h:12},{x:0,y:320,w:140,h:14},
+          {x:720,y:390,w:70,h:12},{x:660,y:320,w:140,h:14},
+          {x:10,y:230,w:140,h:14},{x:660,y:230,w:140,h:14},{x:300,y:160,w:200,h:14}],
+   sw:[{x:30,y:308,w:55,h:12,id:'A'},{x:200,y:448,w:55,h:12,id:'B'},
+       {x:540,y:448,w:55,h:12,id:'C'},{x:710,y:308,w:55,h:12,id:'D'}],
+   doors:[],bridges:[{x:150,y:320,w:500,h:14,s:['A','B']},{x:150,y:230,w:500,h:14,s:['C','D']}],
+   boxes:[],
+   exit:{x:380,y:114,w:32,h:46}},
+];
+
+/* ═══════ STATE ═══════ */
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+let st='menu'; // menu|play|rec|rewind|win
+let lvl=0,frame=0,echoes=[],player=null,recBuf=[];
+let boxes=[];
+let rewindT=0,unlocked=1,time=0;
+let keys={l:false,r:false,j:false};
+let clickQ=null;
+let shake={x:0,y:0};
+let particles=[];
+let bgStars=[];
+let bgParticles=[];
+// init background stars
+for(let i=0;i<60;i++)bgStars.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.5+.3,s:Math.random()*.3+.1,a:Math.random()});
+for(let i=0;i<25;i++)bgParticles.push({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.3,vy:-Math.random()*.2-.1,r:Math.random()*2+1,a:Math.random()*.15+.05});
+
+/* ═══════ AUDIO ═══════ */
+let audioCtx=null;
+function aud(){if(!audioCtx)try{audioCtx=new(window.AudioContext||window.webkitAudioContext)()}catch(e){} return audioCtx}
+function beep(freq,t,dur,vol){
+  const a=aud();if(!a)return;const o=a.createOscillator(),g=a.createGain();
+  o.type='sine';o.frequency.setValueAtTime(freq,a.currentTime+t);
+  o.connect(g);g.connect(a.destination);
+  g.gain.setValueAtTime(vol||.06,a.currentTime+t);
+  g.gain.exponentialRampToValueAtTime(.001,a.currentTime+t+(dur||.08));
+  o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||.08)+.02);
+}
+function sndSwitch(){beep(880,.0,.04,.05);beep(1100,.03,.04,.04)}
+function sndRecord(){beep(440,.0,.06,.07);beep(330,.05,.06,.05)}
+function sndRewind(){beep(600,.0,.08,.06);beep(400,.04,.08,.05);beep(250,.08,.1,.04);shake={x:(Math.random()-.5)*8,y:(Math.random()-.5)*6}}
+function sndWin(){beep(523,.0,.1,.07);beep(659,.08,.1,.06);beep(784,.16,.12,.06);beep(1047,.26,.15,.05)}
+
+/* ═══════ HELPERS ═══════ */
+function overlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function makeEnt(x,y){return{x,y,w:PW,h:PH,vx:0,vy:0,gr:false}}
+
+function getSolids(){
+  const L=LEVELS[lvl],out=[...L.plats];
+  L.doors.forEach(d=>{if(!isDoorOpen(d))out.push(d)});
+  L.bridges.forEach(b=>{if(isBridgeActive(b))out.push(b)});
+  return out;
+}
+
+function getSolidsForEnt(skipBox){
+  // solids + all boxes except skipBox (so entities collide with boxes)
+  const s=getSolids();
+  boxes.forEach(b=>{if(b!==skipBox)s.push(b)});
+  return s;
+}
+
+function isSwitchActive(id){
+  const L=LEVELS[lvl];
+  const sw=L.sw.find(s=>s.id===id);
+  if(!sw)return false;
+  // check entities
+  const all=getAllEntities();
+  for(let i=0;i<all.length;i++){if(overlap(all[i],sw))return true}
+  // check boxes
+  for(let i=0;i<boxes.length;i++){if(overlap(boxes[i],sw))return true}
+  return false;
+}
+
+function isDoorOpen(d){return d.s.every(id=>isSwitchActive(id))}
+function isBridgeActive(b){return b.s.every(id=>isSwitchActive(id))}
+
+function getAllEntities(){
+  const ents=[];
+  if(player)ents.push(player);
+  echoes.forEach(e=>{if(e.ent)ents.push(e.ent)});
+  return ents;
+}
+
+function spawnBoxes(){
+  const L=LEVELS[lvl];
+  boxes=L.boxes.map(b=>({x:b.x,y:b.y,w:BW,h:BH,vx:0,vy:0,gr:false}));
+}
+
+function pushBox(box,dx,pusher){
+  // try to push box horizontally by dx
+  const solids=getSolids();
+  // also include other boxes as solids
+  const otherBoxes=boxes.filter(b=>b!==box);
+  const allSolids=[...solids,...otherBoxes];
+
+  box.x+=dx;
+  for(let i=0;i<allSolids.length;i++){
+    const s=allSolids[i];
+    if(overlap(box,s)){
+      if(dx>0)box.x=s.x-box.w;
+      else box.x=s.x+s.w;
+    }
+  }
+  if(box.x<0)box.x=0;
+  if(box.x+box.w>W)box.x=W-box.w;
+}
+
+function updateBox(box,dt){
+  const solids=getSolids();
+  // gravity
+  box.vy+=GRAVITY*dt;
+  if(box.vy>800)box.vy=800;
+  // move Y
+  box.y+=box.vy*dt;
+  box.gr=false;
+  for(let i=0;i<solids.length;i++){
+    const s=solids[i];
+    if(overlap(box,s)){
+      if(box.vy>0){box.y=s.y-box.h;box.gr=true}
+      else{box.y=s.y+s.h}
+      box.vy=0;
+    }
+  }
+  // also land on other boxes
+  boxes.forEach(other=>{
+    if(other===box)return;
+    if(overlap(box,other)){
+      if(box.vy>=0&&box.y+box.h-other.y<8){box.y=other.y-box.h;box.gr=true;box.vy=0}
+    }
+  });
+  if(box.y>H+100){box.y=H+100;box.vy=0}
+}
+
+function handlePushing(ent){
+  for(let i=0;i<boxes.length;i++){
+    const box=boxes[i];
+    if(!overlap(ent,box))continue;
+    // calculate overlap amounts
+    const overlapLeft=ent.x+ent.w-box.x;
+    const overlapRight=box.x+box.w-ent.x;
+    const overlapTop=ent.y+ent.h-box.y;
+    const overlapBottom=box.y+box.h-ent.y;
+    const minX=Math.min(overlapLeft,overlapRight);
+    const minY=Math.min(overlapTop,overlapBottom);
+
+    if(minY<minX){
+      // vertical resolution — land on top or bump head
+      if(overlapTop<overlapBottom){
+        // entity landing on box
+        ent.y=box.y-ent.h;
+        ent.vy=0;
+        ent.gr=true;
+      }else{
+        // entity hitting box from below
+        ent.y=box.y+box.h;
+        ent.vy=0;
+      }
+    }else{
+      // horizontal — push the box
+      if(overlapLeft<overlapRight){
+        pushBox(box,overlapLeft,ent);
+        ent.x=box.x-ent.w;
+      }else{
+        pushBox(box,-overlapRight,ent);
+        ent.x=box.x+box.w;
+      }
+    }
+  }
+}
+
+/* ═══════ PHYSICS ═══════ */
+function updateEnt(ent,inp,dt,solids){
+  ent.vx=0;
+  if(inp.l)ent.vx=-SPEED;
+  if(inp.r)ent.vx=SPEED;
+  if(inp.j&&ent.gr){ent.vy=JUMP;ent.gr=false}
+  ent.vy+=GRAVITY*dt;
+  if(ent.vy>800)ent.vy=800;
+
+  // move X
+  ent.x+=ent.vx*dt;
+  for(let i=0;i<solids.length;i++){
+    const s=solids[i];
+    if(overlap(ent,s)){
+      if(ent.vx>0)ent.x=s.x-ent.w;
+      else if(ent.vx<0)ent.x=s.x+s.w;
+      ent.vx=0;
+    }
+  }
+  // move Y
+  ent.y+=ent.vy*dt;
+  ent.gr=false;
+  for(let i=0;i<solids.length;i++){
+    const s=solids[i];
+    if(overlap(ent,s)){
+      if(ent.vy>0){ent.y=s.y-ent.h;ent.gr=true}
+      else{ent.y=s.y+s.h}
+      ent.vy=0;
+    }
+  }
+  // bounds
+  if(ent.x<0){ent.x=0;ent.vx=0}
+  if(ent.x+ent.w>W){ent.x=W-ent.w;ent.vx=0}
+  if(ent.y>H+100){ent.y=H+100;ent.vy=0} // fell off
+}
+
+/* ═══════ GAME LOGIC ═══════ */
+function loadLevel(n){
+  lvl=n;frame=0;echoes=[];recBuf=[];
+  const L=LEVELS[n];
+  player=makeEnt(L.spawn.x,L.spawn.y);
+  spawnBoxes();
+  st='play';
+}
+
+function resetRound(){
+  const L=LEVELS[lvl];
+  player=makeEnt(L.spawn.x,L.spawn.y);
+  frame=0;
+  spawnBoxes();
+  echoes.forEach(e=>{
+    e.ent=makeEnt(L.spawn.x,L.spawn.y);
+    e.f=0;
+  });
+}
+
+function startRec(){
+  const L=LEVELS[lvl];
+  if(echoes.length>=L.max)return;
+  sndRecord();
+  recBuf=[];
+  resetRound();
+  st='rec';
+}
+
+function stopRec(){
+  if(recBuf.length<5)return; // too short
+  sndRewind();
+  echoes.push({rec:recBuf.slice(),ent:null,f:0});
+  recBuf=[];
+  st='rewind';rewindT=0;
+}
+
+function eraseEcho(){
+  if(echoes.length>0){
+    echoes.pop();
+    sndRewind();
+    resetRound();
+  }
+}
+
+function fixedUpdate(){
+  if(st==='rewind'){
+    rewindT+=FDT;
+    if(rewindT>.4){
+      st='play';
+      resetRound();
+    }
+    return;
+  }
+  if(st!=='play'&&st!=='rec')return;
+
+  // update boxes (gravity)
+  boxes.forEach(b=>updateBox(b,FDT));
+
+  const solids=getSolids();
+
+  // update echoes (use base solids, not boxes — pushing handles boxes)
+  echoes.forEach(e=>{
+    if(!e.ent){const L=LEVELS[lvl];e.ent=makeEnt(L.spawn.x,L.spawn.y)}
+    const inp=e.f<e.rec.length?e.rec[e.f]:{l:false,r:false,j:false};
+    updateEnt(e.ent,inp,FDT,solids);
+    handlePushing(e.ent);
+    if(e.f<e.rec.length)e.f++;
+  });
+
+  // update player
+  const pInp={l:keys.l,r:keys.r,j:keys.j};
+  updateEnt(player,pInp,FDT,solids);
+  handlePushing(player);
+
+  // record
+  if(st==='rec'){
+    recBuf.push({l:keys.l,r:keys.r,j:keys.j});
+    if(recBuf.length>=MAX_REC)stopRec();
+  }
+
+  // check exit
+  const L=LEVELS[lvl];
+  if(overlap(player,L.exit)){
+    st='win';
+    sndWin();
+    const ac=CHCOL[L.ch]||'#a78bfa';
+    emitParticles(player.x+PW/2,player.y+PH/2,ac,25,120);
+    emitParticles(player.x+PW/2,player.y+PH/2,'#e8c547',15,80);
+    if(lvl+1<LEVELS.length&&lvl+1>=unlocked){
+      unlocked=lvl+2;
+      try{localStorage.setItem('echoes_u',unlocked)}catch(e){}
+    }
+  }
+
+  frame++;
+}
+
+/* ═══════ PARTICLES ═══════ */
+function emitParticles(x,y,col,count,spd){
+  for(let i=0;i<count;i++){
+    const a=Math.random()*Math.PI*2,s=spd*(0.3+Math.random()*0.7);
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:0.4+Math.random()*0.4,max:0.8,r:1.5+Math.random()*2.5,col});
+  }
+}
+function updateParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=200*dt;p.life-=dt;
+    if(p.life<=0)particles.splice(i,1);
+  }
+  // bg particles drift
+  bgParticles.forEach(p=>{
+    p.x+=p.vx;p.y+=p.vy;p.a=.05+.08*Math.sin(time+p.x*.01);
+    if(p.y<-10){p.y=H+10;p.x=Math.random()*W}
+    if(p.x<-10)p.x=W+10;if(p.x>W+10)p.x=-10;
+  });
+}
+
+/* ═══════ RENDERING ═══════ */
+function drawGear(cx,cy,r,teeth,rot,alpha){
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(rot);
+  ctx.strokeStyle='rgba(255,255,255,'+(alpha||.025)+')';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(0,0,r*.4,0,Math.PI*2);ctx.stroke();
+  for(let i=0;i<teeth;i++){
+    const a=(i/teeth)*Math.PI*2;
+    ctx.beginPath();ctx.moveTo(Math.cos(a)*(r-4),Math.sin(a)*(r-4));
+    ctx.lineTo(Math.cos(a)*(r+7),Math.sin(a)*(r+7));ctx.stroke();
+  }
+  // spokes
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2;
+    ctx.beginPath();ctx.moveTo(Math.cos(a)*r*.4,Math.sin(a)*r*.4);
+    ctx.lineTo(Math.cos(a)*(r-4),Math.sin(a)*(r-4));ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawBg(){
+  ctx.fillStyle='#080810';ctx.fillRect(0,0,W,H);
+  // radial vignette
+  const grad=ctx.createRadialGradient(W/2,H/2,80,W/2,H/2,450);
+  grad.addColorStop(0,'#10101e');grad.addColorStop(1,'#060609');
+  ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
+  // stars
+  bgStars.forEach(s=>{
+    const twinkle=.3+.7*Math.sin(time*s.s*4+s.a*10);
+    ctx.globalAlpha=twinkle*.3;ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();
+  });
+  ctx.globalAlpha=1;
+  // floating dust
+  bgParticles.forEach(p=>{
+    ctx.globalAlpha=p.a;ctx.fillStyle='rgba(167,139,250,0.6)';
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+  });
+  ctx.globalAlpha=1;
+}
+
+function drawPlayer(ent){
+  const x=ent.x,y=ent.y,cx=x+PW/2,cy=y+PH/2;
+  // ground shadow
+  if(ent.gr){ctx.globalAlpha=.15;ctx.fillStyle='#000';
+    ctx.beginPath();ctx.ellipse(cx,y+PH+2,10,3,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
+  // cloak body
+  ctx.fillStyle='#14142a';
+  ctx.beginPath();ctx.moveTo(x-1,y+PH);ctx.lineTo(x+PW+1,y+PH);
+  ctx.lineTo(x+PW+2,y+12);ctx.lineTo(x-2,y+12);ctx.closePath();ctx.fill();
+  // hood
+  ctx.beginPath();ctx.moveTo(cx,y-2);ctx.quadraticCurveTo(x-5,y+8,x-3,y+15);
+  ctx.lineTo(x+PW+3,y+15);ctx.quadraticCurveTo(x+PW+5,y+8,cx,y-2);ctx.closePath();ctx.fill();
+  // face slit
+  ctx.fillStyle='#0a0a14';ctx.fillRect(x+3,y+6,PW-6,4);
+  // eyes
+  ctx.fillStyle='#e8c547';ctx.fillRect(x+4,y+7,3,2);ctx.fillRect(x+PW-7,y+7,3,2);
+  // watch glow
+  const glow=st==='rec'?.9+.1*Math.sin(time*10):.5+.3*Math.sin(time*2.5);
+  ctx.fillStyle='#e8c547';ctx.globalAlpha=glow;
+  ctx.beginPath();ctx.arc(cx,cy+2,3.5,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=glow*.25;
+  ctx.beginPath();ctx.arc(cx,cy+2,12,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;
+  // recording pulse ring
+  if(st==='rec'){
+    const rp=(.5+.5*Math.sin(time*6))*16+8;
+    ctx.strokeStyle='#e44';ctx.lineWidth=1.5;ctx.globalAlpha=.3*(1-rp/24);
+    ctx.beginPath();ctx.arc(cx,cy,rp,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
+  }
+}
+
+function drawEcho(echo,idx){
+  const ent=echo.ent;if(!ent)return;
+  const L=LEVELS[lvl],col=CHCOL[L.ch]||'#a78bfa';
+  const x=ent.x,y=ent.y,cx=x+PW/2,cy=y+PH/2;
+  // outer glow
+  ctx.globalAlpha=.06;ctx.fillStyle=col;
+  ctx.beginPath();ctx.arc(cx,cy,28,0,Math.PI*2);ctx.fill();
+  // trail particles (every few frames)
+  if(frame%4===idx%4&&(Math.abs(ent.vx)>10||Math.abs(ent.vy)>10)){
+    particles.push({x:cx,y:cy+8,vx:(Math.random()-.5)*15,vy:-Math.random()*20-5,
+      life:.3+Math.random()*.2,max:.5,r:1+Math.random()*2,col});
+  }
+  // inner glow
+  ctx.globalAlpha=.12;ctx.beginPath();ctx.arc(cx,cy,14,0,Math.PI*2);ctx.fill();
+  // body
+  ctx.globalAlpha=.45;ctx.fillStyle=col;
+  ctx.beginPath();ctx.moveTo(x-1,y+PH);ctx.lineTo(x+PW+1,y+PH);
+  ctx.lineTo(x+PW+2,y+12);ctx.lineTo(x-2,y+12);ctx.closePath();ctx.fill();
+  // hood
+  ctx.beginPath();ctx.moveTo(cx,y-2);ctx.quadraticCurveTo(x-5,y+8,x-3,y+15);
+  ctx.lineTo(x+PW+3,y+15);ctx.quadraticCurveTo(x+PW+5,y+8,cx,y-2);ctx.closePath();ctx.fill();
+  // watch dot
+  ctx.globalAlpha=.7;ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(cx,cy+2,2.5,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;
+}
+
+function drawBox(b){
+  const accent=CHCOL[LEVELS[lvl].ch]||'#a78bfa';
+  // shadow
+  ctx.globalAlpha=.25;ctx.fillStyle='#000';
+  ctx.fillRect(b.x+3,b.y+3,b.w,b.h);ctx.globalAlpha=1;
+  // body gradient
+  const bg=ctx.createLinearGradient(b.x,b.y,b.x,b.y+b.h);
+  bg.addColorStop(0,'#6a5a3a');bg.addColorStop(1,'#4a3a20');
+  ctx.fillStyle=bg;ctx.fillRect(b.x,b.y,b.w,b.h);
+  // border
+  ctx.strokeStyle='#8a7a50';ctx.lineWidth=1.5;ctx.strokeRect(b.x+.5,b.y+.5,b.w-1,b.h-1);
+  // inner highlight
+  ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=1;
+  ctx.strokeRect(b.x+2.5,b.y+2.5,b.w-5,b.h-5);
+  // cross straps
+  ctx.strokeStyle='rgba(255,200,100,0.15)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(b.x+3,b.y+3);ctx.lineTo(b.x+b.w-3,b.y+b.h-3);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(b.x+b.w-3,b.y+3);ctx.lineTo(b.x+3,b.y+b.h-3);ctx.stroke();
+  // center rivet
+  ctx.fillStyle='#aa9a60';
+  ctx.beginPath();ctx.arc(b.x+b.w/2,b.y+b.h/2,2,0,Math.PI*2);ctx.fill();
+}
+
+function render(){
+  const L=LEVELS[lvl];
+  const accent=CHCOL[L.ch]||'#a78bfa';
+
+  ctx.save();
+  ctx.translate(shake.x,shake.y);
+
+  drawBg();
+
+  // decorative gears
+  drawGear(100,90,55,12,time*.12);
+  drawGear(700,410,75,16,-time*.08);
+  drawGear(W/2,50,30,10,time*.25,.03);
+  drawGear(250,420,40,8,-time*.15,.02);
+
+  // bridges
+  L.bridges.forEach(b=>{
+    if(isBridgeActive(b)){
+      const bg=ctx.createLinearGradient(b.x,b.y,b.x+b.w,b.y);
+      bg.addColorStop(0,'transparent');bg.addColorStop(.1,accent);bg.addColorStop(.9,accent);bg.addColorStop(1,'transparent');
+      ctx.fillStyle=bg;ctx.globalAlpha=.3;ctx.fillRect(b.x,b.y,b.w,b.h);ctx.globalAlpha=1;
+      ctx.strokeStyle=accent;ctx.lineWidth=1;ctx.strokeRect(b.x+.5,b.y+.5,b.w-1,b.h-1);
+      // shimmer
+      ctx.globalAlpha=.06;ctx.fillStyle='#fff';
+      ctx.fillRect(b.x,b.y,b.w*((.5+.5*Math.sin(time*3))*.3+.05),b.h);ctx.globalAlpha=1;
+    }else{
+      ctx.setLineDash([6,4]);ctx.strokeStyle=accent;ctx.globalAlpha=.15;ctx.lineWidth=1;
+      ctx.strokeRect(b.x+.5,b.y+.5,b.w-1,b.h-1);ctx.setLineDash([]);ctx.globalAlpha=1;
+    }
+  });
+
+  // platforms
+  L.plats.forEach(p=>{
+    const pg=ctx.createLinearGradient(p.x,p.y,p.x,p.y+p.h);
+    pg.addColorStop(0,'#2e2e40');pg.addColorStop(1,'#222234');
+    ctx.fillStyle=pg;ctx.fillRect(p.x,p.y,p.w,p.h);
+    // top edge highlight
+    ctx.fillStyle='rgba(255,255,255,0.05)';ctx.fillRect(p.x,p.y,p.w,1);
+    ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;ctx.strokeRect(p.x+.5,p.y+.5,p.w-1,p.h-1);
+  });
+
+  // doors
+  L.doors.forEach(d=>{
+    const open=isDoorOpen(d);
+    if(!open){
+      const dg=ctx.createLinearGradient(d.x,d.y,d.x+d.w,d.y+d.h);
+      dg.addColorStop(0,accent);dg.addColorStop(1,accent+'88');
+      ctx.globalAlpha=.65;ctx.fillStyle=dg;ctx.fillRect(d.x,d.y,d.w,d.h);
+      // bars
+      ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=1;
+      for(let yy=d.y+8;yy<d.y+d.h;yy+=10){ctx.beginPath();ctx.moveTo(d.x,yy);ctx.lineTo(d.x+d.w,yy);ctx.stroke()}
+      ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.lineWidth=1;ctx.strokeRect(d.x+.5,d.y+.5,d.w-1,d.h-1);
+      ctx.globalAlpha=1;
+    }else{
+      ctx.globalAlpha=.06;ctx.fillStyle=accent;ctx.fillRect(d.x,d.y,d.w,d.h);ctx.globalAlpha=1;
+    }
+  });
+
+  // switches
+  L.sw.forEach(s=>{
+    const on=isSwitchActive(s.id);
+    // base plate
+    ctx.fillStyle=on?accent:'#3a3a4a';
+    const sy=on?s.y+2:s.y;
+    ctx.fillRect(s.x,sy,s.w,s.h-(on?2:0));
+    if(on){
+      // glow
+      ctx.globalAlpha=.2+.1*Math.sin(time*4);ctx.fillStyle=accent;
+      ctx.fillRect(s.x-4,sy-4,s.w+8,s.h+8);
+      // bright glow
+      ctx.globalAlpha=.08;
+      ctx.beginPath();ctx.arc(s.x+s.w/2,sy+s.h/2,30,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=1;
+    }
+    // label
+    ctx.fillStyle=on?'#000':'#666';ctx.font='bold 8px Inter';ctx.textAlign='center';
+    ctx.fillText(s.id,s.x+s.w/2,sy+9);
+  });
+
+  // exit portal
+  const ex=L.exit,ecx=ex.x+ex.w/2,ecy=ex.y+ex.h/2;
+  const eg=.5+.3*Math.sin(time*3);
+  // outer glow rings
+  for(let i=3;i>=0;i--){
+    ctx.globalAlpha=eg*.08*(4-i)/4;ctx.fillStyle=accent;
+    ctx.beginPath();ctx.arc(ecx,ecy,20+i*8,0,Math.PI*2);ctx.fill();
+  }
+  // spinning gear
+  ctx.globalAlpha=eg;ctx.save();ctx.translate(ecx,ecy);ctx.rotate(time*.6);
+  ctx.strokeStyle=accent;ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(0,0,15,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(0,0,6,0,Math.PI*2);ctx.stroke();
+  for(let i=0;i<8;i++){
+    const a=(i/8)*Math.PI*2;
+    ctx.beginPath();ctx.moveTo(Math.cos(a)*13,Math.sin(a)*13);ctx.lineTo(Math.cos(a)*19,Math.sin(a)*19);ctx.stroke();
+  }
+  for(let i=0;i<4;i++){const a=(i/4)*Math.PI*2;ctx.beginPath();ctx.moveTo(Math.cos(a)*6,Math.sin(a)*6);ctx.lineTo(Math.cos(a)*13,Math.sin(a)*13);ctx.stroke()}
+  ctx.restore();
+  // center bright dot
+  ctx.globalAlpha=eg;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(ecx,ecy,3,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;
+
+  // boxes
+  boxes.forEach(drawBox);
+
+  // particles
+  particles.forEach(p=>{
+    ctx.globalAlpha=(p.life/p.max)*.7;ctx.fillStyle=p.col;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r*(p.life/p.max),0,Math.PI*2);ctx.fill();
+  });
+  ctx.globalAlpha=1;
+
+  // echoes
+  echoes.forEach((e,i)=>drawEcho(e,i));
+
+  // player
+  if(player)drawPlayer(player);
+
+  ctx.restore(); // end shake
+
+  // ─── HUD ───
+  const hudH=38;
+  const hg=ctx.createLinearGradient(0,0,0,hudH);
+  hg.addColorStop(0,'rgba(8,8,14,0.9)');hg.addColorStop(1,'rgba(8,8,14,0.7)');
+  ctx.fillStyle=hg;ctx.fillRect(0,0,W,hudH);
+  ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,hudH);ctx.lineTo(W,hudH);ctx.stroke();
+
+  ctx.font='600 13px Inter';ctx.textAlign='left';
+  ctx.fillStyle='#5a5a70';ctx.fillText('Ch'+L.ch,12,25);
+  ctx.fillStyle='#8a8a9a';ctx.fillText(' \u2014 '+L.name,42,25);
+
+  // echo indicators (small dots)
+  ctx.textAlign='center';
+  for(let i=0;i<L.max;i++){
+    const dx=310+i*18;
+    ctx.fillStyle=i<echoes.length?accent:'#2a2a3a';
+    ctx.beginPath();ctx.arc(dx,20,6,0,Math.PI*2);ctx.fill();
+    if(i<echoes.length){ctx.globalAlpha=.3;ctx.beginPath();ctx.arc(dx,20,10,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
+    ctx.fillStyle='#fff';ctx.font='bold 8px Inter';ctx.fillText(i+1,dx,23);
+  }
+
+  // recording indicator
+  if(st==='rec'){
+    const sec=((MAX_REC-recBuf.length)/60).toFixed(1);
+    const blink=Math.sin(time*8)>.0;
+    // bar
+    const barW=100,barX=430,barY=14,barH=10;
+    ctx.fillStyle='#1a1a24';ctx.fillRect(barX,barY,barW,barH);
+    ctx.fillStyle='#c33';ctx.fillRect(barX,barY,barW*(recBuf.length/MAX_REC),barH);
+    ctx.strokeStyle='#444';ctx.lineWidth=1;ctx.strokeRect(barX,barY,barW,barH);
+    if(blink){ctx.fillStyle='#e44';ctx.beginPath();ctx.arc(barX-12,barY+barH/2,4,0,Math.PI*2);ctx.fill()}
+    ctx.fillStyle='#e88';ctx.font='600 10px Inter';ctx.textAlign='left';
+    ctx.fillText('REC '+sec+'s',barX+barW+8,23);
+  }
+
+  // controls
+  ctx.textAlign='right';ctx.font='500 10px Inter';ctx.fillStyle='#3a3a50';
+  if(st==='play')ctx.fillText('R: Record   E: Erase   Enter: Retry   Esc: Menu',W-10,25);
+  else if(st==='rec')ctx.fillText('R: Stop recording',W-10,25);
+
+  // hint
+  if(L.hint&&frame<360){
+    const a=frame<300?1:1-(frame-300)/60;
+    ctx.globalAlpha=a;
+    ctx.fillStyle='rgba(8,8,14,0.75)';
+    const hw=Math.min(W-60,550),hx=(W-hw)/2;
+    ctx.beginPath();const rr=10;ctx.moveTo(hx+rr,H-52);ctx.lineTo(hx+hw-rr,H-52);
+    ctx.quadraticCurveTo(hx+hw,H-52,hx+hw,H-52+rr);ctx.lineTo(hx+hw,H-16-rr+rr);
+    ctx.quadraticCurveTo(hx+hw,H-16,hx+hw-rr,H-16);ctx.lineTo(hx+rr,H-16);
+    ctx.quadraticCurveTo(hx,H-16,hx,H-16-rr+rr);ctx.lineTo(hx,H-52+rr);
+    ctx.quadraticCurveTo(hx,H-52,hx+rr,H-52);ctx.fill();
+    ctx.fillStyle='#9a9ab0';ctx.font='500 12px Inter';ctx.textAlign='center';
+    ctx.fillText(L.hint,W/2,H-29);ctx.globalAlpha=1;
+  }
+
+  // rewind overlay
+  if(st==='rewind'){
+    const p=rewindT/.4,inv=1-p;
+    // white flash
+    ctx.globalAlpha=.35*inv;ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+    // chromatic shift
+    ctx.globalAlpha=.04*inv;ctx.fillStyle='#f0f';ctx.fillRect(-3,0,W,H);
+    ctx.fillStyle='#0ff';ctx.fillRect(3,0,W,H);
+    // scan lines
+    ctx.globalAlpha=.1*inv;ctx.fillStyle='#000';
+    for(let y=0;y<H;y+=2)ctx.fillRect(0,y,W,1);
+    // noise
+    ctx.globalAlpha=.03*inv;
+    for(let i=0;i<40;i++){
+      ctx.fillStyle=Math.random()>.5?'#fff':'#000';
+      ctx.fillRect(Math.random()*W,Math.random()*H,Math.random()*60+10,2);
+    }
+    ctx.globalAlpha=1;
+  }
+
+  // win overlay
+  if(st==='win'){
+    ctx.fillStyle='rgba(6,6,12,0.88)';ctx.fillRect(0,0,W,H);
+    // particles burst on first frame
+    if(frame%60===1)emitParticles(W/2,H/2-40,accent,30,150);
+    // glow
+    ctx.globalAlpha=.1+.05*Math.sin(time*2);ctx.fillStyle=accent;
+    ctx.beginPath();ctx.arc(W/2,H/2-20,80,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+    // text
+    ctx.fillStyle=accent;ctx.font='800 36px Inter';ctx.textAlign='center';
+    ctx.fillText('Level Complete!',W/2,H/2-30);
+    ctx.fillStyle='#7a7a90';ctx.font='500 14px Inter';
+    ctx.fillText(L.name+' cleared with '+echoes.length+' echo'+(echoes.length!==1?'s':''),W/2,H/2+8);
+    if(lvl+1<LEVELS.length)drawBtn(W/2-75,H/2+35,150,42,'Next Level',accent);
+    drawBtn(W/2-65,H/2+88,130,36,'Level Select','#2a2a3a');
+  }
+}
+
+function drawBtn(x,y,w,h,txt,col){
+  ctx.fillStyle=col;ctx.globalAlpha=.85;
+  const r=10;ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.stroke();
+  ctx.globalAlpha=1;ctx.fillStyle='#fff';ctx.font='600 13px Inter';ctx.textAlign='center';
+  ctx.fillText(txt,x+w/2,y+h/2+5);
+}
+
+function renderMenu(){
+  drawBg();
+
+  drawGear(130,110,60,14,time*.12,.035);
+  drawGear(670,390,80,18,-time*.08,.03);
+  drawGear(W/2-100,70,35,10,time*.25,.025);
+  drawGear(W/2+120,430,45,12,-time*.18,.02);
+
+  // title glow
+  ctx.globalAlpha=.06+.02*Math.sin(time);ctx.fillStyle='#a78bfa';
+  ctx.beginPath();ctx.arc(W/2,140,100,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+
+  // title
+  ctx.fillStyle='#e8eaef';ctx.font='800 52px Inter';ctx.textAlign='center';
+  ctx.fillText('ECHOES',W/2,155);
+  // subtitle
+  ctx.fillStyle='#4a4a60';ctx.font='italic 500 15px Inter';
+  ctx.fillText('A Time-Manipulation Puzzle Game',W/2,185);
+
+  // divider
+  ctx.strokeStyle='rgba(167,139,250,0.15)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(W/2-120,205);ctx.lineTo(W/2+120,205);ctx.stroke();
+  ctx.fillStyle='#a78bfa';ctx.beginPath();ctx.arc(W/2,205,3,0,Math.PI*2);ctx.fill();
+
+  // level grid
+  ctx.fillStyle='#5a5a70';ctx.font='600 11px Inter';ctx.textAlign='center';
+  ctx.fillText('SELECT LEVEL',W/2,228);
+
+  const cols=6,bw=105,bh=38,gap=10;
+  const totalW=cols*bw+(cols-1)*gap;
+  const startX=(W-totalW)/2;
+  const baseY=242;
+
+  for(let i=0;i<LEVELS.length;i++){
+    const L=LEVELS[i],col=i%cols,row=Math.floor(i/cols);
+    const bx=startX+col*(bw+gap),by=baseY+row*(bh+gap);
+    const locked=i>=unlocked,ac=CHCOL[L.ch]||'#a78bfa';
+
+    ctx.fillStyle=locked?'#12121e':ac;
+    ctx.globalAlpha=locked?.25:.15;
+    const r=7;ctx.beginPath();ctx.moveTo(bx+r,by);ctx.lineTo(bx+bw-r,by);
+    ctx.quadraticCurveTo(bx+bw,by,bx+bw,by+r);ctx.lineTo(bx+bw,by+bh-r);
+    ctx.quadraticCurveTo(bx+bw,by+bh,bx+bw-r,by+bh);ctx.lineTo(bx+r,by+bh);
+    ctx.quadraticCurveTo(bx,by+bh,bx,by+bh-r);ctx.lineTo(bx,by+r);
+    ctx.quadraticCurveTo(bx,by,bx+r,by);ctx.fill();ctx.globalAlpha=1;
+    ctx.strokeStyle=locked?'rgba(255,255,255,0.03)':ac+'33';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(bx+r,by);ctx.lineTo(bx+bw-r,by);
+    ctx.quadraticCurveTo(bx+bw,by,bx+bw,by+r);ctx.lineTo(bx+bw,by+bh-r);
+    ctx.quadraticCurveTo(bx+bw,by+bh,bx+bw-r,by+bh);ctx.lineTo(bx+r,by+bh);
+    ctx.quadraticCurveTo(bx,by+bh,bx,by+bh-r);ctx.lineTo(bx,by+r);
+    ctx.quadraticCurveTo(bx,by,bx+r,by);ctx.stroke();
+
+    // number
+    ctx.fillStyle=locked?'#333':ac;ctx.font='bold 9px Inter';ctx.textAlign='left';
+    ctx.fillText(''+(i+1),bx+6,by+14);
+    // name
+    ctx.fillStyle=locked?'#3a3a4a':'#ccc';ctx.font='600 10px Inter';ctx.textAlign='center';
+    ctx.fillText(locked?'Locked':L.name,bx+bw/2,by+26);
+    if(!locked){ctx.fillStyle='rgba(255,255,255,0.25)';ctx.font='500 8px Inter';
+    ctx.fillText('Ch'+L.ch+(L.max>0?' \u2022'+L.max+'e':''),bx+bw/2,by+35)}
+  }
+
+  ctx.fillStyle='#2a2a3a';ctx.font='400 11px Inter';ctx.textAlign='center';
+  ctx.fillText('Record your actions. Rewind time. Solve puzzles with your past selves.',W/2,H-24);
+}
+
+/* ═══════ INPUT ═══════ */
+document.addEventListener('keydown',function(e){
+  const k=e.key.toLowerCase();
+  if(k==='arrowleft'||k==='a'){keys.l=true;e.preventDefault()}
+  if(k==='arrowright'||k==='d'){keys.r=true;e.preventDefault()}
+  if(k==='arrowup'||k==='w'||k===' '){keys.j=true;e.preventDefault()}
+  if(k==='r'&&(st==='play'||st==='rec')){
+    if(st==='play')startRec();
+    else stopRec();
+    e.preventDefault();
+  }
+  if(k==='e'&&st==='play'){eraseEcho();e.preventDefault()}
+  if(k==='enter'&&st==='play'){resetRound();e.preventDefault()}
+  if(k==='escape'){st='menu';e.preventDefault()}
+});
+document.addEventListener('keyup',function(e){
+  const k=e.key.toLowerCase();
+  if(k==='arrowleft'||k==='a')keys.l=false;
+  if(k==='arrowright'||k==='d')keys.r=false;
+  if(k==='arrowup'||k==='w'||k===' ')keys.j=false;
+});
+
+canvas.addEventListener('click',function(e){
+  const rect=canvas.getBoundingClientRect();
+  clickQ={x:(e.clientX-rect.left)*(W/rect.width),y:(e.clientY-rect.top)*(H/rect.height)};
+});
+
+function handleClicks(){
+  if(!clickQ)return;
+  const mx=clickQ.x,my=clickQ.y;
+  clickQ=null;
+
+  if(st==='menu'){
+    aud();
+    const cols=6,bw=105,bh=38,gap=10;
+    const totalW=cols*bw+(cols-1)*gap;
+    const startX=(W-totalW)/2;
+    for(let i=0;i<LEVELS.length;i++){
+      if(i>=unlocked)continue;
+      const col=i%cols,row=Math.floor(i/cols);
+      const bx=startX+col*(bw+gap),by=242+row*(bh+gap);
+      if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){loadLevel(i);return}
+    }
+  }
+  if(st==='win'){
+    // next level
+    if(lvl+1<LEVELS.length&&mx>=W/2-70&&mx<=W/2+70&&my>=H/2+40&&my<=H/2+80){loadLevel(lvl+1);return}
+    // level select
+    if(mx>=W/2-60&&mx<=W/2+60&&my>=H/2+90&&my<=H/2+126){st='menu';return}
+  }
+}
+
+/* ═══════ MAIN LOOP ═══════ */
+let lastT=0,accum=0;
+function loop(ts){
+  const dt=Math.min(.05,(ts-lastT)/1000);lastT=ts;
+  time+=dt;
+
+  handleClicks();
+  updateParticles(dt);
+  // shake decay
+  shake.x*=.85;shake.y*=.85;
+  if(Math.abs(shake.x)<.1)shake.x=0;if(Math.abs(shake.y)<.1)shake.y=0;
+
+  if(st==='menu'){renderMenu();requestAnimationFrame(loop);return}
+
+  accum+=dt;
+  while(accum>=FDT){fixedUpdate();accum-=FDT}
+
+  render();
+  requestAnimationFrame(loop);
+}
+
+/* ═══════ INIT ═══════ */
+try{unlocked=parseInt(localStorage.getItem('echoes_u'))||1}catch(e){}
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
