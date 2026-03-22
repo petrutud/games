@@ -9,7 +9,9 @@
       "Bash(gh run:*)",
       "Bash(wc -l /home/petru/code/games/project1/tower-defense/js/*.js)",
       "Bash(wc -l /home/petru/code/games/project1/roguelike/js/*.js)",
-      "Bash(xdg-open /home/petru/code/games/static/games/echoes/index.html)"
+      "Bash(xdg-open /home/petru/code/games/static/games/echoes/index.html)",
+      "Bash(xdg-open /home/petru/code/games/static/games/pale-canvas/index.html)",
+      "Bash(xdg-open /home/petru/code/games/static/games/mortal-combat/index.html)"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",

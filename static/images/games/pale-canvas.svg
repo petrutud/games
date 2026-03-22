@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0908"/>
+      <stop offset="100%" stop-color="#14120e"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="24" fill="url(#bg)"/>
+  <!-- Watercolor washes -->
+  <circle cx="50" cy="80" r="30" fill="#e84030" opacity="0.06"/>
+  <circle cx="100" cy="60" r="25" fill="#3898d0" opacity="0.06"/>
+  <circle cx="150" cy="85" r="28" fill="#48b850" opacity="0.05"/>
+  <circle cx="80" cy="110" r="22" fill="#d8a830" opacity="0.06"/>
+  <!-- Stroke character (ink figure with hood) -->
+  <g>
+    <rect x="90" y="92" width="14" height="22" rx="1" fill="#14121e"/>
+    <path d="M97 82 Q87 88 87 96 L107 96 Q107 88 97 82 Z" fill="#14121e"/>
+    <!-- Eyes -->
+    <rect x="92" y="88" width="3" height="2" rx="0.5" fill="#c8b89a"/>
+    <rect x="99" y="88" width="3" height="2" rx="0.5" fill="#c8b89a"/>
+    <!-- Color blade -->
+    <line x1="104" y1="95" x2="122" y2="85" stroke="#e84030" stroke-width="2" stroke-linecap="round"/>
+    <line x1="104" y1="95" x2="122" y2="85" stroke="#e84030" stroke-width="5" stroke-linecap="round" opacity="0.15"/>
+    <!-- Paint drips from figure -->
+    <rect x="93" y="114" width="2" height="6" rx="1" fill="#14121e" opacity="0.4"/>
+    <rect x="99" y="114" width="2" height="4" rx="1" fill="#14121e" opacity="0.3"/>
+  </g>
+  <!-- Paint slash VFX -->
+  <path d="M115 80 Q130 75 135 82" fill="none" stroke="#e84030" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+  <!-- Paint splatter particles -->
+  <circle cx="130" cy="78" r="2" fill="#e84030" opacity="0.4"/>
+  <circle cx="138" cy="82" r="1.5" fill="#e84030" opacity="0.3"/>
+  <circle cx="125" cy="74" r="1" fill="#d8a830" opacity="0.3"/>
+  <!-- Platform -->
+  <rect x="60" y="118" width="80" height="6" rx="2" fill="#3a352c"/>
+  <rect x="60" y="118" width="80" height="1.5" fill="#c8b89a" opacity="0.1"/>
+  <!-- HP desaturation hint (grey wash on right side) -->
+  <rect x="140" y="50" width="50" height="100" rx="4" fill="#888" opacity="0.04"/>
+  <!-- Title -->
+  <text x="100" y="155" text-anchor="middle" font-family="serif" font-weight="700" font-size="14" fill="#d4c9b8" letter-spacing="1.5">PALE CANVAS</text>
+  <text x="100" y="172" text-anchor="middle" font-family="sans-serif" font-weight="500" font-size="8" fill="#6a6258" letter-spacing="1">2D SOULS-LIKE</text>
+  <!-- Five pigment dots -->
+  <circle cx="70" cy="185" r="4" fill="#e84030" opacity="0.6"/>
+  <circle cx="85" cy="185" r="4" fill="#3898d0" opacity="0.6"/>
+  <circle cx="100" cy="185" r="4" fill="#48b850" opacity="0.6"/>
+  <circle cx="115" cy="185" r="4" fill="#d8a830" opacity="0.6"/>
+  <circle cx="130" cy="185" r="4" fill="#c8c8c8" opacity="0.6"/>
+</svg>
