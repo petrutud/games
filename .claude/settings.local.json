@@ -7,7 +7,8 @@
       "Bash(ls /home/petru/code/games/static/images/games/backgammon*)",
       "Bash(ls /home/petru/code/games/project1/bisnes-tycoon*)",
       "Bash(gh run:*)",
-      "Bash(wc -l /home/petru/code/games/project1/tower-defense/js/*.js)"
+      "Bash(wc -l /home/petru/code/games/project1/tower-defense/js/*.js)",
+      "Bash(wc -l /home/petru/code/games/project1/roguelike/js/*.js)"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",

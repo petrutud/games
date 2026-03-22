@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roguelike — Petru Tudorica</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+    }
+    .site-nav {
+      background: rgba(26,29,41,0.85);
+      backdrop-filter: blur(10px);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      z-index: 500;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .site-nav a {
+      color: #ccc;
+      text-decoration: none;
+      font-family: system-ui, sans-serif;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+    .site-nav a:hover { color: #fff; }
+    .site-nav .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 500;
+      font-size: 16px;
+    }
+    .site-nav .brand img { width: 28px; height: 28px; }
+    .site-nav .nav-links { display: flex; gap: 20px; align-items: center; }
+    .site-nav .nav-links a:hover { color: #7caf5e; }
+    .rl-shell {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .site-footer {
+      text-align: center;
+      padding: 16px;
+      color: rgba(255,255,255,0.3);
+      font-size: 12px;
+      font-family: system-ui, sans-serif;
+      flex-shrink: 0;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .site-footer a { color: rgba(255,255,255,0.5); text-decoration: none; }
+    .site-footer a:hover { color: #fff; }
+  </style>
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="/" class="brand">
+      <img src="/favicon.svg" alt="Home">
+      Petru Tudorica
+    </a>
+    <div class="nav-links">
+      <a href="/#projects">Games</a>
+    </div>
+  </nav>
+
+  <div class="rl-shell">
+  <div class="game-wrap">
+    <h1>Roguelike</h1>
+    <div class="hud">
+      <span class="hud-item">HP: <strong id="health">20</strong>/<span id="max-health">20</span></span>
+      <span class="hud-item">Floor: <strong id="floor">1</strong></span>
+      <span class="hud-item">Atk <strong id="atk">2</strong> Def <strong id="def">1</strong></span>
+    </div>
+    <div class="health-bar-wrap">
+      <div id="health-bar" class="health-bar"></div>
+    </div>
+    <canvas id="game-canvas" width="640" height="480"></canvas>
+    <p class="hint">Arrow keys or WASD move/attack &middot; I inventory &middot; Restart on death</p>
+    <div id="msg-log" class="msg-log"></div>
+    <div id="overlay" class="overlay hidden">
+      <p id="overlay-msg" class="overlay-msg">You died</p>
+      <button type="button" class="btn" id="btn-restart">Restart</button>
+    </div>
+    <div id="inventory-panel" class="inventory-panel hidden">
+      <h2>Inventory</h2>
+      <ul id="inventory-list"></ul>
+      <p class="inv-hint">Click to equip &middot; I to close</p>
+    </div>
+  </div>
+  </div>
+
+  <footer class="site-footer">
+    &copy; 2026 Petru Tudorica &middot; All Rights Reserved
+  </footer>
+
+  <script src="js/game.js"></script>
+</body>
+</html>
