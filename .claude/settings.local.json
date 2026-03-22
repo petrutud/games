@@ -5,6 +5,9 @@
       "Bash(gh api:*)",
       "Bash(git ls-tree:*)",
       "Bash(ls /home/petru/code/games/static/images/games/backgammon*)"
+    ],
+    "additionalDirectories": [
+      "/home/petru/code/games/static/games"
     ]
   }
 }

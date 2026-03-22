@@ -58,6 +58,17 @@ params:
     enable: true
     title: "Games"
     items:
+      - title: "Strike Force Heroes"
+        content: "A wave-based shooter with 4 classes — Commando, Medic, Tank, Assassin. Survive 25 waves of enemies!"
+        image: "/images/games/strike-force-heroes.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Shooter"
+        featured:
+          name: Play Game
+          link: /games/strike-force-heroes/
+
       - title: "Boss Flip"
         content: "You are the boss! A canvas-based action game with multiple phases, abilities, and epic boss battles."
         image: "/images/games/boss-game.svg"
