@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Geometry Dash — Petru Tudorica</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="site-nav">
+  <a href="/" class="brand">
+    <img src="/favicon.svg" alt="Home">
+    Petru Tudorica
+  </a>
+  <div class="nav-links">
+    <a href="/#projects">Games</a>
+  </div>
+</nav>
+
+<div class="game-area-wrapper">
+  <div class="game-wrap">
+    <div id="level-select" class="level-select">
+      <h1>GEOMETRY DASH</h1>
+      <p class="level-select-hint">Neon Edition — Select a level</p>
+      <div class="btn-row">
+        <button type="button" class="btn" id="btn-sound" title="Toggle sound">Sound: ON</button>
+      </div>
+      <div id="level-buttons" class="level-buttons">
+        <button type="button" class="btn level-btn" data-level="1">Level 1</button>
+        <button type="button" class="btn level-btn" data-level="2">Level 2</button>
+        <button type="button" class="btn level-btn" data-level="3">Level 3</button>
+        <button type="button" class="btn level-btn" data-level="4">Level 4</button>
+        <button type="button" class="btn level-btn" data-level="5">Level 5</button>
+        <button type="button" class="btn level-btn" data-level="6">Level 6</button>
+        <button type="button" class="btn level-btn" data-level="7">Level 7</button>
+        <button type="button" class="btn level-btn" data-level="8">Level 8</button>
+        <button type="button" class="btn level-btn" data-level="9">Level 9</button>
+        <button type="button" class="btn level-btn" data-level="10">Level 10</button>
+        <button type="button" class="btn level-btn" data-level="11">Level 11</button>
+      </div>
+    </div>
+    <div id="game-area" class="game-area hidden">
+      <h1>GEOMETRY DASH</h1>
+      <p class="score-line">Score: <strong id="score">0</strong> <span class="pct" id="pct">0%</span> / <span id="level-name"></span></p>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      <canvas id="game-canvas" width="700" height="400"></canvas>
+      <p class="hint">Space / Click / Up to jump &nbsp;|&nbsp; Portals change gravity, speed &amp; size</p>
+      <div id="overlay" class="overlay hidden">
+        <p id="overlay-msg" class="overlay-msg"></p>
+        <div id="overlay-buttons" class="overlay-buttons"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/game.js"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 225" width="400" height="225">
+  <defs>
+    <linearGradient id="bg1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0a2a"/>
+      <stop offset="100%" style="stop-color:#0a0a1a"/>
+    </linearGradient>
+    <linearGradient id="neon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00f0ff"/>
+      <stop offset="50%" style="stop-color:#ff00e0"/>
+      <stop offset="100%" style="stop-color:#ffe600"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="225" fill="url(#bg1)"/>
+  <!-- Ground -->
+  <rect x="0" y="165" width="400" height="60" fill="#111133" opacity="0.6"/>
+  <line x1="0" y1="165" x2="400" y2="165" stroke="#00f0ff" stroke-width="2" opacity="0.3"/>
+  <!-- Player cube -->
+  <g transform="translate(100, 130) rotate(-15 15 15)">
+    <rect x="0" y="0" width="30" height="30" rx="3" fill="#00f0ff" opacity="0.9"/>
+    <rect x="2" y="2" width="12" height="8" rx="2" fill="white" opacity="0.25"/>
+    <rect x="0" y="0" width="30" height="30" rx="3" fill="none" stroke="#00f0ff" stroke-width="1.5" opacity="0.5"/>
+  </g>
+  <!-- Obstacle spikes -->
+  <polygon points="200,165 215,130 230,165" fill="#ff00e0" opacity="0.7"/>
+  <polygon points="250,165 265,125 280,165" fill="#ff00e0" opacity="0.7"/>
+  <polygon points="300,165 310,140 320,165" fill="#ff00e0" opacity="0.6"/>
+  <!-- Portal -->
+  <ellipse cx="170" cy="145" rx="8" ry="18" fill="none" stroke="#ffe600" stroke-width="2" opacity="0.6"/>
+  <ellipse cx="170" cy="145" rx="4" ry="12" fill="none" stroke="#ff8800" stroke-width="1.5" opacity="0.4"/>
+  <!-- Stars -->
+  <circle cx="60" cy="40" r="1" fill="white" opacity="0.5"/>
+  <circle cx="150" cy="25" r="1.2" fill="white" opacity="0.4"/>
+  <circle cx="250" cy="50" r="0.8" fill="white" opacity="0.6"/>
+  <circle cx="340" cy="30" r="1" fill="white" opacity="0.5"/>
+  <circle cx="90" cy="80" r="0.7" fill="white" opacity="0.3"/>
+  <circle cx="310" cy="75" r="1.3" fill="white" opacity="0.4"/>
+  <!-- Trail -->
+  <rect x="70" y="138" width="25" height="4" rx="2" fill="#00f0ff" opacity="0.2"/>
+  <rect x="50" y="140" width="18" height="3" rx="1.5" fill="#00f0ff" opacity="0.1"/>
+  <!-- Glow -->
+  <circle cx="115" cy="145" r="25" fill="none" stroke="rgba(0,240,255,0.1)" stroke-width="1"/>
+  <text x="200" y="200" text-anchor="middle" fill="#6a6a8a" font-family="sans-serif" font-size="12">Geometry Dash</text>
+</svg>

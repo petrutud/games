@@ -163,3 +163,14 @@ params:
         featured:
           name: Play Game
           link: /games/block-blast/
+
+      - title: "Geometry Dash"
+        content: "Jump, flip gravity, and dodge obstacles through 11 neon-themed levels with portals, orbs, and increasing difficulty!"
+        image: "/images/games/geometry-dash.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Platformer"
+        featured:
+          name: Play Game
+          link: /games/geometry-dash/

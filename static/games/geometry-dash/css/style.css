@@ -1,0 +1,212 @@
+/* Geometry Dash — Neon Edition (Site-integrated) */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Roboto:wght@400;500&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  font-family: 'Orbitron', system-ui, sans-serif;
+  background: #0a0a1a;
+  color: #e8eaed;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+/* Site navbar */
+.site-nav {
+  background: rgba(10,10,26,0.85);
+  backdrop-filter: blur(10px);
+  padding: 8px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  z-index: 500;
+  position: relative;
+  flex-shrink: 0;
+}
+.site-nav a {
+  color: #ccc;
+  text-decoration: none;
+  font-family: 'Roboto', sans-serif;
+  font-size: 14px;
+  transition: color 0.2s;
+}
+.site-nav a:hover { color: #fff; }
+.site-nav .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  font-size: 16px;
+}
+.site-nav .brand img { width: 28px; height: 28px; }
+.site-nav .nav-links { display: flex; gap: 20px; align-items: center; }
+.site-nav .nav-links a:hover { color: #00f0ff; }
+
+/* Game area wrapper */
+.game-area-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-wrap {
+  text-align: center;
+  position: relative;
+}
+
+/* MENU */
+.level-select { min-width: 340px; padding: 1.5rem; }
+.level-select h1 {
+  font-size: 2.4rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, #00f0ff, #ff00e0, #ffe600);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: none;
+  margin-bottom: 0.3rem;
+  letter-spacing: 2px;
+}
+.level-select-hint {
+  color: #6a6a8a;
+  font-size: 0.8rem;
+  margin-bottom: 1.2rem;
+  font-weight: 500;
+}
+.level-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+/* BUTTONS */
+.btn {
+  padding: 0.55rem 1.2rem;
+  font-size: 0.9rem;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 500;
+  background: rgba(255,255,255,0.05);
+  color: #c0c0e0;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.btn:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: #00f0ff;
+  color: #00f0ff;
+  box-shadow: 0 0 15px rgba(0,240,255,0.15);
+}
+.btn:disabled, .btn.locked {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.btn.locked:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: #6a6a8a; box-shadow: none; }
+
+.level-btn { min-width: 5.5rem; }
+
+.btn-row {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  margin-bottom: 0.8rem;
+}
+#btn-sound {
+  font-size: 0.75rem;
+  padding: 0.4rem 0.8rem;
+}
+
+/* GAME AREA */
+.game-area { position: relative; }
+.game-area.hidden { display: none; }
+.level-select.hidden { display: none; }
+
+.game-area h1 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #8080b0;
+  margin-bottom: 0.3rem;
+  letter-spacing: 1px;
+}
+
+.score-line {
+  margin: 0 0 0.4rem;
+  color: #6a6a8a;
+  font-size: 0.8rem;
+}
+.score-line strong { color: #00f0ff; }
+.score-line .pct { color: #ffe600; margin-left: 0.8rem; }
+
+#game-canvas {
+  display: block;
+  margin: 0 auto;
+  border-radius: 10px;
+  box-shadow:
+    0 0 30px rgba(0, 240, 255, 0.08),
+    0 0 80px rgba(255, 0, 224, 0.05),
+    0 4px 20px rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.7rem;
+  color: #4a4a6a;
+  font-weight: 500;
+}
+
+/* OVERLAY */
+.overlay {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(10, 10, 30, 0.95);
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 2rem;
+  border-radius: 14px;
+  text-align: center;
+  min-width: 240px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 40px rgba(0,0,0,0.5);
+  z-index: 10;
+}
+.overlay.hidden { display: none; }
+.overlay-msg {
+  margin: 0 0 1.2rem;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.overlay-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: center;
+}
+
+/* PROGRESS BAR */
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  margin: 0.4rem 0;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00f0ff, #ff00e0);
+  border-radius: 2px;
+  transition: width 0.1s linear;
+  box-shadow: 0 0 8px rgba(0,240,255,0.4);
+}
