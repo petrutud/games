@@ -11,6 +11,9 @@
       "Bash(tar -xzf /tmp/hugo.tar.gz -C /tmp hugo)",
       "Bash(/tmp/hugo version:*)",
       "Bash(/tmp/hugo --config hugo.yaml)"
+    ],
+    "additionalDirectories": [
+      "/home/petru/code/games/public/games"
     ]
   }
 }
