@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Block Blast — Petru Tudorica</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Roboto:wght@400;500&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a1a;
+    color: #eee;
+    font-family: 'Orbitron', 'Segoe UI', Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    user-select: none;
+    overflow-x: hidden;
+  }
+
+  /* Site navbar */
+  .site-nav {
+    background: rgba(10,10,26,0.85);
+    backdrop-filter: blur(10px);
+    padding: 8px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    z-index: 500;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .site-nav a {
+    color: #ccc;
+    text-decoration: none;
+    font-family: 'Roboto', sans-serif;
+    font-size: 14px;
+    transition: color 0.2s;
+  }
+  .site-nav a:hover { color: #fff; }
+  .site-nav .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+    font-size: 16px;
+  }
+  .site-nav .brand img { width: 28px; height: 28px; }
+  .site-nav .nav-links { display: flex; gap: 20px; align-items: center; }
+  .site-nav .nav-links a:hover { color: #e94560; }
+
+  .game-area {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Background themes */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    transition: background 0.8s ease, opacity 0.8s ease;
+  }
+  body[data-bg="neon"]::before {
+    background: radial-gradient(ellipse at 20% 50%, rgba(233,69,96,0.12) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(14,165,233,0.12) 0%, transparent 50%), radial-gradient(ellipse at 50% 80%, rgba(168,85,247,0.10) 0%, transparent 50%);
+  }
+  body[data-bg="neon"] { background: #0a0a1a; }
+  body[data-bg="ocean"]::before {
+    background: radial-gradient(ellipse at 30% 70%, rgba(6,182,212,0.18) 0%, transparent 50%), radial-gradient(ellipse at 70% 30%, rgba(59,130,246,0.15) 0%, transparent 50%), radial-gradient(ellipse at 50% 50%, rgba(16,185,129,0.10) 0%, transparent 50%);
+  }
+  body[data-bg="ocean"] { background: #041e2e; }
+  body[data-bg="sunset"]::before {
+    background: radial-gradient(ellipse at 50% 80%, rgba(251,146,60,0.20) 0%, transparent 50%), radial-gradient(ellipse at 20% 30%, rgba(244,63,94,0.15) 0%, transparent 50%), radial-gradient(ellipse at 80% 50%, rgba(251,191,36,0.12) 0%, transparent 50%);
+  }
+  body[data-bg="sunset"] { background: #1a0a0a; }
+  body[data-bg="forest"]::before {
+    background: radial-gradient(ellipse at 30% 60%, rgba(34,197,94,0.15) 0%, transparent 50%), radial-gradient(ellipse at 70% 20%, rgba(16,185,129,0.12) 0%, transparent 50%), radial-gradient(ellipse at 50% 90%, rgba(101,163,13,0.10) 0%, transparent 50%);
+  }
+  body[data-bg="forest"] { background: #0a1a0e; }
+  body[data-bg="galaxy"]::before {
+    background: radial-gradient(ellipse at 25% 25%, rgba(168,85,247,0.18) 0%, transparent 45%), radial-gradient(ellipse at 75% 75%, rgba(236,72,153,0.15) 0%, transparent 45%), radial-gradient(ellipse at 50% 50%, rgba(99,102,241,0.12) 0%, transparent 50%);
+  }
+  body[data-bg="galaxy"] { background: #0d0520; }
+  body[data-bg="lava"]::before {
+    background: radial-gradient(ellipse at 40% 80%, rgba(239,68,68,0.20) 0%, transparent 50%), radial-gradient(ellipse at 70% 30%, rgba(249,115,22,0.18) 0%, transparent 50%), radial-gradient(ellipse at 20% 50%, rgba(234,179,8,0.10) 0%, transparent 50%);
+  }
+  body[data-bg="lava"] { background: #1a0800; }
+  body[data-bg="wood"]::before {
+    background: radial-gradient(ellipse at 30% 40%, rgba(160,100,50,0.20) 0%, transparent 50%), radial-gradient(ellipse at 70% 70%, rgba(120,70,30,0.18) 0%, transparent 50%), radial-gradient(ellipse at 50% 20%, rgba(200,150,80,0.10) 0%, transparent 50%);
+  }
+  body[data-bg="wood"] { background: #1a1008; }
+  body[data-bg="red"]::before {
+    background: radial-gradient(ellipse at 30% 40%, rgba(239,68,68,0.22) 0%, transparent 50%), radial-gradient(ellipse at 70% 70%, rgba(185,28,28,0.18) 0%, transparent 50%), radial-gradient(ellipse at 50% 20%, rgba(252,165,165,0.12) 0%, transparent 50%);
+  }
+  body[data-bg="red"] { background: #1a0505; }
+  body[data-bg="purple"]::before {
+    background: radial-gradient(ellipse at 25% 50%, rgba(168,85,247,0.22) 0%, transparent 50%), radial-gradient(ellipse at 75% 30%, rgba(126,34,206,0.18) 0%, transparent 50%), radial-gradient(ellipse at 50% 80%, rgba(192,132,252,0.12) 0%, transparent 50%);
+  }
+  body[data-bg="purple"] { background: #0f051a; }
+  body[data-bg="rainbow"]::before {
+    background: radial-gradient(ellipse at 10% 50%, rgba(239,68,68,0.15) 0%, transparent 40%), radial-gradient(ellipse at 30% 30%, rgba(249,115,22,0.15) 0%, transparent 40%), radial-gradient(ellipse at 50% 60%, rgba(234,179,8,0.12) 0%, transparent 40%), radial-gradient(ellipse at 70% 30%, rgba(34,197,94,0.12) 0%, transparent 40%), radial-gradient(ellipse at 90% 50%, rgba(59,130,246,0.15) 0%, transparent 40%), radial-gradient(ellipse at 50% 80%, rgba(168,85,247,0.15) 0%, transparent 40%);
+    animation: rainbowShift 6s ease infinite;
+  }
+  body[data-bg="rainbow"] { background: #0a0a14; }
+  @keyframes rainbowShift { 0%, 100% { filter: hue-rotate(0deg); } 50% { filter: hue-rotate(60deg); } }
+
+  #particles { position: fixed; inset: 0; z-index: -1; pointer-events: none; }
+
+  #game { display: flex; flex-direction: column; align-items: center; gap: 20px; position: relative; z-index: 1; padding: 16px 0; }
+  h1 {
+    font-size: 2.4em; font-weight: 900; letter-spacing: 8px;
+    background: linear-gradient(135deg, #e94560, #ff6b9d, #0ea5e9, #a855f7);
+    background-size: 300% 300%;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    animation: titleShift 4s ease infinite;
+    filter: drop-shadow(0 0 30px rgba(233,69,96,0.4));
+  }
+  @keyframes titleShift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+
+  #score-bar {
+    display: flex; gap: 16px; align-items: center; font-size: 0.9em;
+    background: rgba(255,255,255,0.04); backdrop-filter: blur(10px);
+    padding: 10px 20px; border-radius: 50px; border: 1px solid rgba(255,255,255,0.08);
+    flex-wrap: wrap; justify-content: center;
+  }
+  .score-box { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .score-label { font-size: 0.6em; text-transform: uppercase; letter-spacing: 2px; color: rgba(255,255,255,0.4); }
+  .score-value { font-size: 1.5em; font-weight: 700; background: linear-gradient(135deg, #e94560, #ff6b9d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .score-value.best-val { background: linear-gradient(135deg, #0ea5e9, #22c55e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  #score-bar .divider { width: 1px; height: 36px; background: rgba(255,255,255,0.1); }
+
+  #board {
+    display: grid; grid-template-columns: repeat(8, 50px); grid-template-rows: repeat(8, 50px); gap: 3px;
+    background: linear-gradient(145deg, #111133, #0d0d2b); padding: 10px; border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 0 60px rgba(233,69,96,0.08), 0 0 120px rgba(14,165,233,0.05), inset 0 0 60px rgba(0,0,0,0.3);
+  }
+  .cell {
+    width: 50px; height: 50px; background: rgba(255,255,255,0.03); border-radius: 8px;
+    transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden;
+  }
+  .cell::after { content: ''; position: absolute; inset: 0; border-radius: 8px; opacity: 0; transition: opacity 0.18s; }
+  .cell:hover::after { opacity: 0.1; background: white; }
+  .cell.filled { border: none; box-shadow: inset 0 -3px 6px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.2); }
+  .cell.filled::before { content: ''; position: absolute; top: 3px; left: 4px; right: 60%; bottom: 60%; background: rgba(255,255,255,0.25); border-radius: 3px; filter: blur(1px); }
+  .cell.preview { transform: scale(1.08); box-shadow: 0 0 18px rgba(255,255,255,0.15); }
+  .cell.preview::after { opacity: 0.15; background: white; animation: previewPulse 1s ease infinite; }
+  @keyframes previewPulse { 0%, 100% { opacity: 0.1; } 50% { opacity: 0.25; } }
+  .cell.invalid-preview { background: rgba(233,69,96,0.15) !important; box-shadow: inset 0 0 15px rgba(233,69,96,0.3); }
+  .cell.clearing, .clearing { animation: clearAnim 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+  @keyframes clearAnim { 0% { transform: scale(1) rotate(0deg); opacity: 1; } 40% { transform: scale(1.3) rotate(5deg); opacity: 0.8; box-shadow: 0 0 25px currentColor; } 100% { transform: scale(0) rotate(15deg); opacity: 0; } }
+  .cell.screw-hover { outline: 3px solid #f59e0b; box-shadow: 0 0 20px rgba(245,158,11,0.5); transform: scale(1.1); cursor: pointer; }
+  .cell.screw-remove { animation: screwRemove 0.4s ease-out forwards; }
+  @keyframes screwRemove { 0% { transform: scale(1) rotate(0deg); opacity: 1; } 50% { transform: scale(1.2) rotate(10deg); opacity: 0.5; filter: brightness(2); } 100% { transform: scale(0) rotate(20deg); opacity: 0; } }
+
+  #pieces-tray {
+    display: flex; gap: 20px; justify-content: center; min-height: 130px; align-items: center;
+    background: rgba(255,255,255,0.02); backdrop-filter: blur(10px); padding: 14px 28px;
+    border-radius: 20px; border: 1px solid rgba(255,255,255,0.05);
+  }
+  .piece-container { cursor: grab; padding: 12px; border-radius: 14px; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); border: 2px solid transparent; }
+  .piece-container:hover { transform: scale(1.1) translateY(-4px); border-color: rgba(255,255,255,0.1); box-shadow: 0 8px 30px rgba(0,0,0,0.3); background: rgba(255,255,255,0.04); }
+  .piece-container.selected { transform: scale(1.15) translateY(-6px); border-color: rgba(233,69,96,0.5); box-shadow: 0 10px 40px rgba(233,69,96,0.2), 0 0 20px rgba(233,69,96,0.1); background: rgba(233,69,96,0.08); animation: selectedFloat 2s ease-in-out infinite; }
+  @keyframes selectedFloat { 0%, 100% { transform: scale(1.15) translateY(-6px); } 50% { transform: scale(1.15) translateY(-10px); } }
+  .piece-container.used { opacity: 0; transform: scale(0.5); pointer-events: none; }
+  .piece-grid { display: grid; gap: 3px; }
+  .piece-cell { width: 30px; height: 30px; border-radius: 6px; transition: all 0.2s; }
+  .piece-cell.on { box-shadow: inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.2); position: relative; }
+  .piece-cell.on::before { content: ''; position: absolute; top: 2px; left: 3px; right: 60%; bottom: 60%; background: rgba(255,255,255,0.25); border-radius: 2px; filter: blur(1px); }
+  .piece-cell.off { background: transparent; }
+
+  #game-over { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); justify-content: center; align-items: center; flex-direction: column; gap: 24px; z-index: 10; }
+  #game-over.show { display: flex; animation: fadeIn 0.4s ease; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  #game-over h2 { font-size: 3em; font-weight: 900; letter-spacing: 6px; background: linear-gradient(135deg, #e94560, #ff6b9d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  #game-over .final-score-label { font-size: 0.9em; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 3px; }
+  #game-over .final-score-num { font-size: 3.5em; font-weight: 900; background: linear-gradient(135deg, #f59e0b, #f97316); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+  button { font-family: 'Orbitron', sans-serif; padding: 14px 40px; font-size: 0.85em; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; background: linear-gradient(135deg, #e94560, #c73550); color: #fff; border: none; border-radius: 50px; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 20px rgba(233,69,96,0.3); position: relative; overflow: hidden; }
+  button::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, transparent, rgba(255,255,255,0.1), transparent); transform: translateX(-100%); transition: transform 0.5s; }
+  button:hover { transform: translateY(-2px); box-shadow: 0 6px 30px rgba(233,69,96,0.4); }
+  button:hover::before { transform: translateX(100%); }
+  button:active { transform: translateY(0); }
+  #restart-btn { padding: 10px 24px; font-size: 0.7em; }
+  #bg-btn { padding: 10px 20px; font-size: 0.7em; background: linear-gradient(135deg, #6366f1, #8b5cf6); box-shadow: 0 4px 20px rgba(99,102,241,0.3); display: flex; align-items: center; gap: 6px; }
+  #bg-btn:hover { box-shadow: 0 6px 30px rgba(99,102,241,0.4); }
+  .bg-name { font-size: 0.85em; text-transform: capitalize; }
+  #screwdriver-btn { padding: 10px 20px; font-size: 0.7em; background: linear-gradient(135deg, #f59e0b, #f97316); box-shadow: 0 4px 20px rgba(245,158,11,0.3); display: flex; align-items: center; gap: 8px; }
+  #screwdriver-btn:hover { box-shadow: 0 6px 30px rgba(245,158,11,0.4); }
+  #screwdriver-btn.active { background: linear-gradient(135deg, #22c55e, #14b8a6); box-shadow: 0 0 25px rgba(34,197,94,0.4); animation: screwPulse 1s ease-in-out infinite; }
+  #screwdriver-btn.empty { opacity: 0.3; pointer-events: none; }
+  @keyframes screwPulse { 0%, 100% { box-shadow: 0 0 20px rgba(34,197,94,0.3); } 50% { box-shadow: 0 0 35px rgba(34,197,94,0.6); } }
+  .screw-icon { font-size: 1.3em; display: inline-block; }
+  .screw-count, .rewind-count { background: rgba(0,0,0,0.3); border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 0.9em; }
+  #rewind-btn { padding: 10px 20px; font-size: 0.7em; background: linear-gradient(135deg, #06b6d4, #0ea5e9); box-shadow: 0 4px 20px rgba(6,182,212,0.3); display: flex; align-items: center; gap: 8px; }
+  #rewind-btn:hover { box-shadow: 0 6px 30px rgba(6,182,212,0.4); }
+  #rewind-btn.empty { opacity: 0.3; pointer-events: none; }
+  .rewind-icon { font-size: 1.2em; }
+
+  #combo-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); font-size: 2.5em; font-weight: 900; letter-spacing: 4px; background: linear-gradient(135deg, #f59e0b, #e94560, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; filter: drop-shadow(0 0 30px rgba(233,69,96,0.6)); pointer-events: none; opacity: 0; transition: none; z-index: 5; }
+  #combo-popup.show { animation: comboPop 1s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+  @keyframes comboPop { 0% { transform: translate(-50%, -50%) scale(0) rotate(-10deg); opacity: 0; } 25% { transform: translate(-50%, -50%) scale(1.4) rotate(3deg); opacity: 1; } 50% { transform: translate(-50%, -55%) scale(1.1) rotate(-1deg); opacity: 1; } 100% { transform: translate(-50%, -80%) scale(0.9) rotate(0deg); opacity: 0; } }
+  .score-pop { position: fixed; pointer-events: none; font-size: 1.4em; font-weight: 700; color: #22c55e; z-index: 6; animation: scorePop 0.8s ease-out forwards; }
+  @keyframes scorePop { 0% { transform: translateY(0) scale(0.5); opacity: 0; } 20% { transform: translateY(-10px) scale(1.2); opacity: 1; } 100% { transform: translateY(-60px) scale(1); opacity: 0; } }
+  .shake { animation: shake 0.3s ease; }
+  @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+</style>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a href="/" class="brand">
+    <img src="/favicon.svg" alt="Home">
+    Petru Tudorica
+  </a>
+  <div class="nav-links">
+    <a href="/#projects">Games</a>
+  </div>
+</nav>
+
+<div class="game-area">
+<canvas id="particles"></canvas>
+<div id="game">
+  <h1>BLOCK BLAST</h1>
+  <div id="score-bar">
+    <div class="score-box"><span class="score-label">Score</span><span class="score-value" id="score">0</span></div>
+    <div class="divider"></div>
+    <div class="score-box"><span class="score-label">Best</span><span class="score-value best-val" id="best">0</span></div>
+    <div class="divider"></div>
+    <button id="restart-btn">New Game</button>
+    <div class="divider"></div>
+    <button id="screwdriver-btn"><span class="screw-icon">&#128295;</span> <span class="screw-count" id="screw-count">3</span></button>
+    <div class="divider"></div>
+    <button id="rewind-btn"><span class="rewind-icon">&#9194;</span> <span class="rewind-count" id="rewind-count">3</span></button>
+    <div class="divider"></div>
+    <button id="bg-btn">BG: <span class="bg-name" id="bg-name">Neon</span></button>
+  </div>
+  <div id="board"></div>
+  <div id="pieces-tray"></div>
+</div>
+<div id="game-over">
+  <h2>GAME OVER</h2>
+  <div class="final-score-label">Final Score</div>
+  <div class="final-score-num" id="final-score">0</div>
+  <button id="play-again">Play Again</button>
+</div>
+<div id="combo-popup"></div>
+</div>
+
+<script>
+const canvas = document.getElementById('particles');
+const ctx = canvas.getContext('2d');
+let particles = [];
+
+function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+for (let i = 0; i < 50; i++) {
+  particles.push({ x: Math.random() * window.innerWidth, y: Math.random() * window.innerHeight, size: Math.random() * 2.5 + 0.5, speedX: (Math.random() - 0.5) * 0.4, speedY: (Math.random() - 0.5) * 0.4, opacity: Math.random() * 0.3 + 0.05, color: ['#e94560','#0ea5e9','#a855f7','#22c55e','#f59e0b'][Math.floor(Math.random()*5)] });
+}
+
+function animateParticlesV2() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  particles = particles.filter(p => {
+    if (p.life !== undefined) { p.life--; p.opacity *= 0.96; if (p.life <= 0) return false; }
+    p.x += p.speedX; p.y += p.speedY;
+    if (p.life === undefined) { if (p.x < 0) p.x = canvas.width; if (p.x > canvas.width) p.x = 0; if (p.y < 0) p.y = canvas.height; if (p.y > canvas.height) p.y = 0; }
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fillStyle = p.color; ctx.globalAlpha = p.opacity; ctx.fill();
+    return true;
+  });
+  ctx.globalAlpha = 1;
+  requestAnimationFrame(animateParticlesV2);
+}
+animateParticlesV2();
+
+const GRID = 8;
+const COLORS = ['#e94560','#0ea5e9','#22c55e','#f59e0b','#a855f7','#ec4899','#14b8a6','#f97316'];
+const SHAPES = [[[1]],[[1,1]],[[1],[1]],[[1,1,1]],[[1],[1],[1]],[[1,1],[1,1]],[[1,1,1],[1,0,0]],[[1,0,0],[1,1,1]],[[1,1,1],[0,0,1]],[[0,0,1],[1,1,1]],[[1,1],[1,0]],[[1,1],[0,1]],[[0,1],[1,1]],[[1,0],[1,1]],[[1,1,1,1]],[[1],[1],[1],[1]],[[1,1,1],[0,1,0]],[[0,1,0],[1,1,1]],[[1,0],[1,1],[1,0]],[[0,1],[1,1],[0,1]],[[1,1,1,1,1]],[[1],[1],[1],[1],[1]],[[1,1,1],[1,1,1],[1,1,1]],[[1,1],[1,1],[1,1]],[[1,1,1],[1,1,1]]];
+
+let board = [], score = 0, best = parseInt(localStorage.getItem('blockblast_best') || '0'), pieces = [], selectedPiece = null, screwUses = 3, screwMode = false, rewindUses = 3, history = [];
+
+const boardEl = document.getElementById('board'), trayEl = document.getElementById('pieces-tray'), scoreEl = document.getElementById('score'), bestEl = document.getElementById('best'), gameOverEl = document.getElementById('game-over'), finalScoreEl = document.getElementById('final-score'), comboEl = document.getElementById('combo-popup'), gameEl = document.getElementById('game'), screwBtn = document.getElementById('screwdriver-btn'), screwCountEl = document.getElementById('screw-count'), rewindBtn = document.getElementById('rewind-btn'), rewindCountEl = document.getElementById('rewind-count');
+
+function init() { board = Array.from({ length: GRID }, () => Array(GRID).fill(null)); score = 0; selectedPiece = null; screwUses = 3; screwMode = false; rewindUses = 3; history = []; scoreEl.textContent = '0'; bestEl.textContent = best; updateScrewBtn(); updateRewindBtn(); gameOverEl.classList.remove('show'); buildBoard(); spawnPieces(); }
+
+function buildBoard() { boardEl.innerHTML = ''; for (let r = 0; r < GRID; r++) { for (let c = 0; c < GRID; c++) { const cell = document.createElement('div'); cell.className = 'cell'; cell.dataset.r = r; cell.dataset.c = c; cell.addEventListener('click', () => onCellClick(r, c)); cell.addEventListener('mouseenter', () => onCellHover(r, c)); cell.addEventListener('mouseleave', onCellLeave); boardEl.appendChild(cell); } } renderBoard(); }
+
+function renderBoard() { for (let r = 0; r < GRID; r++) { for (let c = 0; c < GRID; c++) { const cell = boardEl.children[r * GRID + c]; if (board[r][c]) { cell.style.background = board[r][c]; cell.classList.add('filled'); } else { cell.style.background = 'rgba(255,255,255,0.03)'; cell.classList.remove('filled'); } cell.classList.remove('preview', 'invalid-preview', 'clearing'); } } }
+
+function randomPiece() { return { shape: SHAPES[Math.floor(Math.random() * SHAPES.length)], color: COLORS[Math.floor(Math.random() * COLORS.length)], used: false }; }
+
+function spawnPieces() { pieces = [randomPiece(), randomPiece(), randomPiece()]; selectedPiece = null; renderTray(); }
+
+function renderTray() { trayEl.innerHTML = ''; pieces.forEach((p, i) => { const cont = document.createElement('div'); cont.className = 'piece-container' + (p.used ? ' used' : '') + (selectedPiece === i ? ' selected' : ''); const rows = p.shape.length, cols = p.shape[0].length; const grid = document.createElement('div'); grid.className = 'piece-grid'; grid.style.gridTemplateColumns = `repeat(${cols}, 30px)`; for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { const cell = document.createElement('div'); cell.className = 'piece-cell ' + (p.shape[r][c] ? 'on' : 'off'); if (p.shape[r][c]) cell.style.background = p.color; grid.appendChild(cell); } } cont.appendChild(grid); cont.addEventListener('click', (e) => { e.stopPropagation(); if (!p.used) { selectedPiece = (selectedPiece === i) ? null : i; renderTray(); } }); trayEl.appendChild(cont); }); }
+
+function onCellClick(r, c) { if (screwMode) screwRemoveAt(r, c); else placeAt(r, c); }
+function onCellHover(r, c) { if (screwMode) { renderBoard(); if (board[r][c]) boardEl.children[r * GRID + c].classList.add('screw-hover'); } else previewAt(r, c); }
+function onCellLeave() { if (screwMode) renderBoard(); else clearPreview(); }
+
+function toggleScrewMode() { if (screwUses <= 0) return; screwMode = !screwMode; if (screwMode) selectedPiece = null; updateScrewBtn(); renderBoard(); renderTray(); }
+function updateScrewBtn() { screwCountEl.textContent = screwUses; screwBtn.classList.toggle('active', screwMode); screwBtn.classList.toggle('empty', screwUses <= 0); }
+
+function screwRemoveAt(r, c) { if (!board[r][c] || screwUses <= 0) return; saveState(); boardEl.children[r * GRID + c].classList.add('screw-remove'); setTimeout(() => { board[r][c] = null; screwUses--; screwMode = false; updateScrewBtn(); renderBoard(); renderTray(); const remaining = pieces.filter(p => !p.used); if (remaining.length > 0 && remaining.every(p => !canPlaceAnywhere(p))) { if (screwUses > 0) { screwMode = true; updateScrewBtn(); } else endGame(); } }, 350); }
+
+function saveState() { history.push({ board: board.map(row => [...row]), score, pieces: pieces.map(p => ({ shape: p.shape, color: p.color, used: p.used })), selectedPiece, screwUses }); }
+
+function rewind() { if (rewindUses <= 0 || history.length === 0) return; rewindUses--; const state = history.pop(); board = state.board; score = state.score; pieces = state.pieces; selectedPiece = state.selectedPiece; screwUses = state.screwUses; screwMode = false; scoreEl.textContent = score; updateScrewBtn(); updateRewindBtn(); renderBoard(); renderTray(); gameOverEl.classList.remove('show'); }
+function updateRewindBtn() { rewindCountEl.textContent = rewindUses; rewindBtn.classList.toggle('empty', rewindUses <= 0 || history.length === 0); }
+
+function canPlace(shape, startR, startC) { for (let r = 0; r < shape.length; r++) for (let c = 0; c < shape[0].length; c++) { if (!shape[r][c]) continue; const nr = startR + r, nc = startC + c; if (nr < 0 || nr >= GRID || nc < 0 || nc >= GRID) return false; if (board[nr][nc]) return false; } return true; }
+function canPlaceAnywhere(piece) { for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) if (canPlace(piece.shape, r, c)) return true; return false; }
+
+function previewAt(r, c) { if (selectedPiece === null) return; const p = pieces[selectedPiece]; const offR = Math.floor(p.shape.length / 2), offC = Math.floor(p.shape[0].length / 2); const sr = r - offR, sc = c - offC; const valid = canPlace(p.shape, sr, sc); for (let pr = 0; pr < p.shape.length; pr++) for (let pc = 0; pc < p.shape[0].length; pc++) { if (!p.shape[pr][pc]) continue; const nr = sr + pr, nc = sc + pc; if (nr < 0 || nr >= GRID || nc < 0 || nc >= GRID) continue; const cell = boardEl.children[nr * GRID + nc]; cell.classList.add(valid ? 'preview' : 'invalid-preview'); if (valid && !board[nr][nc]) cell.style.background = p.color; } }
+function clearPreview() { renderBoard(); }
+
+function spawnScorePop(pts) { const rect = scoreEl.getBoundingClientRect(); const pop = document.createElement('div'); pop.className = 'score-pop'; pop.textContent = '+' + pts; pop.style.left = rect.left + 'px'; pop.style.top = rect.top + 'px'; document.body.appendChild(pop); setTimeout(() => pop.remove(), 800); }
+
+function placeAt(r, c) { if (selectedPiece === null) return; const p = pieces[selectedPiece]; const offR = Math.floor(p.shape.length / 2), offC = Math.floor(p.shape[0].length / 2); const sr = r - offR, sc = c - offC; if (!canPlace(p.shape, sr, sc)) return; saveState(); let blockCount = 0; for (let pr = 0; pr < p.shape.length; pr++) for (let pc = 0; pc < p.shape[0].length; pc++) { if (!p.shape[pr][pc]) continue; board[sr + pr][sc + pc] = p.color; blockCount++; } addScore(blockCount); spawnScorePop(blockCount); p.used = true; selectedPiece = null; const hadClears = checkClears(); updateRewindBtn(); renderBoard(); renderTray(); if (!hadClears) afterPlace(); }
+
+function afterPlace() { if (pieces.every(p => p.used)) spawnPieces(); const remaining = pieces.filter(p => !p.used); if (remaining.length > 0 && remaining.every(p => !canPlaceAnywhere(p))) { if (screwUses > 0) { screwMode = true; selectedPiece = null; updateScrewBtn(); renderTray(); } else endGame(); } }
+
+function checkClears() { let rowsToClear = [], colsToClear = []; for (let r = 0; r < GRID; r++) if (board[r].every(c => c !== null)) rowsToClear.push(r); for (let c = 0; c < GRID; c++) { let full = true; for (let r = 0; r < GRID; r++) if (!board[r][c]) { full = false; break; } if (full) colsToClear.push(c); } const totalLines = rowsToClear.length + colsToClear.length; if (totalLines === 0) return false; const cellsToClear = new Set(); rowsToClear.forEach(r => { for (let c = 0; c < GRID; c++) cellsToClear.add(r * GRID + c); }); colsToClear.forEach(c => { for (let r = 0; r < GRID; r++) cellsToClear.add(r * GRID + c); }); gameEl.classList.add('shake'); setTimeout(() => gameEl.classList.remove('shake'), 300); spawnBurstParticles(cellsToClear); cellsToClear.forEach(idx => { const cell = boardEl.children[idx]; const rect = cell.getBoundingClientRect(); const overlay = document.createElement('div'); overlay.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;background:${board[Math.floor(idx/GRID)][idx%GRID]};border-radius:8px;z-index:4;pointer-events:none;`; overlay.classList.add('clearing'); document.body.appendChild(overlay); setTimeout(() => overlay.remove(), 500); }); rowsToClear.forEach(r => { for (let c = 0; c < GRID; c++) board[r][c] = null; }); colsToClear.forEach(c => { for (let r = 0; r < GRID; r++) board[r][c] = null; }); const totalPts = totalLines * GRID * 10 + (totalLines > 1 ? totalLines * 50 : 0); addScore(totalPts); spawnScorePop(totalPts); if (totalLines > 1) showCombo(totalLines); afterPlace(); return true; }
+
+function spawnBurstParticles(cellIdxs) { cellIdxs.forEach(idx => { const cell = boardEl.children[idx]; const rect = cell.getBoundingClientRect(); const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2; const color = board[Math.floor(idx / GRID)][idx % GRID] || '#e94560'; for (let i = 0; i < 3; i++) particles.push({ x: cx, y: cy, size: Math.random() * 4 + 2, speedX: (Math.random() - 0.5) * 4, speedY: (Math.random() - 0.5) * 4, opacity: 0.8, color, life: 60 }); }); }
+
+function addScore(pts) { score += pts; scoreEl.textContent = score; if (score > best) { best = score; bestEl.textContent = best; localStorage.setItem('blockblast_best', best); } }
+function showCombo(lines) { comboEl.textContent = lines + 'x COMBO!'; comboEl.classList.remove('show'); void comboEl.offsetWidth; comboEl.classList.add('show'); }
+function endGame() { finalScoreEl.textContent = score; gameOverEl.classList.add('show'); }
+
+document.getElementById('restart-btn').addEventListener('click', init);
+document.getElementById('play-again').addEventListener('click', init);
+screwBtn.addEventListener('click', toggleScrewMode);
+rewindBtn.addEventListener('click', rewind);
+
+const BG_THEMES = ['neon','ocean','sunset','forest','galaxy','lava','wood','red','purple','rainbow'];
+const BG_PARTICLE_COLORS = { neon:['#e94560','#0ea5e9','#a855f7','#22c55e','#f59e0b'], ocean:['#06b6d4','#3b82f6','#10b981','#0ea5e9','#22d3ee'], sunset:['#fb923c','#f43e5e','#fbbf24','#f97316','#ef4444'], forest:['#22c55e','#10b981','#65a30d','#4ade80','#16a34a'], galaxy:['#a855f7','#ec4899','#6366f1','#8b5cf6','#c084fc'], lava:['#ef4444','#f97316','#eab308','#dc2626','#fb923c'], wood:['#a0642e','#c8964f','#8b5e3c','#d4a76a','#6b4226'], red:['#ef4444','#dc2626','#f87171','#b91c1c','#fca5a5'], purple:['#a855f7','#7e22ce','#c084fc','#9333ea','#d8b4fe'], rainbow:['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#a855f7','#ec4899'] };
+let bgIndex = 0;
+const bgNameEl = document.getElementById('bg-name');
+
+function setBackground(index) { bgIndex = index % BG_THEMES.length; const theme = BG_THEMES[bgIndex]; document.body.setAttribute('data-bg', theme); bgNameEl.textContent = theme.charAt(0).toUpperCase() + theme.slice(1); const colors = BG_PARTICLE_COLORS[theme]; particles.forEach(p => { if (p.life === undefined) p.color = colors[Math.floor(Math.random() * colors.length)]; }); }
+function cycleBackground() { setBackground(bgIndex + 1); }
+
+document.getElementById('bg-btn').addEventListener('click', cycleBackground);
+document.addEventListener('keydown', (e) => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return; if (e.key === 'b' || e.key === 'B') cycleBackground(); if (e.key === 'z' || e.key === 'Z') rewind(); });
+
+setBackground(0);
+init();
+</script>
+</body>
+</html>

@@ -152,3 +152,14 @@ params:
         featured:
           name: Play Game
           link: /games/tetris/
+
+      - title: "Block Blast"
+        content: "Drag and drop blocks to fill rows and columns on an 8x8 grid. Features combos, rewind, screwdriver tool, and 10 themes!"
+        image: "/images/games/block-blast.svg"
+        badges:
+          - "HTML5"
+          - "JavaScript"
+          - "Puzzle"
+        featured:
+          name: Play Game
+          link: /games/block-blast/
