@@ -10,7 +10,7 @@
   <rect width="400" height="225" fill="url(#g1)"/>
   <!-- Bubbles -->
   <circle cx="160" cy="55" r="18" fill="#ff6bc1" opacity="0.85"/>
-  <circle cx="160" cy="55" r="6" cx="154" cy="48" fill="white" opacity="0.3"/>
+  <circle cx="154" cy="48" r="6" fill="white" opacity="0.3"/>
   <circle cx="196" cy="55" r="18" fill="#4ac4ff" opacity="0.85"/>
   <circle cx="232" cy="55" r="18" fill="#50e87e" opacity="0.85"/>
   <circle cx="178" cy="86" r="18" fill="#ffd700" opacity="0.85"/>
