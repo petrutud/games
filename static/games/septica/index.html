@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Șeptică — Petru Tudorica</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      background: #0b3d0b;
+      background-image:
+        radial-gradient(ellipse at 50% 50%, #155d15 0%, #0b3d0b 70%);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      color: #fff;
+      user-select: none;
+      overflow: hidden;
+    }
+    .site-nav{background:rgba(11,61,11,0.85);backdrop-filter:blur(10px);padding:8px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.06);z-index:500;position:relative;flex-shrink:0}
+    .site-nav a{color:#ccc;text-decoration:none;font-family:'Roboto',sans-serif;font-size:14px;transition:color 0.2s}
+    .site-nav a:hover{color:#fff}
+    .site-nav .brand{display:flex;align-items:center;gap:10px;font-weight:500;font-size:16px}
+    .site-nav .brand img{width:28px;height:28px}
+    .site-nav .nav-links{display:flex;gap:20px;align-items:center}
+    .site-nav .nav-links a:hover{color:#ffd700}
+    .game-area-wrapper{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}
+
+    /* MENU */
+    #menu {
+      text-align: center;
+      z-index: 10;
+    }
+    #menu.hidden { display: none; }
+    #menu h1 {
+      font-size: 3.5rem;
+      color: #ffd700;
+      text-shadow: 0 3px 12px rgba(0,0,0,0.5);
+      margin-bottom: 0.3rem;
+    }
+    #menu .sub {
+      color: #a3d9a3;
+      font-size: 1rem;
+      margin-bottom: 2rem;
+    }
+    .menu-btn {
+      padding: 1rem 3rem;
+      font-size: 1.2rem;
+      font-family: inherit;
+      background: linear-gradient(135deg, #ffd700, #ffaa00);
+      color: #2d1800;
+      font-weight: 700;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(255, 215, 0, 0.3);
+    }
+    .menu-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 30px rgba(255, 215, 0, 0.5);
+    }
+
+    /* GAME AREA */
+    #game {
+      display: none;
+      width: 100vw;
+      height: calc(100vh - 44px);
+      position: relative;
+    }
+    #game.visible { display: block; }
+
+    /* SCOREBOARD */
+    .scoreboard {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 2rem;
+      background: rgba(0,0,0,0.5);
+      padding: 8px 24px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      z-index: 5;
+    }
+    .scoreboard .sep { color: #555; }
+    .score-you { color: #4ade80; }
+    .score-cpu { color: #f87171; }
+    .score-deck { color: #a3a3a3; }
+
+    /* CARD STYLING */
+    .card {
+      width: 75px;
+      height: 108px;
+      border-radius: 8px;
+      background: #fff;
+      border: 2px solid #ccc;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 700;
+      position: relative;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: default;
+      flex-shrink: 0;
+    }
+    .card.red { color: #dc2626; }
+    .card.black { color: #1a1a1a; }
+    .card .rank { font-size: 1.4rem; }
+    .card .suit { font-size: 1.6rem; margin-top: -2px; }
+    .card.facedown {
+      background: linear-gradient(135deg, #1e3a5f, #2d5a8e);
+      border-color: #1a3050;
+      background-image:
+        linear-gradient(135deg, #1e3a5f, #2d5a8e),
+        repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.03) 5px, rgba(255,255,255,0.03) 10px);
+    }
+    .card.facedown::after {
+      content: '🂠';
+      font-size: 2.5rem;
+      opacity: 0.3;
+    }
+
+    /* OPPONENT HAND (top) */
+    .opponent-area {
+      position: absolute;
+      top: 55px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+    }
+    .opponent-area .card {
+      width: 60px;
+      height: 86px;
+    }
+
+    /* TABLE CENTER */
+    .table-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      min-height: 120px;
+    }
+    .table-center .card {
+      animation: dealIn 0.3s ease-out;
+    }
+    @keyframes dealIn {
+      from { transform: scale(0.5) translateY(-30px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+
+    /* DECK & WON PILE INDICATORS */
+    .deck-area {
+      position: absolute;
+      top: 50%;
+      right: 40px;
+      transform: translateY(-50%);
+      text-align: center;
+    }
+    .deck-area .card {
+      cursor: default;
+    }
+    .deck-count {
+      margin-top: 6px;
+      font-size: 0.8rem;
+      color: #a3d9a3;
+    }
+
+    /* PLAYER HAND (bottom) */
+    .player-area {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+    .player-area .card {
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .player-area .card:hover {
+      transform: translateY(-12px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+    .player-area .card.selected {
+      transform: translateY(-16px);
+      box-shadow: 0 0 20px rgba(74, 222, 128, 0.6);
+      border-color: #4ade80;
+    }
+
+    /* MESSAGE OVERLAY */
+    .game-msg {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #ffd700;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.7);
+      z-index: 20;
+      pointer-events: none;
+      animation: msgPop 0.5s ease-out;
+      opacity: 0;
+    }
+    .game-msg.show { opacity: 1; }
+    @keyframes msgPop {
+      from { transform: translate(-50%, -50%) scale(0.5); }
+      to { transform: translate(-50%, -50%) scale(1); }
+    }
+
+    /* TURN INDICATOR */
+    .turn-indicator {
+      position: absolute;
+      bottom: 150px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.9rem;
+      color: #a3d9a3;
+      background: rgba(0,0,0,0.4);
+      padding: 5px 16px;
+      border-radius: 8px;
+      z-index: 5;
+    }
+
+    /* TAKE BUTTON */
+    .take-btn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, 80px);
+      padding: 10px 24px;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #1a1a1a;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      z-index: 10;
+      display: none;
+      box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+      transition: transform 0.2s;
+    }
+    .take-btn:hover { transform: translate(-50%, 80px) scale(1.05); }
+    .take-btn.visible { display: block; }
+
+    /* GAME OVER OVERLAY */
+    .game-over {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 30;
+    }
+    .game-over.visible { display: flex; }
+    .game-over h2 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+    .game-over .result {
+      font-size: 1.2rem;
+      margin-bottom: 2rem;
+      color: #d4d4d4;
+    }
+    .game-over .win { color: #4ade80; }
+    .game-over .lose { color: #f87171; }
+    .game-over .draw { color: #fbbf24; }
+  </style>
+</head>
+<body>
+<nav class="site-nav">
+  <a href="/" class="brand"><img src="/favicon.svg" alt="Home"> Petru Tudorica</a>
+  <div class="nav-links"><a href="/#projects">Games</a></div>
+</nav>
+<div class="game-area-wrapper">
+  <div id="menu">
+    <h1>Șeptică</h1>
+    <p class="sub">The classic Romanian card game</p>
+    <button class="menu-btn" id="start-btn">Play</button>
+  </div>
+
+  <div id="game">
+    <div class="scoreboard">
+      <span class="score-you">You: <span id="s-you">0</span></span>
+      <span class="sep">|</span>
+      <span class="score-cpu">CPU: <span id="s-cpu">0</span></span>
+      <span class="sep">|</span>
+      <span class="score-deck">Deck: <span id="s-deck">0</span></span>
+    </div>
+
+    <div class="opponent-area" id="opp-hand"></div>
+
+    <div class="table-center" id="table"></div>
+
+    <div class="deck-area" id="deck-area">
+      <div class="card facedown"></div>
+      <div class="deck-count" id="deck-count">24</div>
+    </div>
+
+    <button class="take-btn" id="take-btn">Pass / Take</button>
+
+    <div class="turn-indicator" id="turn-ind">Your turn</div>
+
+    <div class="player-area" id="player-hand"></div>
+
+    <div class="game-msg" id="game-msg"></div>
+
+    <div class="game-over" id="game-over">
+      <h2 id="go-title">Game Over</h2>
+      <div class="result" id="go-result"></div>
+      <button class="menu-btn" id="replay-btn">Play Again</button>
+    </div>
+  </div>
+
+<script>
+(function() {
+  // ─── CONSTANTS ───
+  const SUITS = ['♠','♥','♦','♣'];
+  const SUIT_COLORS = {'♠':'black','♣':'black','♥':'red','♦':'red'};
+  const RANKS = ['7','8','9','10','J','Q','K','A'];
+  const POINTS = {'A':11,'10':10};
+  const CUTTING_RANKS = ['7','10']; // 7 and 10 can always cut
+
+  // ─── DOM ───
+  const menu = document.getElementById('menu');
+  const gameEl = document.getElementById('game');
+  const startBtn = document.getElementById('start-btn');
+  const replayBtn = document.getElementById('replay-btn');
+  const oppHandEl = document.getElementById('opp-hand');
+  const playerHandEl = document.getElementById('player-hand');
+  const tableEl = document.getElementById('table');
+  const deckArea = document.getElementById('deck-area');
+  const deckCountEl = document.getElementById('deck-count');
+  const takeBtn = document.getElementById('take-btn');
+  const turnInd = document.getElementById('turn-ind');
+  const gameMsgEl = document.getElementById('game-msg');
+  const gameOverEl = document.getElementById('game-over');
+  const goTitle = document.getElementById('go-title');
+  const goResult = document.getElementById('go-result');
+  const sYou = document.getElementById('s-you');
+  const sCpu = document.getElementById('s-cpu');
+  const sDeck = document.getElementById('s-deck');
+
+  // ─── STATE ───
+  let deck = [];
+  let playerHand = [];
+  let cpuHand = [];
+  let tableCards = [];    // cards on the table in current round
+  let playerWon = [];     // cards won by player
+  let cpuWon = [];        // cards won by cpu
+  let isPlayerTurn = true;
+  let roundStarter = 'player'; // who started the current round
+  let locked = false;
+  let lastCutter = null;  // who played the last cutting card
+
+  // ─── DECK ───
+  function makeDeck() {
+    const d = [];
+    for (const s of SUITS) for (const r of RANKS) d.push({rank: r, suit: s});
+    return d;
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function cardPoints(card) {
+    return POINTS[card.rank] || 0;
+  }
+
+  function totalPoints(cards) {
+    return cards.reduce((s, c) => s + cardPoints(c), 0);
+  }
+
+  // ─── CAN CUT? ───
+  function canCut(card, topCard) {
+    if (!topCard) return false;
+    // Same rank always cuts
+    if (card.rank === topCard.rank) return true;
+    return false;
+  }
+
+  function getTopCard() {
+    return tableCards.length > 0 ? tableCards[tableCards.length - 1] : null;
+  }
+
+  // ─── DEAL ───
+  function dealCards() {
+    const toDeal = Math.min(4 - playerHand.length, deck.length);
+    const toDealCpu = Math.min(4 - cpuHand.length, deck.length - toDeal);
+    for (let i = 0; i < toDeal; i++) playerHand.push(deck.pop());
+    for (let i = 0; i < toDealCpu; i++) cpuHand.push(deck.pop());
+  }
+
+  // ─── RENDER ───
+  function renderCard(card, facedown = false) {
+    const div = document.createElement('div');
+    div.className = 'card' + (facedown ? ' facedown' : (' ' + SUIT_COLORS[card.suit]));
+    if (!facedown) {
+      div.innerHTML = `<span class="rank">${card.rank}</span><span class="suit">${card.suit}</span>`;
+    }
+    return div;
+  }
+
+  function render() {
+    // Opponent hand
+    oppHandEl.innerHTML = '';
+    cpuHand.forEach(() => {
+      oppHandEl.appendChild(renderCard({}, true));
+    });
+
+    // Player hand
+    playerHandEl.innerHTML = '';
+    playerHand.forEach((card, i) => {
+      const el = renderCard(card);
+      el.addEventListener('click', () => playerPlay(i));
+      playerHandEl.appendChild(el);
+    });
+
+    // Table
+    tableEl.innerHTML = '';
+    tableCards.forEach(c => {
+      tableEl.appendChild(renderCard(c));
+    });
+
+    // Deck
+    deckArea.style.display = deck.length > 0 ? 'block' : 'none';
+    deckCountEl.textContent = deck.length;
+
+    // Scores
+    sYou.textContent = totalPoints(playerWon);
+    sCpu.textContent = totalPoints(cpuWon);
+    sDeck.textContent = deck.length;
+
+    // Turn indicator
+    turnInd.textContent = isPlayerTurn ? 'Your turn' : 'CPU thinking...';
+
+    // Take button visibility
+    const top = getTopCard();
+    if (isPlayerTurn && tableCards.length > 0 && !locked) {
+      // Show take/pass if player can't or doesn't want to cut
+      takeBtn.classList.add('visible');
+    } else {
+      takeBtn.classList.remove('visible');
+    }
+  }
+
+  // ─── MESSAGES ───
+  function showMsg(text) {
+    gameMsgEl.textContent = text;
+    gameMsgEl.classList.add('show');
+    setTimeout(() => gameMsgEl.classList.remove('show'), 1500);
+  }
+
+  // ─── ROUND RESOLUTION ───
+  function resolveRound(winner) {
+    // winner takes all table cards
+    if (winner === 'player') {
+      playerWon.push(...tableCards);
+      showMsg('You take the cards!');
+    } else {
+      cpuWon.push(...tableCards);
+      showMsg('CPU takes the cards!');
+    }
+    tableCards = [];
+    lastCutter = null;
+
+    // Deal new cards if hands empty
+    if (playerHand.length === 0 || cpuHand.length === 0) {
+      dealCards();
+    }
+
+    // Check game over
+    if (playerHand.length === 0 && cpuHand.length === 0 && deck.length === 0) {
+      endGame();
+      return;
+    }
+
+    // Winner of round starts next
+    roundStarter = winner;
+    isPlayerTurn = (winner === 'player');
+    render();
+
+    if (!isPlayerTurn) {
+      setTimeout(cpuTurn, 800);
+    }
+  }
+
+  // ─── PLAYER PLAY ───
+  function playerPlay(index) {
+    if (!isPlayerTurn || locked) return;
+    const card = playerHand[index];
+    const top = getTopCard();
+
+    if (tableCards.length === 0) {
+      // Starting a new round - any card is fine
+      playerHand.splice(index, 1);
+      tableCards.push(card);
+      lastCutter = null;
+      roundStarter = 'player';
+      isPlayerTurn = false;
+      render();
+      setTimeout(cpuTurn, 800);
+      return;
+    }
+
+    // There are cards on the table
+    if (canCut(card, top)) {
+      // Player cuts!
+      playerHand.splice(index, 1);
+      tableCards.push(card);
+      lastCutter = 'player';
+      isPlayerTurn = false;
+      render();
+      // Give CPU a chance to counter-cut
+      setTimeout(cpuTurn, 800);
+    } else {
+      // Can't cut with this card - just play it (concede/pass)
+      playerHand.splice(index, 1);
+      tableCards.push(card);
+      lastCutter = null;
+      isPlayerTurn = false;
+      render();
+      setTimeout(cpuTurn, 800);
+    }
+  }
+
+  // ─── TAKE BUTTON (pass without playing) ───
+  takeBtn.addEventListener('click', () => {
+    if (!isPlayerTurn || locked || tableCards.length === 0) return;
+    // Player passes - opponent who last cut wins, or round starter
+    if (lastCutter) {
+      resolveRound(lastCutter);
+    } else {
+      // Nobody cut - cards go to round starter's opponent (the non-starter takes them as penalty)
+      resolveRound(roundStarter === 'player' ? 'cpu' : 'player');
+    }
+  });
+
+  // ─── CPU AI ───
+  function cpuTurn() {
+    if (isPlayerTurn || locked) return;
+
+    const top = getTopCard();
+
+    if (tableCards.length === 0) {
+      // CPU starts a new round - play lowest value card
+      cpuHand.sort((a, b) => cardPoints(a) - cardPoints(b));
+      const card = cpuHand.shift();
+      tableCards.push(card);
+      roundStarter = 'cpu';
+      lastCutter = null;
+      isPlayerTurn = true;
+      render();
+      return;
+    }
+
+    // Can CPU cut?
+    const cutIdx = cpuHand.findIndex(c => canCut(c, top));
+
+    if (cutIdx !== -1 && lastCutter !== 'cpu') {
+      // CPU cuts
+      const card = cpuHand.splice(cutIdx, 1)[0];
+      tableCards.push(card);
+      lastCutter = 'cpu';
+      showMsg('CPU cuts!');
+      isPlayerTurn = true;
+      render();
+
+      // If player has no cutting cards, auto-resolve after a delay
+      const playerCanCut = playerHand.some(c => canCut(c, card));
+      if (!playerCanCut && playerHand.length > 0) {
+        // Player must still play or pass
+      }
+      return;
+    }
+
+    // CPU can't cut or already cut last - decide whether to pass or play a card
+    if (lastCutter === 'player') {
+      // Player cut, CPU can't counter - concede the pile
+      setTimeout(() => resolveRound('player'), 500);
+      return;
+    }
+
+    if (lastCutter === 'cpu') {
+      // CPU already cut and it's back to CPU somehow - take the pile
+      setTimeout(() => resolveRound('cpu'), 500);
+      return;
+    }
+
+    // Nobody cut yet, CPU plays a low card
+    cpuHand.sort((a, b) => cardPoints(a) - cardPoints(b));
+    const card = cpuHand.shift();
+    tableCards.push(card);
+    isPlayerTurn = true;
+    render();
+  }
+
+  // ─── END GAME ───
+  function endGame() {
+    locked = true;
+    const pPts = totalPoints(playerWon);
+    const cPts = totalPoints(cpuWon);
+    let cls, text;
+    if (pPts > cPts) {
+      goTitle.textContent = 'You Win!';
+      goTitle.className = 'win';
+      text = `${pPts} - ${cPts}`;
+      cls = 'win';
+    } else if (cPts > pPts) {
+      goTitle.textContent = 'You Lose';
+      goTitle.className = 'lose';
+      text = `${pPts} - ${cPts}`;
+      cls = 'lose';
+    } else {
+      goTitle.textContent = 'Draw!';
+      goTitle.className = 'draw';
+      text = `${pPts} - ${cPts}`;
+      cls = 'draw';
+    }
+    goResult.innerHTML = `<span class="${cls}">${text}</span>`;
+    gameOverEl.classList.add('visible');
+  }
+
+  // ─── START ───
+  function startGame() {
+    deck = shuffle(makeDeck());
+    playerHand = [];
+    cpuHand = [];
+    tableCards = [];
+    playerWon = [];
+    cpuWon = [];
+    isPlayerTurn = true;
+    roundStarter = 'player';
+    locked = false;
+    lastCutter = null;
+
+    dealCards();
+
+    menu.classList.add('hidden');
+    gameEl.classList.add('visible');
+    gameOverEl.classList.remove('visible');
+    render();
+  }
+
+  startBtn.addEventListener('click', startGame);
+  replayBtn.addEventListener('click', startGame);
+})();
+</script>
+</div><!-- end game-area-wrapper -->
+</body>
+</html>

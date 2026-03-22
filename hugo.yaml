@@ -217,3 +217,14 @@ params:
         featured:
           name: Play Game
           link: /games/formless/
+
+      - title: "Șeptică"
+        content: "The classic Romanian card game! Play against the CPU — cut with matching ranks, collect Aces and 10s to win."
+        image: "/images/games/septica.svg"
+        badges:
+          - "HTML5"
+          - "JavaScript"
+          - "Card Game"
+        featured:
+          name: Play Game
+          link: /games/septica/

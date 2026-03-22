@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 225" width="400" height="225">
+  <rect width="400" height="225" fill="#1a1d24"/>
+  <g transform="translate(120, 25)">
+    <!-- Grid -->
+    <rect x="0" y="0" width="160" height="160" rx="6" fill="#2d323d"/>
+    <!-- Revealed cells -->
+    <rect x="4" y="4" width="24" height="24" fill="#2a2e38" stroke="#1e222a" stroke-width="0.5"/>
+    <rect x="28" y="4" width="24" height="24" fill="#2a2e38" stroke="#1e222a" stroke-width="0.5"/>
+    <rect x="52" y="4" width="24" height="24" fill="#2a2e38" stroke="#1e222a" stroke-width="0.5"/>
+    <rect x="76" y="4" width="24" height="24" fill="#2a2e38" stroke="#1e222a" stroke-width="0.5"/>
+    <rect x="4" y="28" width="24" height="24" fill="#2a2e38" stroke="#1e222a" stroke-width="0.5"/>
+    <rect x="28" y="28" width="24" height="24" fill="#2a2e38" stroke="#1e222a" stroke-width="0.5"/>
+    <rect x="52" y="28" width="24" height="24" fill="#2a2e38" stroke="#1e222a" stroke-width="0.5"/>
+    <rect x="76" y="28" width="24" height="24" fill="#2a2e38" stroke="#1e222a" stroke-width="0.5"/>
+    <!-- Numbers -->
+    <text x="16" y="20" text-anchor="middle" fill="#3b82f6" font-family="monospace" font-size="14" font-weight="bold">1</text>
+    <text x="40" y="20" text-anchor="middle" fill="#22c55e" font-family="monospace" font-size="14" font-weight="bold">2</text>
+    <text x="64" y="20" text-anchor="middle" fill="#3b82f6" font-family="monospace" font-size="14" font-weight="bold">1</text>
+    <text x="16" y="44" text-anchor="middle" fill="#22c55e" font-family="monospace" font-size="14" font-weight="bold">2</text>
+    <text x="64" y="44" text-anchor="middle" fill="#ef4444" font-family="monospace" font-size="14" font-weight="bold">3</text>
+    <text x="88" y="44" text-anchor="middle" fill="#3b82f6" font-family="monospace" font-size="14" font-weight="bold">1</text>
+    <!-- Unrevealed cells -->
+    <rect x="100" y="4" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <rect x="124" y="4" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <rect x="100" y="28" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <rect x="124" y="28" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <rect x="4" y="52" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <rect x="28" y="52" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <rect x="52" y="52" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <rect x="76" y="52" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <rect x="100" y="52" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <rect x="124" y="52" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <!-- Flagged cell -->
+    <rect x="124" y="28" width="24" height="24" rx="1" fill="#6366f1" stroke="#4f46e5" stroke-width="0.5"/>
+    <text x="136" y="44" text-anchor="middle" font-size="12">🚩</text>
+    <!-- More rows of unrevealed -->
+    <rect x="4" y="76" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <rect x="28" y="76" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <rect x="52" y="76" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <rect x="76" y="76" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <rect x="100" y="76" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+    <rect x="124" y="76" width="24" height="24" rx="1" fill="#3d4554" stroke="#252a35" stroke-width="0.5"/>
+  </g>
+  <text x="200" y="210" text-anchor="middle" fill="#8a8f9a" font-family="sans-serif" font-size="12">Minesweeper</text>
+</svg>
