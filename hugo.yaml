@@ -39,6 +39,7 @@ params:
       enable: true
       name: "Play Business Tycoon"
       url: "/games/bisnes-tycoon/"
+      download: false
       newPage: false
     socialLinks:
       fontAwesomeIcons: []

@@ -5,7 +5,8 @@
       "Bash(gh api:*)",
       "Bash(git ls-tree:*)",
       "Bash(ls /home/petru/code/games/static/images/games/backgammon*)",
-      "Bash(ls /home/petru/code/games/project1/bisnes-tycoon*)"
+      "Bash(ls /home/petru/code/games/project1/bisnes-tycoon*)",
+      "Bash(gh run:*)"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games"
