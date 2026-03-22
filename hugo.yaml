@@ -130,3 +130,14 @@ params:
         featured:
           name: Play Game
           link: /games/backgammon/
+
+      - title: "Bubble Pop!"
+        content: "Pop colorful bubbles in this arcade puzzle shooter! 30 levels of increasing difficulty with combos and effects."
+        image: "/images/games/bubble-pop.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Puzzle"
+        featured:
+          name: Play Game
+          link: /games/bubble-pop/
