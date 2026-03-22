@@ -141,3 +141,14 @@ params:
         featured:
           name: Play Game
           link: /games/bubble-pop/
+
+      - title: "Tetris"
+        content: "The classic block-stacking puzzle. Rotate and drop tetrominoes, clear lines, and chase high scores with undo support!"
+        image: "/images/games/tetris.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Puzzle"
+        featured:
+          name: Play Game
+          link: /games/tetris/
