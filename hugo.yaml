@@ -62,6 +62,39 @@ params:
     enable: true
     title: "Games"
     items:
+      - title: "Super Mario"
+        content: "Classic side-scrolling platformer! Run, jump, stomp goombas, collect coins, and reach the flag. Multiple levels with pipes and power-ups."
+        image: "/images/games/mario.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Platformer"
+        featured:
+          name: Play Game
+          link: /games/mario/
+
+      - title: "Inch"
+        content: "A tiny Metroidvania inside a human house. Play as Pip, craft tools from everyday objects, fight bugs, and uncover a family's story."
+        image: "/images/games/inch.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Metroidvania"
+        featured:
+          name: Play Game
+          link: /games/inch/
+
+      - title: "Clashendo"
+        content: "A rhythm fighting game where attacks deal bonus damage on the beat. 8 musical fighters, specials, finishers, and dynamic music."
+        image: "/images/games/clashendo.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Fighting"
+        featured:
+          name: Play Game
+          link: /games/clashendo/
+
       - title: "Mortal Combat"
         content: "A 2D fighting game with 8 fighters, specials, combos, parries, and fatalities. Choose your fighter and battle the CPU!"
         image: "/images/games/mortal-combat.svg"

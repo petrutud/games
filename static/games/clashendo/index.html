@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clashendo — Petru Tudorica</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;500;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#08060e;color:#e8e0f0;font-family:'Inter',sans-serif;display:flex;flex-direction:column;overflow-x:hidden}
+.sn{background:rgba(8,6,14,.85);backdrop-filter:blur(10px);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);z-index:500;position:relative}
+.sn a{color:#999;text-decoration:none;font-size:14px;transition:color .2s}.sn a:hover{color:#fff}
+.sn .br{display:flex;align-items:center;gap:10px;font-weight:500;font-size:16px}.sn .br img{width:28px;height:28px}
+.sn .nl{display:flex;gap:20px}.sn .nl a:hover{color:#f0c030}
+.gw{flex:1;display:flex;align-items:center;justify-content:center}
+.gc{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;padding:8px}
+canvas{display:block;border-radius:6px;border:2px solid #1a1424;box-shadow:0 0 50px rgba(200,80,255,.08),0 8px 40px rgba(0,0,0,.6);max-width:100%;height:auto}
+.sf{text-align:center;padding:10px;color:rgba(255,255,255,.2);font-size:11px;position:relative;z-index:1}
+</style>
+</head>
+<body>
+<nav class="sn"><a href="/" class="br"><img src="/favicon.svg" alt="Home"> Petru Tudorica</a><div class="nl"><a href="/#projects">Games</a></div></nav>
+<div class="gw"><div class="gc"><canvas id="c" width="800" height="500"></canvas></div></div>
+<footer class="sf">&copy; 2026 Petru Tudorica</footer>
+<script>
+(function(){'use strict';
+const C=document.getElementById('c'),X=C.getContext('2d');
+const W=800,H=500,FDT=1/60,FLOOR=420,G=2400;
+
+// ══════ BEAT SYSTEM ══════
+let bpm=120,beatInterval=60/120,beatTimer=0,beatCount=0,lastBeatTime=0;
+let beatPulse=0; // 0-1, peaks at beat
+
+function getBeatProximity(){
+  // returns 0-1 where 1=perfect on-beat
+  const half=beatInterval/2;
+  const dist=Math.min(beatTimer,beatInterval-beatTimer);
+  if(dist<.05)return 1;    // perfect ±50ms
+  if(dist<.1)return .7;    // good ±100ms
+  if(dist<.15)return .4;   // ok
+  return 0;                // off-beat
+}
+
+function getDmgMultiplier(){
+  const prox=getBeatProximity();
+  if(prox>=1)return 1.5;
+  if(prox>=.7)return 1.2;
+  if(prox>=.4)return 1;
+  return .5;
+}
+
+function getBeatGrade(){
+  const prox=getBeatProximity();
+  if(prox>=1)return'PERFECT';if(prox>=.7)return'GOOD';if(prox>=.4)return'OK';return'MISS';
+}
+
+// ══════ MUSIC ENGINE ══════
+let ac=null,masterGain=null;
+function aud(){if(!ac){try{ac=new(window.AudioContext||window.webkitAudioContext);masterGain=ac.createGain();masterGain.gain.value=.3;masterGain.connect(ac.destination)}catch(e){}}return ac}
+
+function playNote(freq,dur,type,vol,delay){
+  const a=aud();if(!a)return;
+  const o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(freq,a.currentTime+(delay||0));
+  o.connect(g);g.connect(masterGain);
+  g.gain.setValueAtTime(vol||.06,a.currentTime+(delay||0));
+  g.gain.exponentialRampToValueAtTime(.001,a.currentTime+(delay||0)+(dur||.1));
+  o.start(a.currentTime+(delay||0));o.stop(a.currentTime+(delay||0)+(dur||.1)+.02);
+}
+
+// stage beat tick sound
+function tickBeat(){
+  playNote(800,.03,'square',.03);
+  // bass drum on every beat
+  playNote(60,.08,'sine',.08);
+}
+
+// character hit sounds
+const CHAR_NOTES={
+  drum:[80,120,60],violin:[660,880,784],guitar:[330,440,220],piano:[523,659,784],
+  sax:[440,523,587],timpani:[100,80,65],synth:[880,1100,660],harp:[523,784,1047]
+};
+
+function charHitSound(inst,grade){
+  const notes=CHAR_NOTES[inst]||[440];
+  const n=notes[Math.floor(Math.random()*notes.length)];
+  const types={drum:'triangle',violin:'sawtooth',guitar:'sawtooth',piano:'sine',
+    sax:'sawtooth',timpani:'triangle',synth:'square',harp:'sine'};
+  const vol=grade==='PERFECT'?.1:grade==='GOOD'?.07:.04;
+  playNote(n,.08,types[inst],vol);
+  if(grade==='PERFECT')playNote(n*1.5,.06,'sine',.04,.02); // harmonic
+}
+
+function specialSound(inst){
+  const base=CHAR_NOTES[inst]||[440];
+  base.forEach((n,i)=>playNote(n,.12,'sine',.06,i*.08));
+  playNote(base[0]*2,.15,'sine',.05,.25);
+}
+
+// dynamic background beat
+let bgBeatId=null;
+function startBgBeat(){
+  if(bgBeatId)clearInterval(bgBeatId);
+  bgBeatId=setInterval(()=>{
+    if(st==='fight'){
+      // kick
+      playNote(55,.1,'sine',.05);
+      // hihat
+      playNote(8000,.02,'square',.015);
+      // melody based on who's winning
+      if(p1&&p2){
+        const p1Lead=p1.hp>p2.hp;
+        const inst=p1Lead?p1Def.instrument:p2Def.instrument;
+        const notes=CHAR_NOTES[inst];
+        if(notes&&Math.random()<.4)playNote(notes[beatCount%notes.length],.15,'sine',.025);
+      }
+    }
+  },beatInterval*1000);
+}
+
+// ══════ FIGHTERS ══════
+const FIGHTERS=[
+  {name:'Drummond',instrument:'drum',color:'#a06030',accent:'#d08040',style:'Heavy',
+   hp:110,atk:14,spd:200,jumpF:-640,bpmShift:-10,
+   special:{name:'Drum Roll',dmg:25,seq:['j','j','k','j','k'],col:'#d08040'},
+   finisher:'Percussion Apocalypse'},
+  {name:'Viola',instrument:'violin',color:'#8040a0',accent:'#b060d0',style:'Speed',
+   hp:85,atk:8,spd:300,jumpF:-700,bpmShift:15,
+   special:{name:'Crescendo',dmg:20,seq:['j','j','j','k'],col:'#b060d0'},
+   finisher:'Infinite Strings'},
+  {name:'Axel',instrument:'guitar',color:'#c03030',accent:'#f04040',style:'Ranged',
+   hp:95,atk:11,spd:240,jumpF:-660,bpmShift:5,
+   special:{name:'Power Chord',dmg:22,seq:['k','j','k','k'],col:'#f04040'},
+   finisher:'Amplifier Overload'},
+  {name:'Belle',instrument:'piano',color:'#e0c060',accent:'#f0d870',style:'Balanced',
+   hp:100,atk:10,spd:250,jumpF:-670,bpmShift:0,
+   special:{name:'Sonata',dmg:18,seq:['j','k','j'],col:'#f0d870'},
+   finisher:'Grand Finale'},
+  {name:'Reed',instrument:'sax',color:'#d0a030',accent:'#e8c040',style:'Mixup',
+   hp:95,atk:11,spd:260,jumpF:-680,bpmShift:-5,
+   special:{name:'Improvise',dmg:20,seq:['k','j','j','k','j'],col:'#e8c040'},
+   finisher:'Solo of Chaos'},
+  {name:'Timpani',instrument:'timpani',color:'#506080',accent:'#7090b0',style:'Counter',
+   hp:120,atk:13,spd:190,jumpF:-620,bpmShift:-15,
+   special:{name:'Fortissimo',dmg:28,seq:['k','k','k'],col:'#7090b0'},
+   finisher:'Thunderous Finale'},
+  {name:'Syntha',instrument:'synth',color:'#30a080',accent:'#50d0a0',style:'Setup',
+   hp:90,atk:10,spd:270,jumpF:-690,bpmShift:10,
+   special:{name:'The Drop',dmg:24,seq:['j','k','k','j'],col:'#50d0a0'},
+   finisher:'System Overload'},
+  {name:'Harp',instrument:'harp',color:'#a080c0',accent:'#c0a0e0',style:'Zone',
+   hp:88,atk:9,spd:255,jumpF:-680,bpmShift:0,
+   special:{name:'Lullaby',dmg:15,seq:['j','j','k','k','j'],col:'#c0a0e0'},
+   finisher:'Eternal Resonance'},
+];
+
+const STAGES=[
+  {name:'The Drum Circle',bpm:100,bg1:'#12100a',bg2:'#1e1810',floor:'#2a2418',accent:'#a06830'},
+  {name:'Concert Hall',bpm:120,bg1:'#0e0c14',bg2:'#1a1624',floor:'#24203a',accent:'#8060a0'},
+  {name:'The Garage',bpm:140,bg1:'#140a0a',bg2:'#201414',floor:'#301c1c',accent:'#c04040'},
+  {name:'Jazz Club',bpm:115,bg1:'#10100a',bg2:'#1c1c14',floor:'#2a2a1e',accent:'#d0a040'},
+  {name:'The Rave',bpm:160,bg1:'#0a0814',bg2:'#14102a',floor:'#1e183a',accent:'#40a0d0'},
+  {name:'Symphony Ruins',bpm:110,bg1:'#0c0a0e',bg2:'#18141e',floor:'#241e2a',accent:'#a080b0'},
+  {name:'The Studio',bpm:130,bg1:'#0c0e10',bg2:'#161a20',floor:'#202830',accent:'#4090b0'},
+  {name:'The Silence',bpm:0,bg1:'#0a0a0a',bg2:'#111',floor:'#1a1a1a',accent:'#555'},
+];
+
+// ══════ STATE ══════
+let st='menu',p1=null,p2=null,p1Def=null,p2Def=null,stage=null;
+let round=1,p1Wins=0,p2Wins=0;
+let particles=[],shake={x:0,y:0},time=0;
+let announceText='',announceTimer=0;
+let selectIdx=0,selectPhase=0;
+let harmonyP1=0,harmonyP2=0; // 0-100
+let encoreP1=0,encoreP2=0; // countdown
+let specialInputP1=[],specialInputP2=[],specialWindowP1=0;
+let keys={},keyJustPressed={};
+let gradeFlash={text:'',timer:0,x:0,y:0,col:''};
+
+// ══════ HELPERS ══════
+function ov(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function rnd(a,b){return a+Math.random()*(b-a)}
+function emitP(x,y,col,n,spd,life){
+  for(let i=0;i<n;i++){const a=rnd(0,Math.PI*2),s=rnd(spd*.3,spd);
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-rnd(20,50),life:rnd(life*.5,life),max:life,r:rnd(2,5),col})}}
+function emitNotes(x,y,col,n){
+  const syms=['\u266A','\u266B','\u2669'];
+  for(let i=0;i<n;i++){
+    particles.push({x:x+rnd(-20,20),y:y+rnd(-10,10),vx:rnd(-30,30),vy:rnd(-80,-30),
+      life:rnd(.5,.8),max:.8,r:0,col,text:syms[i%3]})}}
+function announce(t,d){announceText=t;announceTimer=d||1.5}
+function showGrade(text,x,y,col){gradeFlash={text,timer:.6,x,y,col}}
+
+// ══════ FIGHTER ══════
+function makeF(def,x,face){
+  return{x,y:FLOOR-55,w:36,h:55,vx:0,vy:0,face,gr:true,
+    hp:def.hp,maxHp:def.hp,def,state:'idle',
+    blocking:false,hitstun:0,invuln:0,
+    punchT:0,kickT:0,specialCd:0,
+    comboCount:0,comboTimer:0,dead:false}
+}
+
+function moveF(f,dt){
+  f.vy+=G*dt;if(f.vy>1000)f.vy=1000;
+  f.x+=f.vx*dt;f.y+=f.vy*dt;
+  if(f.y+f.h>FLOOR){f.y=FLOOR-f.h;f.vy=0;f.gr=true}
+  if(f.x<20)f.x=20;if(f.x+f.w>W-20)f.x=W-f.w-20;
+}
+
+function hitF(target,dmg,attacker,kb){
+  if(target.invuln>0||target.dead)return;
+  const grade=getBeatGrade();
+  const mul=getDmgMultiplier();
+  const isEncore=(attacker===p1?encoreP1:encoreP2)>0;
+  const finalMul=isEncore?1.5:mul;
+  const finalDmg=Math.round(dmg*finalMul);
+
+  if(target.blocking){
+    playNote(300,.03,'square',.04);
+    target.hp-=Math.round(finalDmg*.15);target.hitstun=.1;
+    emitP(target.x+target.w/2,target.y+target.h/3,'#888',3,30,.2);
+    return;
+  }
+
+  target.hp-=finalDmg;target.hitstun=.2;target.invuln=.25;target.vx=attacker.face*220;
+  shake={x:rnd(-4,4),y:rnd(-3,3)};
+  attacker.comboCount++;attacker.comboTimer=1.2;
+
+  // harmony meter
+  if(grade==='PERFECT'||grade==='GOOD'){
+    if(attacker===p1)harmonyP1=Math.min(100,harmonyP1+grade==='PERFECT'?15:8);
+    else harmonyP2=Math.min(100,harmonyP2+grade==='PERFECT'?15:8);
+  }else{
+    if(attacker===p1)harmonyP1=Math.max(0,harmonyP1-10);
+    else harmonyP2=Math.max(0,harmonyP2-10);
+  }
+
+  // VFX based on grade
+  const gcol=grade==='PERFECT'?'#f0d030':grade==='GOOD'?attacker.def.accent:'#666';
+  charHitSound(attacker.def.instrument,grade);
+  emitP(target.x+target.w/2,target.y+target.h/3,gcol,grade==='PERFECT'?12:6,80,.3);
+  if(grade==='PERFECT')emitNotes(target.x+target.w/2,target.y,gcol,3);
+  showGrade(grade,target.x+target.w/2,target.y-20,gcol);
+
+  if(target.hp<=0){target.hp=0;target.dead=true;
+    playNote(150,.2,'sawtooth',.08);playNote(100,.3,'sawtooth',.06,.1);
+    emitP(target.x+target.w/2,target.y+target.h/2,attacker.def.accent,30,140,.6);
+    emitNotes(target.x+target.w/2,target.y,attacker.def.accent,6);
+  }
+
+  // encore check
+  if(target.hp>0&&target.hp<target.maxHp*.15){
+    if(target===p1&&encoreP1<=0){encoreP1=5;announce('ENCORE!',1)}
+    if(target===p2&&encoreP2<=0){encoreP2=5;announce('ENCORE!',1)}
+  }
+}
+
+function doSpecial(f,target){
+  if(f.specialCd>0)return;
+  f.specialCd=4;
+  specialSound(f.def.instrument);
+  const sp=f.def.special;
+  // projectile
+  particles.push({x:f.x+f.face*f.w,y:f.y+f.h*.3,vx:f.face*350,vy:0,
+    life:1.5,max:1.5,r:12,col:sp.col,isProj:true,dmg:sp.dmg,owner:f});
+  emitP(f.x+f.face*20+f.w/2,f.y+f.h*.3,sp.col,12,70,.3);
+  emitNotes(f.x+f.w/2,f.y,sp.col,4);
+}
+
+function doFinisher(f,target){
+  if(!target||target.dead)return;
+  target.hp=0;target.dead=true;
+  announce(f.def.finisher+'!',2);
+  emitP(target.x+target.w/2,target.y+target.h/2,'#f0d030',50,180,.8);
+  emitNotes(target.x+target.w/2,target.y-20,'#f0d030',8);
+  shake={x:rnd(-10,10),y:rnd(-8,8)};
+  // epic sound
+  [523,659,784,1047].forEach((n,i)=>playNote(n,.15,'sine',.06,i*.1));
+}
+
+// ══════ INPUT ══════
+function updateP1Input(dt){
+  const f=p1;if(!f||f.dead)return;
+  f.hitstun=Math.max(0,f.hitstun-dt);f.invuln=Math.max(0,f.invuln-dt);
+  f.specialCd=Math.max(0,f.specialCd-dt);
+  f.punchT=Math.max(0,f.punchT-dt);f.kickT=Math.max(0,f.kickT-dt);
+  f.comboTimer=Math.max(0,f.comboTimer-dt);if(f.comboTimer<=0)f.comboCount=0;
+  if(f.hitstun>0){f.vx*=.85;moveF(f,dt);return}
+  f.vx=0;f.blocking=false;
+  if(p2)f.face=p2.x>f.x?1:-1;
+  if(keys.a)f.vx=-f.def.spd;
+  if(keys.d)f.vx=f.def.spd;
+  if((keys.w||keys[' '])&&f.gr){f.vy=f.def.jumpF;f.gr=false}
+  if(keys.s){f.blocking=true;f.vx*=.3}
+
+  // punch
+  if(keyJustPressed.j&&f.punchT<=0){
+    f.punchT=.25;
+    const hb={x:f.face>0?f.x+f.w:f.x-28,y:f.y+8,w:28,h:20};
+    if(p2&&!p2.dead&&ov(hb,p2))hitF(p2,f.def.atk,f,180);
+    emitP(f.x+f.face*25+f.w/2,f.y+18,f.def.accent,4,40,.2);
+  }
+  // kick
+  if(keyJustPressed.k&&f.kickT<=0){
+    f.kickT=.35;
+    const hb={x:f.face>0?f.x+f.w:f.x-32,y:f.y+20,w:32,h:24};
+    if(p2&&!p2.dead&&ov(hb,p2))hitF(p2,Math.round(f.def.atk*1.4),f,250);
+    emitP(f.x+f.face*30+f.w/2,f.y+30,f.def.accent,5,50,.2);
+  }
+  // special
+  if(keyJustPressed.l)doSpecial(f,p2);
+  // harmony finisher
+  if(keyJustPressed.h&&harmonyP1>=100){harmonyP1=0;doFinisher(f,p2)}
+  moveF(f,dt);
+}
+
+// ══════ AI ══════
+let aiT=0,aiAct='idle';
+function updateAI(dt){
+  const f=p2;if(!f||f.dead||!p1||p1.dead)return;
+  f.hitstun=Math.max(0,f.hitstun-dt);f.invuln=Math.max(0,f.invuln-dt);
+  f.specialCd=Math.max(0,f.specialCd-dt);
+  f.punchT=Math.max(0,f.punchT-dt);f.kickT=Math.max(0,f.kickT-dt);
+  f.comboTimer=Math.max(0,f.comboTimer-dt);if(f.comboTimer<=0)f.comboCount=0;
+  if(f.hitstun>0){f.vx*=.85;moveF(f,dt);return}
+  f.face=p1.x>f.x?1:-1;f.blocking=false;
+  const dx=Math.abs(p1.x-f.x);
+  aiT-=dt;
+  if(aiT<=0){
+    aiT=rnd(.25,.6);
+    // try to attack on-beat
+    const onBeat=getBeatProximity()>=.7;
+    if(dx<50){
+      if(onBeat)aiAct=Math.random()<.5?'punch':'kick';
+      else aiAct=Math.random()<.4?'block':'wait';
+    }else if(dx<120)aiAct=onBeat?(Math.random()<.3?'special':'approach'):'approach';
+    else aiAct=Math.random()<.2?'special':'approach';
+    // harmony finisher
+    if(harmonyP2>=100&&dx<80){harmonyP2=0;doFinisher(f,p1);return}
+  }
+  f.vx=0;
+  if(aiAct==='approach')f.vx=f.face*f.def.spd*.7;
+  else if(aiAct==='block'){f.blocking=true}
+  else if(aiAct==='punch'&&f.punchT<=0){
+    f.punchT=.3;
+    const hb={x:f.face>0?f.x+f.w:f.x-28,y:f.y+8,w:28,h:20};
+    if(!p1.dead&&ov(hb,p1))hitF(p1,f.def.atk,f,180);
+    charHitSound(f.def.instrument,getBeatGrade());
+    emitP(f.x+f.face*25+f.w/2,f.y+18,f.def.accent,4,40,.2);
+    if(getBeatProximity()>=.7)harmonyP2=Math.min(100,harmonyP2+10);
+  }else if(aiAct==='kick'&&f.kickT<=0){
+    f.kickT=.35;
+    const hb={x:f.face>0?f.x+f.w:f.x-32,y:f.y+20,w:32,h:24};
+    if(!p1.dead&&ov(hb,p1))hitF(p1,Math.round(f.def.atk*1.4),f,250);
+    emitP(f.x+f.face*30+f.w/2,f.y+30,f.def.accent,5,50,.2);
+  }else if(aiAct==='special')doSpecial(f,p1);
+  if(aiAct==='jump'&&f.gr){f.vy=f.def.jumpF;f.gr=false}
+  moveF(f,dt);
+}
+
+// ══════ UPDATE ══════
+function fixedUpdate(){
+  if(st!=='fight')return;
+  const dt=FDT;
+  // beat
+  beatTimer+=dt;if(beatTimer>=beatInterval){beatTimer-=beatInterval;beatCount++;tickBeat();beatPulse=1}
+  beatPulse=Math.max(0,beatPulse-.07);
+  encoreP1=Math.max(0,encoreP1-dt);encoreP2=Math.max(0,encoreP2-dt);
+  announceTimer=Math.max(0,announceTimer-dt);
+  gradeFlash.timer=Math.max(0,gradeFlash.timer-dt);
+
+  updateP1Input(dt);updateAI(dt);
+
+  // projectiles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    if(p.isProj){
+      p.x+=p.vx*dt;p.life-=dt;
+      if(p.life<=0||p.x<0||p.x>W){particles.splice(i,1);continue}
+      const target=p.owner===p1?p2:p1;
+      if(target&&!target.dead&&ov({x:p.x-p.r,y:p.y-p.r,w:p.r*2,h:p.r*2},target)){
+        hitF(target,p.dmg,p.owner,150);particles.splice(i,1);continue}
+    }else{
+      p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=300*dt;p.life-=dt;
+      if(p.life<=0)particles.splice(i,1);
+    }
+  }
+  // KO
+  if(p1.dead||p2.dead){
+    if(!p1.dead)p1Wins++;else if(!p2.dead)p2Wins++;
+    const winner=p1.dead?p2Def:p1Def;
+    announce(winner.name+' WINS',2);
+    [523,659,784].forEach((n,i)=>playNote(n,.1,'sine',.05,i*.08));
+    st='ko';
+  }
+  shake.x*=.82;shake.y*=.82;
+  keyJustPressed={};
+}
+
+function nextRound(){
+  if(p1Wins>=2||p2Wins>=2){
+    st='victory';const w=p1Wins>=2?p1Def:p2Def;
+    announce(w.name+' WINS THE MATCH!',3);
+    [523,659,784,1047,1318].forEach((n,i)=>playNote(n,.15,'sine',.05,i*.1));
+    return;
+  }
+  round++;particles=[];
+  p1=makeF(p1Def,180,1);p2=makeF(p2Def,580,-1);
+  harmonyP1=0;harmonyP2=0;encoreP1=0;encoreP2=0;
+  announce('ROUND '+round+' — FIGHT!',1.5);
+  setTimeout(()=>{st='fight'},1500);
+}
+
+// ══════ RENDERING ══════
+function drawBeatRing(){
+  const cx=W/2,cy=FLOOR+35;
+  const maxR=30,r=maxR*(1-beatTimer/beatInterval);
+  // outer ring
+  X.strokeStyle='rgba(255,255,255,.15)';X.lineWidth=2;
+  X.beginPath();X.arc(cx,cy,maxR,0,Math.PI*2);X.stroke();
+  // expanding ring
+  const prox=getBeatProximity();
+  const col=prox>=1?'#f0d030':prox>=.7?stage.accent:'rgba(255,255,255,.3)';
+  X.strokeStyle=col;X.lineWidth=3;X.globalAlpha=.4+beatPulse*.6;
+  X.beginPath();X.arc(cx,cy,r,0,Math.PI*2);X.stroke();
+  // center dot
+  X.fillStyle=col;X.globalAlpha=.3+beatPulse*.7;
+  X.beginPath();X.arc(cx,cy,4+beatPulse*4,0,Math.PI*2);X.fill();
+  X.globalAlpha=1;
+  // BPM label
+  X.fillStyle='#555';X.font='500 9px Inter';X.textAlign='center';
+  X.fillText(stage.bpm>0?stage.bpm+' BPM':'???',cx,cy+maxR+14);
+}
+
+function drawStage(){
+  const s=stage;
+  const sg=X.createLinearGradient(0,0,0,H);sg.addColorStop(0,s.bg1);sg.addColorStop(.7,s.bg2);sg.addColorStop(1,s.floor);
+  X.fillStyle=sg;X.fillRect(0,0,W,H);
+  // beat pulse background
+  X.globalAlpha=beatPulse*.06;X.fillStyle=s.accent;X.fillRect(0,0,W,H);X.globalAlpha=1;
+  // floor
+  X.fillStyle=s.floor;X.fillRect(0,FLOOR,W,H-FLOOR);
+  X.fillStyle=s.accent;X.globalAlpha=.1+beatPulse*.15;X.fillRect(0,FLOOR,W,3);X.globalAlpha=1;
+  // stage atmosphere columns
+  X.globalAlpha=.04;X.fillStyle=s.accent;
+  for(let i=0;i<5;i++){const x=80+i*160;X.fillRect(x,100,12,FLOOR-100)}
+  X.globalAlpha=1;
+  // stage name
+  X.fillStyle='rgba(255,255,255,.04)';X.font='700 50px Bungee';X.textAlign='center';
+  X.fillText(s.name.toUpperCase(),W/2,FLOOR-60);
+}
+
+function drawFighter(f,isP2){
+  if(!f||f.dead)return;
+  const a=f.invuln>0&&Math.sin(time*20)>.3?.4:1;
+  const def=f.def,col=def.color,acc=def.accent;
+  const encore=(f===p1?encoreP1:encoreP2)>0;
+  X.globalAlpha=a;
+  // encore glow
+  if(encore){X.globalAlpha=.15;X.fillStyle='#f0d030';
+    X.beginPath();X.arc(f.x+f.w/2,f.y+f.h/2,40,0,Math.PI*2);X.fill();X.globalAlpha=a}
+  // shadow
+  if(f.gr){X.globalAlpha=a*.15;X.fillStyle='#000';X.beginPath();X.ellipse(f.x+f.w/2,FLOOR+3,f.w*.6,4,0,0,Math.PI*2);X.fill()}
+  X.globalAlpha=a;
+  // body
+  X.fillStyle=col;
+  X.fillRect(f.x+4,f.y+f.h*.3,f.w-8,f.h*.45);
+  // legs
+  X.fillRect(f.x+6,f.y+f.h*.7,9,f.h*.3);X.fillRect(f.x+f.w-15,f.y+f.h*.7,9,f.h*.3);
+  // head
+  X.beginPath();X.arc(f.x+f.w/2,f.y+f.h*.22,f.w*.4,0,Math.PI*2);X.fill();
+  // instrument accent (shoulders/detail)
+  X.fillStyle=acc;X.fillRect(f.x,f.y+f.h*.28,f.w,6);
+  // eyes
+  X.fillStyle=encore?'#f0d030':'#fff';
+  X.fillRect(f.x+(f.face>0?f.w*.3:f.w*.45),f.y+f.h*.18,3,3);
+  X.fillRect(f.x+(f.face>0?f.w*.5:f.w*.25),f.y+f.h*.18,3,3);
+  // punch/kick VFX
+  if(f.punchT>.12){X.fillStyle=acc;X.globalAlpha=a*(f.punchT/.25);
+    X.fillRect(f.face>0?f.x+f.w:f.x-22,f.y+f.h*.3,22,8);X.globalAlpha=a}
+  if(f.kickT>.15){X.fillStyle=acc;X.globalAlpha=a*(f.kickT/.35);
+    X.fillRect(f.face>0?f.x+f.w:f.x-28,f.y+f.h*.6,28,10);X.globalAlpha=a}
+  // blocking shield
+  if(f.blocking){X.globalAlpha=a*.25;X.fillStyle='#fff';
+    X.beginPath();X.arc(f.x+f.w/2+f.face*8,f.y+f.h*.4,f.w*.5,0,Math.PI*2);X.fill()}
+  X.globalAlpha=1;
+}
+
+function drawHUD(){
+  X.fillStyle='rgba(8,6,14,.75)';X.fillRect(0,0,W,50);
+  // HP bars
+  const hpW=300;
+  // P1 HP
+  X.fillStyle='#1a1420';X.fillRect(14,14,hpW,16);
+  X.fillStyle=p1.hp/p1.maxHp>.3?p1Def.accent:'#c03030';
+  X.fillRect(14,14,hpW*(p1.hp/p1.maxHp),16);
+  // P2 HP
+  X.fillStyle='#1a1420';X.fillRect(W-14-hpW,14,hpW,16);
+  X.fillStyle=p2.hp/p2.maxHp>.3?p2Def.accent:'#c03030';
+  const p2hpW=hpW*(p2.hp/p2.maxHp);
+  X.fillRect(W-14-p2hpW,14,p2hpW,16);
+  // names
+  X.fillStyle=p1Def.accent;X.font='bold 11px Bungee';X.textAlign='left';X.fillText(p1Def.name,16,12);
+  X.fillStyle=p2Def.accent;X.textAlign='right';X.fillText(p2Def.name,W-16,12);
+  // harmony meters
+  X.fillStyle='#111';X.fillRect(14,34,100,6);X.fillRect(W-114,34,100,6);
+  X.fillStyle='#f0d030';
+  X.fillRect(14,34,harmonyP1,6);X.fillRect(W-14-harmonyP2,34,harmonyP2,6);
+  if(harmonyP1>=100){X.fillStyle='#f0d030';X.font='bold 9px Inter';X.textAlign='left';X.fillText('[H] FINISHER!',16,48)}
+  // round indicators
+  X.textAlign='center';
+  for(let i=0;i<2;i++){X.fillStyle=i<p1Wins?p1Def.accent:'#222';X.beginPath();X.arc(330+i*14,40,4,0,Math.PI*2);X.fill()}
+  for(let i=0;i<2;i++){X.fillStyle=i<p2Wins?p2Def.accent:'#222';X.beginPath();X.arc(W-330-i*14,40,4,0,Math.PI*2);X.fill()}
+  // round number
+  X.fillStyle='#f0d030';X.font='bold 18px Bungee';X.fillText('R'+round,W/2,32);
+  // combo
+  if(p1.comboCount>1){X.fillStyle=p1Def.accent;X.font='bold 14px Bungee';X.textAlign='left';X.fillText(p1.comboCount+' HIT',20,68)}
+  if(p2.comboCount>1){X.fillStyle=p2Def.accent;X.font='bold 14px Bungee';X.textAlign='right';X.fillText(p2.comboCount+' HIT',W-20,68)}
+  // encore
+  if(encoreP1>0){X.fillStyle='#f0d030';X.font='bold 12px Bungee';X.textAlign='left';X.fillText('ENCORE!',20,82)}
+  if(encoreP2>0){X.fillStyle='#f0d030';X.font='bold 12px Bungee';X.textAlign='right';X.fillText('ENCORE!',W-20,82)}
+  // controls
+  X.fillStyle='#333';X.font='500 9px Inter';X.textAlign='center';
+  X.fillText('WASD move  J punch  K kick  L special  S block  H finisher (when full)',W/2,H-6);
+}
+
+function render(){
+  X.save();X.translate(shake.x,shake.y);
+  drawStage();
+
+  // projectiles (special ones)
+  particles.forEach(p=>{if(p.isProj){
+    X.globalAlpha=.8;X.fillStyle=p.col;X.beginPath();X.arc(p.x,p.y,p.r,0,Math.PI*2);X.fill();
+    X.globalAlpha=.2;X.beginPath();X.arc(p.x,p.y,p.r*2,0,Math.PI*2);X.fill();X.globalAlpha=1}});
+
+  drawFighter(p1);drawFighter(p2);
+
+  // particles
+  particles.forEach(p=>{if(p.isProj)return;
+    X.globalAlpha=(p.life/p.max)*.7;X.fillStyle=p.col;
+    if(p.text){X.font='bold '+(12+p.r)+'px Inter';X.textAlign='center';X.fillText(p.text,p.x,p.y)}
+    else{X.beginPath();X.arc(p.x,p.y,p.r*(p.life/p.max),0,Math.PI*2);X.fill()}
+  });X.globalAlpha=1;
+
+  drawBeatRing();
+  X.restore();
+  drawHUD();
+
+  // grade flash
+  if(gradeFlash.timer>0){
+    X.globalAlpha=gradeFlash.timer/.6;X.fillStyle=gradeFlash.col;
+    X.font='bold 18px Bungee';X.textAlign='center';
+    X.fillText(gradeFlash.text,gradeFlash.x,gradeFlash.y-10*(1-gradeFlash.timer/.6));
+    X.globalAlpha=1;
+  }
+
+  // announcements
+  if(announceTimer>0){
+    X.fillStyle='rgba(8,6,14,.5)';X.fillRect(0,H/2-40,W,80);
+    X.fillStyle='#f0d030';X.font='900 36px Bungee';X.textAlign='center';
+    X.fillText(announceText,W/2,H/2+12);
+  }
+
+  // KO
+  if(st==='ko'&&announceTimer<=0)nextRound();
+
+  // victory
+  if(st==='victory'){
+    X.fillStyle='rgba(5,4,8,.85)';X.fillRect(0,0,W,H);
+    const w=p1Wins>=2?p1Def:p2Def;
+    X.fillStyle=w.accent;X.font='900 34px Bungee';X.textAlign='center';
+    X.fillText(w.name.toUpperCase(),W/2,H/2-30);
+    X.fillStyle='#f0d030';X.font='700 20px Bungee';
+    X.fillText('WINS THE CLASHENDO!',W/2,H/2+5);
+    X.fillStyle='#888';X.font='600 14px Inter';
+    X.fillText(w.finisher,W/2,H/2+35);
+    X.fillStyle='#555';X.font='500 12px Inter';
+    X.fillText('Press Enter to rematch',W/2,H/2+65);
+  }
+}
+
+// ══════ MENU ══════
+function renderMenu(){
+  X.fillStyle='#08060e';X.fillRect(0,0,W,H);
+  for(let i=0;i<FIGHTERS.length;i++){X.globalAlpha=.03;X.fillStyle=FIGHTERS[i].color;
+    X.beginPath();X.arc(rnd(100,700),rnd(80,400),rnd(30,60),0,Math.PI*2);X.fill()}
+  X.globalAlpha=1;
+  X.fillStyle='#f0d030';X.font='900 52px Bungee';X.textAlign='center';
+  X.fillText('CLASHENDO',W/2,160);
+  X.fillStyle='#8060a0';X.font='600 16px Inter';
+  X.fillText('Rhythm Fighting Game',W/2,190);
+  X.fillStyle='#c8b890';X.font='600 18px Inter';X.fillText('Click to Begin',W/2,280);
+  X.fillStyle='#555';X.font='500 11px Inter';
+  X.fillText('8 musical fighters · beat-synced combat · specials · finishers',W/2,320);
+  X.fillText('Land attacks ON THE BEAT for bonus damage!',W/2,340);
+  // fighter dots
+  FIGHTERS.forEach((f,i)=>{X.fillStyle=f.color;X.beginPath();X.arc(260+i*40,380,12,0,Math.PI*2);X.fill();
+    X.fillStyle='#fff';X.font='bold 8px Inter';X.textAlign='center';X.fillText(f.name.substring(0,3),260+i*40,383)});
+}
+
+function renderSelect(){
+  X.fillStyle='#08060e';X.fillRect(0,0,W,H);
+  X.fillStyle='#f0d030';X.font='900 24px Bungee';X.textAlign='center';
+  X.fillText('CHOOSE YOUR FIGHTER',W/2,45);
+  const cols=4,bw=170,bh=90,gap=14;
+  const sx=(W-cols*(bw+gap)+gap)/2,sy=65;
+  FIGHTERS.forEach((f,i)=>{
+    const col=i%cols,row=Math.floor(i/cols);
+    const bx=sx+col*(bw+gap),by=sy+row*(bh+gap);
+    const sel=selectIdx===i;
+    X.fillStyle=sel?f.color:f.color+'20';X.globalAlpha=sel?1:.5;
+    X.fillRect(bx,by,bw,bh);X.globalAlpha=1;
+    X.strokeStyle=sel?f.accent:'#333';X.lineWidth=sel?3:1;X.strokeRect(bx,by,bw,bh);
+    // mini figure
+    X.fillStyle=f.color;X.fillRect(bx+12,by+20,14,30);
+    X.beginPath();X.arc(bx+19,by+18,8,0,Math.PI*2);X.fill();
+    X.fillStyle=f.accent;X.fillRect(bx+8,by+30,22,4);
+    // info
+    X.fillStyle='#fff';X.font='bold 13px Bungee';X.textAlign='left';X.fillText(f.name,bx+38,by+22);
+    X.fillStyle='#aaa';X.font='500 10px Inter';X.fillText(f.style+' — '+f.instrument,bx+38,by+38);
+    X.fillStyle=f.accent;X.font='500 9px Inter';
+    X.fillText('Special: '+f.special.name,bx+38,by+54);
+    X.fillStyle='#777';X.fillText('HP:'+f.hp+' ATK:'+f.atk+' SPD:'+(f.spd/10|0)+' BPM'+((f.bpmShift>=0?'+':'')+f.bpmShift),bx+38,by+68);
+    X.fillStyle='#555';X.fillText('Finisher: '+f.finisher,bx+38,by+82);
+  });
+}
+
+// ══════ INPUT ══════
+document.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();keys[k]=true;keyJustPressed[k]=true;
+  if(k===' ')e.preventDefault();
+  if(k==='enter'){
+    if(st==='victory'){st='menu'}
+  }
+});
+document.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
+
+C.addEventListener('click',e=>{
+  aud();
+  if(st==='menu'){st='select';selectIdx=0;return}
+  if(st==='select'){
+    const rect=C.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(W/rect.width),my=(e.clientY-rect.top)*(H/rect.height);
+    const cols=4,bw=170,bh=90,gap=14;
+    const sx=(W-cols*(bw+gap)+gap)/2,sy=65;
+    FIGHTERS.forEach((f,i)=>{
+      const col=i%cols,row=Math.floor(i/cols);
+      const bx=sx+col*(bw+gap),by=sy+row*(bh+gap);
+      if(mx>=bx&&mx<=bx+bw&&my>=by&&my<=by+bh){selectIdx=i;startFight(i)}
+    });
+  }
+});
+
+function startFight(pIdx){
+  p1Def=FIGHTERS[pIdx];
+  let cpuIdx;do{cpuIdx=Math.floor(Math.random()*FIGHTERS.length)}while(cpuIdx===pIdx);
+  p2Def=FIGHTERS[cpuIdx];
+  stage=STAGES[Math.floor(Math.random()*STAGES.length)];
+  // set BPM with character shifts
+  bpm=stage.bpm||120;bpm+=p1Def.bpmShift/2+p2Def.bpmShift/2;
+  if(bpm<80)bpm=80;if(bpm>180)bpm=180;
+  if(stage.bpm===0)bpm=100; // The Silence
+  beatInterval=60/bpm;beatTimer=0;beatCount=0;
+  round=1;p1Wins=0;p2Wins=0;particles=[];
+  harmonyP1=0;harmonyP2=0;encoreP1=0;encoreP2=0;
+  p1=makeF(p1Def,180,1);p2=makeF(p2Def,580,-1);
+  announce('ROUND 1 — FIGHT!',1.5);
+  startBgBeat();
+  st='fight';
+}
+
+// ══════ LOOP ══════
+let lastT=0,acc=0;
+function loop(ts){
+  const dt=Math.min(.05,(ts-lastT)/1000);lastT=ts;time+=dt;
+  if(st==='menu'){renderMenu();requestAnimationFrame(loop);return}
+  if(st==='select'){renderSelect();requestAnimationFrame(loop);return}
+  acc+=dt;while(acc>=FDT){fixedUpdate();acc-=FDT}
+  render();requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

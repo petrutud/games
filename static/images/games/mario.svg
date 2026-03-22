@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2060c0"/>
+      <stop offset="100%" stop-color="#1040a0"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="24" fill="url(#bg)"/>
+  <!-- Clouds -->
+  <ellipse cx="50" cy="50" rx="20" ry="12" fill="#fff" opacity="0.3"/>
+  <ellipse cx="150" cy="40" rx="25" ry="14" fill="#fff" opacity="0.25"/>
+  <!-- Ground -->
+  <rect x="0" y="140" width="200" height="60" rx="0" fill="#60a020"/>
+  <rect x="0" y="140" width="200" height="8" fill="#80c030"/>
+  <!-- Brick blocks -->
+  <rect x="60" y="100" width="20" height="20" rx="2" fill="#c07030"/>
+  <rect x="80" y="100" width="20" height="20" rx="2" fill="#c07030"/>
+  <rect x="100" y="100" width="20" height="20" rx="2" fill="#d4a030"/>
+  <text x="110" y="115" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="14" fill="#c07030">?</text>
+  <rect x="120" y="100" width="20" height="20" rx="2" fill="#c07030"/>
+  <!-- Pipe -->
+  <rect x="150" y="118" width="30" height="22" rx="2" fill="#20a040"/>
+  <rect x="147" y="116" width="36" height="8" rx="2" fill="#30c050"/>
+  <!-- Mario character -->
+  <g>
+    <!-- Hat -->
+    <rect x="75" y="115" width="14" height="5" rx="2" fill="#e02020"/>
+    <rect x="72" y="119" width="20" height="3" rx="1" fill="#e02020"/>
+    <!-- Face -->
+    <rect x="76" y="122" width="12" height="8" rx="2" fill="#f0b080"/>
+    <!-- Eyes -->
+    <rect x="78" y="124" width="3" height="3" rx="1" fill="#222"/>
+    <rect x="83" y="124" width="3" height="3" rx="1" fill="#222"/>
+    <!-- Mustache -->
+    <rect x="77" y="128" width="10" height="2" rx="1" fill="#4a2a10"/>
+    <!-- Body -->
+    <rect x="76" y="130" width="12" height="8" rx="1" fill="#e02020"/>
+    <!-- Overalls -->
+    <rect x="78" y="132" width="8" height="6" rx="1" fill="#2060c0"/>
+  </g>
+  <!-- Coin -->
+  <circle cx="45" cy="95" r="6" fill="#f0d030" opacity="0.7"/>
+  <circle cx="45" cy="95" r="4" fill="none" stroke="#c0a020" stroke-width="1" opacity="0.5"/>
+  <!-- Goomba -->
+  <ellipse cx="130" cy="136" rx="7" ry="5" fill="#a06030"/>
+  <rect x="125" y="136" width="3" height="4" rx="1" fill="#a06030"/>
+  <rect x="132" y="136" width="3" height="4" rx="1" fill="#a06030"/>
+  <rect x="126" y="132" width="3" height="2" fill="#fff"/>
+  <rect x="131" y="132" width="3" height="2" fill="#fff"/>
+  <!-- Title -->
+  <text x="100" y="175" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="15" fill="#fff" letter-spacing="1">SUPER MARIO</text>
+  <text x="100" y="190" text-anchor="middle" font-family="sans-serif" font-weight="600" font-size="8" fill="rgba(255,255,255,0.5)" letter-spacing="1">BROWSER EDITION</text>
+</svg>

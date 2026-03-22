@@ -11,7 +11,9 @@
       "Bash(wc -l /home/petru/code/games/project1/roguelike/js/*.js)",
       "Bash(xdg-open /home/petru/code/games/static/games/echoes/index.html)",
       "Bash(xdg-open /home/petru/code/games/static/games/pale-canvas/index.html)",
-      "Bash(xdg-open /home/petru/code/games/static/games/mortal-combat/index.html)"
+      "Bash(xdg-open /home/petru/code/games/static/games/mortal-combat/index.html)",
+      "Bash(xdg-open /home/petru/code/games/static/games/clashendo/index.html)",
+      "Bash(xdg-open /home/petru/code/games/static/games/inch/index.html)"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",

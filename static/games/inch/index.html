@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inch — Petru Tudorica</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#1a1612;color:#e0d8c8;font-family:'Inter',sans-serif;display:flex;flex-direction:column;overflow:hidden}
+.sn{background:rgba(26,22,18,.9);backdrop-filter:blur(10px);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.05);z-index:500;position:relative}
+.sn a{color:#998;text-decoration:none;font-size:13px;transition:color .2s}.sn a:hover{color:#eed}
+.sn .br{display:flex;align-items:center;gap:8px;font-weight:500;font-size:15px}.sn .br img{width:24px;height:24px}
+.sn .nl{display:flex;gap:16px}
+.gw{flex:1;display:flex;align-items:center;justify-content:center;background:#0e0c08}
+canvas{display:block;max-width:100%;height:auto;image-rendering:pixelated}
+.sf{text-align:center;padding:8px;color:rgba(255,255,255,.18);font-size:10px}
+</style>
+</head>
+<body>
+<nav class="sn"><a href="/" class="br"><img src="/favicon.svg" alt> Petru Tudorica</a><div class="nl"><a href="/#projects">Games</a></div></nav>
+<div class="gw"><canvas id="c" width="800" height="480"></canvas></div>
+<footer class="sf">&copy; 2026 Petru Tudorica</footer>
+<script>
+(function(){'use strict';
+const C=document.getElementById('c'),X=C.getContext('2d');
+const W=800,H=480,T=16,FDT=1/60; // tile size 16px
+const G=1200,JVEL=-420,SPD=150,GRAP_SPD=300;
+
+// ══════ TILE TYPES ══════
+const TILE={
+  AIR:0,SOLID:1,WOOD:2,CARPET:3,FABRIC:4,METAL:5,GLASS:6,WATER:7,
+  SAVE:8,DOOR:9,ITEM:10,READ:11,SPIKE:12,WEB:13,HIDE:14,LIGHT:15
+};
+
+// ══════ MATERIALS & CRAFTING ══════
+const MATERIALS=['paperclip','thread','rubber_band','tape','thumbtack','matchstick','bottlecap','thimble'];
+const RECIPES={
+  grapple:{need:{paperclip:1,thread:1},name:'Paperclip Grapple',desc:'Swing from thumbtacks'},
+  slingshot:{need:{rubber_band:1,thumbtack:1},name:'Rubber Band Slingshot',desc:'Shoot small objects'},
+  helmet:{need:{thimble:1,tape:1},name:'Thimble Helmet',desc:'Absorb one hit'},
+  shoes:{need:{tape:2},name:'Tape Shoes',desc:'Walk up smooth walls'},
+  torch:{need:{matchstick:1},name:'Matchstick Torch',desc:'Light dark areas'},
+  boat:{need:{bottlecap:1,tape:1},name:'Bottle-Cap Boat',desc:'Float on water'},
+};
+
+// ══════ ROOMS ══════
+// Each room: name, width (tiles), tilemap rows, items, enemies, doors, readables, colors
+const ROOM_W=50,ROOM_H=30;
+function emptyMap(){const m=[];for(let y=0;y<ROOM_H;y++){m[y]=[];for(let x=0;x<ROOM_W;x++)m[y][x]=0}return m}
+function fillGround(m,y,t){for(let x=0;x<ROOM_W;x++)m[y][x]=t||TILE.SOLID;return m}
+function rect(m,x1,y1,w,h,t){for(let y=y1;y<y1+h&&y<ROOM_H;y++)for(let x=x1;x<x1+w&&x<ROOM_W;x++)m[y][x]=t;return m}
+
+function buildLivingRoom(){
+  const m=emptyMap();
+  fillGround(m,ROOM_H-1,TILE.CARPET);fillGround(m,ROOM_H-2,TILE.CARPET);
+  // floor
+  for(let x=0;x<ROOM_W;x++){m[ROOM_H-3][x]=TILE.CARPET}
+  // walls
+  for(let y=0;y<ROOM_H;y++){m[y][0]=TILE.SOLID;m[y][ROOM_W-1]=TILE.SOLID}
+  // ceiling
+  for(let x=0;x<ROOM_W;x++)m[0][x]=TILE.SOLID;
+  // couch (mountain range)
+  rect(m,5,18,12,4,TILE.FABRIC);rect(m,6,16,4,2,TILE.FABRIC);rect(m,12,17,3,1,TILE.FABRIC);
+  // TV stand (cliff)
+  rect(m,28,20,8,7,TILE.WOOD);rect(m,29,18,6,2,TILE.WOOD);
+  // coffee table
+  rect(m,18,24,8,1,TILE.WOOD);rect(m,19,25,1,2,TILE.WOOD);rect(m,24,25,1,2,TILE.WOOD);
+  // bookshelf (skyscraper)
+  rect(m,40,4,6,23,TILE.WOOD);
+  for(let y=6;y<26;y+=4)rect(m,41,y,4,1,TILE.WOOD); // shelves
+  // baseboard village entrance
+  m[26][2]=TILE.SAVE;
+  return m;
+}
+
+function buildKitchen(){
+  const m=emptyMap();
+  fillGround(m,ROOM_H-1,TILE.SOLID);fillGround(m,ROOM_H-2,TILE.SOLID);
+  for(let y=0;y<ROOM_H;y++){m[y][0]=TILE.SOLID;m[y][ROOM_W-1]=TILE.SOLID}
+  for(let x=0;x<ROOM_W;x++)m[0][x]=TILE.SOLID;
+  // counter (plateau)
+  rect(m,8,14,30,2,TILE.METAL);
+  // counter legs
+  rect(m,9,16,2,11,TILE.METAL);rect(m,36,16,2,11,TILE.METAL);
+  // sink area
+  rect(m,18,10,8,4,TILE.METAL);m[12][22]=TILE.WATER;m[13][22]=TILE.WATER;
+  // fridge (frozen tundra)
+  rect(m,42,2,7,25,TILE.METAL);
+  // hanging towel (connection)
+  for(let y=15;y<22;y++)m[y][14]=TILE.FABRIC;
+  // ant territory marker
+  rect(m,25,26,8,1,TILE.SPIKE);
+  m[26][4]=TILE.SAVE;
+  return m;
+}
+
+function buildBedroom(){
+  const m=emptyMap();
+  fillGround(m,ROOM_H-1,TILE.CARPET);fillGround(m,ROOM_H-2,TILE.CARPET);
+  for(let y=0;y<ROOM_H;y++){m[y][0]=TILE.SOLID;m[y][ROOM_W-1]=TILE.SOLID}
+  for(let x=0;x<ROOM_W;x++)m[0][x]=TILE.SOLID;
+  // bed (huge)
+  rect(m,4,18,18,4,TILE.FABRIC);rect(m,4,14,3,4,TILE.WOOD); // headboard
+  // under-bed zone (dark, dusty)
+  rect(m,5,22,16,3,TILE.AIR); // gap
+  rect(m,4,25,18,2,TILE.WOOD); // bed frame base
+  // desk
+  rect(m,28,16,10,1,TILE.WOOD);rect(m,29,17,1,10,TILE.WOOD);rect(m,36,17,1,10,TILE.WOOD);
+  // dollhouse (explorable!)
+  rect(m,40,10,8,12,TILE.WOOD);
+  rect(m,41,14,6,1,TILE.WOOD);rect(m,41,18,6,1,TILE.WOOD); // floors
+  rect(m,44,11,1,11,TILE.WOOD); // wall
+  // nightlight (safe zone)
+  m[22][46]=TILE.LIGHT;m[23][46]=TILE.LIGHT;
+  m[26][4]=TILE.SAVE;
+  return m;
+}
+
+function buildBathroom(){
+  const m=emptyMap();
+  fillGround(m,ROOM_H-1,TILE.SOLID);fillGround(m,ROOM_H-2,TILE.SOLID);
+  for(let y=0;y<ROOM_H;y++){m[y][0]=TILE.SOLID;m[y][ROOM_W-1]=TILE.SOLID}
+  for(let x=0;x<ROOM_W;x++)m[0][x]=TILE.SOLID;
+  // bathtub (ocean)
+  rect(m,5,20,20,2,TILE.SOLID); // rim
+  rect(m,6,22,18,5,TILE.WATER); // water
+  // medicine cabinet (high)
+  rect(m,30,4,10,8,TILE.GLASS);rect(m,31,6,8,1,TILE.GLASS);rect(m,31,9,8,1,TILE.GLASS);
+  // sink
+  rect(m,30,16,10,2,TILE.METAL);rect(m,32,18,2,9,TILE.METAL);rect(m,36,18,2,9,TILE.METAL);
+  // dripping faucet
+  m[15][35]=TILE.WATER;
+  m[26][4]=TILE.SAVE;
+  return m;
+}
+
+function buildGarage(){
+  const m=emptyMap();
+  fillGround(m,ROOM_H-1,TILE.SOLID);fillGround(m,ROOM_H-2,TILE.SOLID);
+  for(let y=0;y<ROOM_H;y++){m[y][0]=TILE.SOLID;m[y][ROOM_W-1]=TILE.SOLID}
+  for(let x=0;x<ROOM_W;x++)m[0][x]=TILE.SOLID;
+  // workbench (massive)
+  rect(m,10,16,25,2,TILE.WOOD);rect(m,11,18,2,9,TILE.WOOD);rect(m,33,18,2,9,TILE.WOOD);
+  // tool wall (pegboard)
+  rect(m,10,4,25,1,TILE.WOOD);
+  for(let x=12;x<34;x+=4){m[5][x]=TILE.METAL;m[6][x]=TILE.METAL}
+  // boxes (packed up)
+  rect(m,38,22,5,5,TILE.WOOD);rect(m,44,24,4,3,TILE.WOOD);rect(m,39,18,3,4,TILE.WOOD);
+  m[26][4]=TILE.SAVE;
+  return m;
+}
+
+const ROOM_DEFS=[
+  {id:'living',name:'Living Room',build:buildLivingRoom,bg:'#2a2218',accent:'#c8a060',
+   items:[{x:20,y:23,mat:'thread'},{x:35,y:19,mat:'paperclip'},{x:15,y:17,mat:'rubber_band'}],
+   enemies:[{x:25,y:25,type:'mite'},{x:30,y:25,type:'mite'}],
+   doors:[{x:48,y:25,to:'kitchen',label:'Kitchen >'},{x:47,y:8,to:'bedroom',label:'Bedroom >'}],
+   reads:[{x:30,y:17,text:'A photo on the TV stand: The Bailey family smiling at the beach. A crack runs through the frame.'}],
+  },
+  {id:'kitchen',name:'Kitchen',build:buildKitchen,bg:'#1e1a14',accent:'#90b8a0',
+   items:[{x:15,y:13,mat:'thumbtack'},{x:30,y:13,mat:'tape'},{x:44,y:10,mat:'matchstick'}],
+   enemies:[{x:20,y:25,type:'ant'},{x:28,y:25,type:'ant'},{x:35,y:25,type:'ant'},{x:22,y:9,type:'spider'}],
+   doors:[{x:1,y:25,to:'living',label:'< Living'},{x:48,y:25,to:'bathroom',label:'Bath >'}],
+   reads:[{x:12,y:13,text:'A grocery list: "Lily\'s lunch boxes (last week). Cancel delivery." Sarah\'s handwriting trembles.'}],
+  },
+  {id:'bathroom',name:'Bathroom',build:buildBathroom,bg:'#14181e',accent:'#6090b8',
+   items:[{x:32,y:5,mat:'thimble'},{x:12,y:19,mat:'bottlecap'},{x:40,y:26,mat:'tape'}],
+   enemies:[{x:15,y:19,type:'mite'},{x:25,y:26,type:'mite'}],
+   doors:[{x:1,y:25,to:'kitchen',label:'< Kitchen'}],
+   reads:[{x:34,y:15,text:'A pill bottle knocked over. The label says "ANXIETY." The cap is missing.'}],
+  },
+  {id:'bedroom',name:'Lily\'s Bedroom',build:buildBedroom,bg:'#1e1620',accent:'#c090b8',
+   items:[{x:30,y:15,mat:'rubber_band'},{x:42,y:9,mat:'thread'},{x:10,y:21,mat:'tape'}],
+   enemies:[{x:10,y:23,type:'mite'},{x:14,y:23,type:'mite'},{x:18,y:23,type:'mite'}],
+   doors:[{x:1,y:25,to:'living',label:'< Living'},{x:48,y:25,to:'garage',label:'Garage >'}],
+   reads:[{x:42,y:13,text:'A drawing inside the dollhouse: Mom, Dad, and Lily. A jagged line splits the paper in half. "I dont want 2 houses" is written in crayon.'}],
+  },
+  {id:'garage',name:'Garage Workshop',build:buildGarage,bg:'#181a14',accent:'#a0a880',
+   items:[{x:20,y:15,mat:'paperclip'},{x:15,y:15,mat:'thumbtack'},{x:25,y:15,mat:'matchstick'},{x:40,y:21,mat:'bottlecap'}],
+   enemies:[{x:30,y:26,type:'ant'},{x:20,y:26,type:'spider'}],
+   doors:[{x:1,y:25,to:'bedroom',label:'< Bedroom'}],
+   reads:[{x:38,y:17,text:'"MARK\'S TOOLS" is written on a box in marker. Below it, crossed out: "Maybe I\'ll finish the treehouse someday." The wood is half-cut, abandoned.'}],
+  },
+];
+
+// ══════ STATE ══════
+let st='menu'; // menu|play|read|craft|dead
+let roomIdx=0,tileMap=null;
+let player=null,enemies=[],particles=[],cam={x:0,y:0};
+let inventory={},tools={},hp=3,maxHp=3;
+let readText='',craftOpen=false;
+let time=0,shake={x:0,y:0};
+let keys={},justPressed={};
+
+// ══════ AUDIO ══════
+let ac=null;
+function aud(){if(!ac)try{ac=new(window.AudioContext||window.webkitAudioContext)}catch(e){}return ac}
+function note(f,d,t,v){const a=aud();if(!a)return;const o=a.createOscillator(),g=a.createGain();
+o.type=t||'sine';o.frequency.setValueAtTime(f,a.currentTime);o.connect(g);g.connect(a.destination);
+g.gain.setValueAtTime(v||.04,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+(d||.1));
+o.start(a.currentTime);o.stop(a.currentTime+(d||.1)+.02)}
+function sndJump(){note(400,.05,'triangle',.03);note(500,.05,'triangle',.025)}
+function sndHit(){note(200,.06,'sawtooth',.05);note(100,.08,'sawtooth',.03)}
+function sndPickup(){note(600,.04,'sine',.04);note(800,.04,'sine',.03)}
+function sndCraft(){note(523,.08,'sine',.04);note(659,.08,'sine',.03);note(784,.1,'sine',.03)}
+function sndSave(){note(440,.1,'sine',.04);note(554,.1,'sine',.03);note(659,.12,'sine',.03)}
+function sndDeath(){note(200,.15,'sawtooth',.06);note(100,.2,'sawtooth',.04)}
+function sndRead(){note(350,.08,'sine',.03);note(440,.1,'sine',.025)}
+function sndDoor(){note(300,.06,'triangle',.03);note(400,.06,'triangle',.025)}
+
+// ══════ HELPERS ══════
+function rnd(a,b){return a+Math.random()*(b-a)}
+function emitP(x,y,col,n,spd,life){
+  for(let i=0;i<n;i++){const a=rnd(0,Math.PI*2),s=rnd(spd*.3,spd);
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-rnd(10,40),life:rnd(life*.5,life),max:life,r:rnd(1,3.5),col})}}
+
+function getTile(tx,ty){if(ty<0||ty>=ROOM_H||tx<0||tx>=ROOM_W)return TILE.SOLID;return tileMap[ty][tx]}
+function isSolid(tx,ty){const t=getTile(tx,ty);return t===TILE.SOLID||t===TILE.WOOD||t===TILE.METAL||t===TILE.CARPET||t===TILE.FABRIC||t===TILE.GLASS}
+
+// ══════ LOAD ROOM ══════
+function loadRoom(idx,spawnX){
+  roomIdx=idx;
+  const def=ROOM_DEFS[idx];
+  tileMap=def.build();
+  // spawn items into tilemap
+  def.items.forEach(it=>{if(!it.taken)tileMap[it.y][it.x]=TILE.ITEM});
+  // enemies
+  enemies=def.enemies.map(e=>({x:e.x*T,y:e.y*T-12,w:12,h:12,vx:rnd(-30,30),vy:0,
+    type:e.type,hp:e.type==='spider'?4:e.type==='ant'?2:1,
+    face:1,aiT:rnd(.5,2),dead:false,gr:false}));
+  // player
+  if(!player)player={x:60,y:380,w:10,h:14,vx:0,vy:0,gr:false,face:1,invuln:0,grapple:null};
+  if(spawnX!==undefined)player.x=spawnX;
+  player.y=380;player.vy=0;
+}
+
+// ══════ PLAYER PHYSICS ══════
+function tileCollide(ent){
+  // X
+  const left=Math.floor(ent.x/T),right=Math.floor((ent.x+ent.w-1)/T);
+  const top=Math.floor(ent.y/T),bot=Math.floor((ent.y+ent.h-1)/T);
+  // check all corners
+  for(let ty=top;ty<=bot;ty++){
+    if(isSolid(left,ty)&&ent.vx<0){ent.x=(left+1)*T;ent.vx=0}
+    if(isSolid(right,ty)&&ent.vx>0){ent.x=right*T-ent.w;ent.vx=0}
+  }
+  // Y
+  const left2=Math.floor(ent.x/T),right2=Math.floor((ent.x+ent.w-1)/T);
+  const top2=Math.floor(ent.y/T),bot2=Math.floor((ent.y+ent.h-1)/T);
+  ent.gr=false;
+  for(let tx=left2;tx<=right2;tx++){
+    if(isSolid(tx,bot2)&&ent.vy>0){ent.y=bot2*T-ent.h;ent.vy=0;ent.gr=true}
+    if(isSolid(tx,top2)&&ent.vy<0){ent.y=(top2+1)*T;ent.vy=0}
+  }
+}
+
+function updatePlayer(dt){
+  if(!player)return;
+  player.invuln=Math.max(0,player.invuln-dt);
+  player.vx=0;
+  if(keys.a||keys.arrowleft){player.vx=-SPD;player.face=-1}
+  if(keys.d||keys.arrowright){player.vx=SPD;player.face=1}
+  if((keys.w||keys.arrowup||keys[' '])&&player.gr){player.vy=JVEL;player.gr=false;sndJump()}
+  player.vy+=G*dt;if(player.vy>600)player.vy=600;
+  player.x+=player.vx*dt;player.y+=player.vy*dt;
+  tileCollide(player);
+  if(player.x<0)player.x=0;if(player.x>ROOM_W*T-player.w)player.x=ROOM_W*T-player.w;
+
+  // slingshot
+  if(justPressed.j&&tools.slingshot){
+    particles.push({x:player.x+player.w/2,y:player.y+player.h/2,
+      vx:player.face*400,vy:-50,life:.8,max:.8,r:3,col:'#d0a040',proj:true,dmg:2});
+    note(500,.04,'triangle',.03);
+  }
+
+  // check tile interactions
+  const tx=Math.floor((player.x+player.w/2)/T),ty=Math.floor((player.y+player.h/2)/T);
+  const tile=getTile(tx,ty);
+
+  // water
+  if(tile===TILE.WATER&&!tools.boat){player.vy=Math.min(player.vy,50);player.hp-=dt*10} // slow sink
+
+  // spikes
+  if(tile===TILE.SPIKE)hurtPlayer(1);
+
+  // save
+  if(tile===TILE.SAVE&&justPressed.e){sndSave();hp=maxHp;emitP(player.x,player.y,'#f0d030',12,60,.4)}
+
+  // items
+  if(tile===TILE.ITEM&&justPressed.e){
+    const def=ROOM_DEFS[roomIdx];
+    const it=def.items.find(i=>i.x===tx&&i.y===ty&&!i.taken);
+    if(it){it.taken=true;tileMap[ty][tx]=TILE.AIR;inventory[it.mat]=(inventory[it.mat]||0)+1;
+      sndPickup();emitP(player.x+player.w/2,player.y,'#60d060',8,50,.3)}
+  }
+
+  // readables
+  if(justPressed.e){
+    const def=ROOM_DEFS[roomIdx];
+    def.reads.forEach(r=>{
+      if(Math.abs(r.x-tx)<=1&&Math.abs(r.y-ty)<=1){readText=r.text;st='read';sndRead()}
+    });
+  }
+
+  // doors
+  const def=ROOM_DEFS[roomIdx];
+  def.doors.forEach(d=>{
+    if(Math.abs(d.x-tx)<=1&&Math.abs(d.y-ty)<=1&&justPressed.e){
+      const idx=ROOM_DEFS.findIndex(r=>r.id===d.to);
+      if(idx>=0){sndDoor();loadRoom(idx,d.x<ROOM_W/2?ROOM_W*T-80:60)}
+    }
+  });
+
+  // crafting
+  if(justPressed.c){craftOpen=!craftOpen;st=craftOpen?'craft':'play'}
+
+  // camera
+  cam.x=player.x-W/2+player.w/2;cam.y=player.y-H/2+player.h/2;
+  cam.x=Math.max(0,Math.min(ROOM_W*T-W,cam.x));
+  cam.y=Math.max(0,Math.min(ROOM_H*T-H,cam.y));
+}
+
+function hurtPlayer(dmg){
+  if(player.invuln>0)return;
+  if(tools.helmet){delete tools.helmet;player.invuln=1;emitP(player.x,player.y,'#aaa',8,60,.3);return}
+  hp-=dmg;player.invuln=1;shake={x:rnd(-4,4),y:rnd(-3,3)};sndHit();
+  emitP(player.x+player.w/2,player.y+player.h/2,'#f44',8,60,.3);
+  if(hp<=0){hp=0;st='dead';sndDeath();emitP(player.x+player.w/2,player.y+player.h/2,'#f44',20,100,.6)}
+}
+
+// ══════ ENEMIES ══════
+function updateEnemies(dt){
+  enemies.forEach(e=>{
+    if(e.dead)return;
+    e.aiT-=dt;
+    if(e.aiT<=0){e.aiT=rnd(.8,2);e.vx=rnd(-40,40);if(e.type==='spider')e.vx=rnd(-60,60)}
+    e.vy+=G*dt;e.x+=e.vx*dt;e.y+=e.vy*dt;
+    // simple ground check
+    const bx=Math.floor(e.x/T),by=Math.floor((e.y+e.h)/T);
+    if(by<ROOM_H&&isSolid(bx,by)){e.y=by*T-e.h;e.vy=0;e.gr=true}
+    if(e.x<T)e.vx=Math.abs(e.vx);if(e.x>(ROOM_W-2)*T)e.vx=-Math.abs(e.vx);
+    // hit player
+    if(player&&player.invuln<=0&&Math.abs(e.x-player.x)<14&&Math.abs(e.y-player.y)<14){
+      hurtPlayer(1);
+    }
+    // check projectile hits
+    particles.forEach((p,pi)=>{
+      if(p.proj&&!e.dead&&Math.abs(p.x-e.x-e.w/2)<12&&Math.abs(p.y-e.y-e.h/2)<12){
+        e.hp--;particles.splice(pi,1);emitP(e.x+e.w/2,e.y+e.h/2,'#f80',5,50,.2);
+        if(e.hp<=0){e.dead=true;emitP(e.x+e.w/2,e.y+e.h/2,'#fa0',10,70,.4);
+          note(300,.06,'triangle',.04)}
+      }
+    });
+  });
+}
+
+// ══════ RENDERING ══════
+const TILE_COLS={
+  [TILE.SOLID]:'#3a3530',[TILE.WOOD]:'#5a4830',[TILE.CARPET]:'#4a3828',
+  [TILE.FABRIC]:'#6a5048',[TILE.METAL]:'#6a7080',[TILE.GLASS]:'#4a6878',
+  [TILE.WATER]:'#2848a0',[TILE.SPIKE]:'#a04030',[TILE.WEB]:'#888',
+  [TILE.SAVE]:'#d0a040',[TILE.ITEM]:'#40c060',[TILE.READ]:'#c0a080',
+  [TILE.LIGHT]:'#f0d868',[TILE.HIDE]:'#2a2a2a',
+};
+
+function render(){
+  const def=ROOM_DEFS[roomIdx];
+  X.fillStyle=def.bg;X.fillRect(0,0,W,H);
+
+  X.save();X.translate(-cam.x+shake.x,-cam.y+shake.y);
+
+  // tiles
+  const sx=Math.floor(cam.x/T),sy=Math.floor(cam.y/T);
+  const ex=Math.min(ROOM_W,sx+Math.ceil(W/T)+2),ey=Math.min(ROOM_H,sy+Math.ceil(H/T)+2);
+  for(let ty=sy;ty<ey;ty++){
+    for(let tx=sx;tx<ex;tx++){
+      const t=getTile(tx,ty);if(t===TILE.AIR)continue;
+      const col=TILE_COLS[t]||'#444';
+      X.fillStyle=col;X.fillRect(tx*T,ty*T,T,T);
+      // texture
+      if(t===TILE.WOOD){X.fillStyle='rgba(0,0,0,.08)';X.fillRect(tx*T,ty*T+T/2,T,1)}
+      if(t===TILE.WATER){X.globalAlpha=.3+.1*Math.sin(time*2+tx);X.fillStyle='#60a0e0';X.fillRect(tx*T,ty*T,T,T);X.globalAlpha=1}
+      if(t===TILE.LIGHT){X.globalAlpha=.15+.05*Math.sin(time*3);X.fillStyle='#f0d868';
+        X.beginPath();X.arc(tx*T+T/2,ty*T+T/2,T*2,0,Math.PI*2);X.fill();X.globalAlpha=1}
+      if(t===TILE.SAVE){X.globalAlpha=.3+.1*Math.sin(time*2);X.fillStyle='#f0d030';
+        X.beginPath();X.arc(tx*T+T/2,ty*T+T/2,T,0,Math.PI*2);X.fill();X.globalAlpha=1}
+      if(t===TILE.ITEM){X.globalAlpha=.5+.2*Math.sin(time*3+tx);X.fillStyle='#40f060';
+        X.beginPath();X.arc(tx*T+T/2,ty*T+T/2,4,0,Math.PI*2);X.fill();X.globalAlpha=1}
+    }
+  }
+
+  // door labels
+  def.doors.forEach(d=>{
+    X.fillStyle=def.accent;X.globalAlpha=.6+.2*Math.sin(time*2);X.font='bold 8px Inter';X.textAlign='center';
+    X.fillText(d.label,d.x*T+T/2,d.y*T-4);X.globalAlpha=1;
+    X.fillStyle=def.accent;X.globalAlpha=.3;X.fillRect(d.x*T,d.y*T,T,T);X.globalAlpha=1;
+  });
+
+  // readable markers
+  def.reads.forEach(r=>{
+    X.fillStyle='#c0a060';X.globalAlpha=.4+.2*Math.sin(time*2.5);X.font='bold 10px Inter';X.textAlign='center';
+    X.fillText('?',r.x*T+T/2,r.y*T-2);X.globalAlpha=1;
+  });
+
+  // enemies
+  enemies.forEach(e=>{
+    if(e.dead)return;
+    const ecol=e.type==='spider'?'#5a3030':e.type==='ant'?'#3a2020':'#6a6058';
+    X.fillStyle=ecol;
+    // body
+    X.beginPath();X.ellipse(e.x+e.w/2,e.y+e.h/2,e.w/2,e.h/2,0,0,Math.PI*2);X.fill();
+    // eyes
+    X.fillStyle='#f44';X.fillRect(e.x+2,e.y+2,2,2);X.fillRect(e.x+e.w-4,e.y+2,2,2);
+    // spider legs
+    if(e.type==='spider'){X.strokeStyle=ecol;X.lineWidth=1;
+      for(let i=0;i<4;i++){const a=(.3+i*.4)*Math.PI;
+        X.beginPath();X.moveTo(e.x+e.w/2,e.y+e.h/2);
+        X.lineTo(e.x+e.w/2+Math.cos(a)*10,e.y+e.h/2+Math.sin(a)*8);X.stroke()}}
+  });
+
+  // player (Pip!)
+  if(player&&st!=='dead'){
+    const p=player,px=p.x,py=p.y;
+    const flash=p.invuln>0&&Math.sin(time*20)>.3;
+    X.globalAlpha=flash?.4:1;
+    // bottle-cap backpack
+    X.fillStyle='#808890';X.fillRect(px+2,py+3,6,6);X.strokeStyle='#a0a8b0';X.lineWidth=.5;X.strokeRect(px+2,py+3,6,6);
+    // body (round, bug-like)
+    X.fillStyle='#c8a878';
+    X.beginPath();X.ellipse(px+p.w/2,py+p.h*.55,p.w/2+1,p.h*.45,0,0,Math.PI*2);X.fill();
+    // head
+    X.fillStyle='#d4b888';X.beginPath();X.arc(px+p.w/2,py+3,5,0,Math.PI*2);X.fill();
+    // big eyes
+    X.fillStyle='#fff';X.beginPath();X.arc(px+3,py+2,2.5,0,Math.PI*2);X.fill();
+    X.beginPath();X.arc(px+p.w-3,py+2,2.5,0,Math.PI*2);X.fill();
+    X.fillStyle='#222';X.beginPath();X.arc(px+3+p.face,py+2,1.2,0,Math.PI*2);X.fill();
+    X.beginPath();X.arc(px+p.w-3+p.face,py+2,1.2,0,Math.PI*2);X.fill();
+    // tiny legs
+    X.fillStyle='#a08060';
+    X.fillRect(px+1,py+p.h-3,3,3);X.fillRect(px+p.w-4,py+p.h-3,3,3);
+    // helmet
+    if(tools.helmet){X.fillStyle='#a0a0a8';X.beginPath();X.arc(px+p.w/2,py+1,6,Math.PI,0);X.fill()}
+    // torch glow
+    if(tools.torch){X.globalAlpha=.08;X.fillStyle='#f0a030';
+      X.beginPath();X.arc(px+p.w/2,py+p.h/2,50,0,Math.PI*2);X.fill()}
+    X.globalAlpha=1;
+  }
+
+  // particles
+  particles.forEach(p=>{
+    if(p.proj){X.fillStyle=p.col;X.globalAlpha=.8;X.beginPath();X.arc(p.x,p.y,p.r,0,Math.PI*2);X.fill();X.globalAlpha=1}
+    else{X.globalAlpha=(p.life/p.max)*.7;X.fillStyle=p.col;X.beginPath();X.arc(p.x,p.y,p.r*(p.life/p.max),0,Math.PI*2);X.fill()}
+  });X.globalAlpha=1;
+
+  X.restore();
+
+  // ── HUD ──
+  X.fillStyle='rgba(14,12,8,.7)';X.fillRect(0,0,W,32);
+  // HP hearts
+  for(let i=0;i<maxHp;i++){
+    X.fillStyle=i<hp?'#e04040':'#333';X.font='14px Inter';X.fillText('\u2764',10+i*18,22);
+  }
+  // room name
+  X.fillStyle=def.accent;X.font='bold 12px Nunito';X.textAlign='center';X.fillText(def.name,W/2,20);
+  // inventory compact
+  X.fillStyle='#888';X.font='500 10px Inter';X.textAlign='right';
+  let invStr='';
+  Object.entries(inventory).forEach(([k,v])=>{if(v>0)invStr+=k.replace('_',' ')+':'+v+'  '});
+  X.fillText(invStr||'No materials',W-10,14);
+  // tools
+  let toolStr=Object.keys(tools).join(', ');
+  X.fillStyle='#6a8';X.fillText(toolStr||'',W-10,26);
+  // controls
+  X.fillStyle='#444';X.font='500 9px Inter';X.textAlign='center';
+  X.fillText('WASD move · Space jump · E interact · J shoot · C craft',W/2,H-6);
+
+  // read overlay
+  if(st==='read'){
+    X.fillStyle='rgba(8,6,4,.85)';X.fillRect(0,0,W,H);
+    X.fillStyle='#f0e8d8';X.font='600 14px Nunito';X.textAlign='center';
+    // word wrap
+    const words=readText.split(' ');let lines=[],line='';
+    words.forEach(w=>{if(X.measureText(line+' '+w).width>W-100){lines.push(line);line=w}else line+=(line?' ':'')+w});
+    lines.push(line);
+    lines.forEach((l,i)=>{X.fillText(l,W/2,H/2-lines.length*10+i*24)});
+    X.fillStyle='#888';X.font='500 12px Inter';X.fillText('Press E to close',W/2,H/2+lines.length*12+30);
+  }
+
+  // craft overlay
+  if(st==='craft'){
+    X.fillStyle='rgba(8,6,4,.88)';X.fillRect(50,40,W-100,H-80);
+    X.strokeStyle='rgba(255,255,255,.08)';X.lineWidth=2;X.strokeRect(50,40,W-100,H-80);
+    X.fillStyle='#f0d030';X.font='bold 18px Nunito';X.textAlign='center';X.fillText('CRAFTING',W/2,72);
+    let cy=100;
+    Object.entries(RECIPES).forEach(([id,r])=>{
+      const has=Object.entries(r.need).every(([m,n])=>(inventory[m]||0)>=n);
+      const made=!!tools[id];
+      X.fillStyle=made?'#4a4':has?'#c8b890':'#555';X.font='600 13px Nunito';X.textAlign='left';
+      X.fillText((made?'\u2713 ':'')+r.name,80,cy);
+      X.fillStyle='#888';X.font='500 11px Inter';
+      X.fillText(r.desc,80,cy+16);
+      let needStr=Object.entries(r.need).map(([m,n])=>m.replace('_',' ')+' x'+n+' ('+(inventory[m]||0)+')').join(', ');
+      X.fillStyle=has?'#8a8':'#666';X.fillText(needStr,80,cy+30);
+      // craft button
+      if(has&&!made){
+        X.fillStyle='#4a8040';X.fillRect(W-180,cy-12,80,24);
+        X.fillStyle='#fff';X.font='bold 11px Inter';X.textAlign='center';X.fillText('CRAFT',W-140,cy+4);
+      }
+      cy+=52;
+    });
+    X.fillStyle='#666';X.font='500 11px Inter';X.textAlign='center';X.fillText('Press C to close',W/2,H-55);
+  }
+
+  // dead
+  if(st==='dead'){
+    X.fillStyle='rgba(8,4,4,.8)';X.fillRect(0,0,W,H);
+    X.fillStyle='#c44';X.font='bold 28px Nunito';X.textAlign='center';X.fillText('Pip was squished...',W/2,H/2-10);
+    X.fillStyle='#888';X.font='500 14px Inter';X.fillText('Press Enter to respawn at last save',W/2,H/2+25);
+  }
+
+  shake.x*=.8;shake.y*=.8;
+}
+
+function renderMenu(){
+  X.fillStyle='#1a1612';X.fillRect(0,0,W,H);
+  // warm light pools
+  X.globalAlpha=.04;X.fillStyle='#f0a040';
+  X.beginPath();X.arc(200,200,120,0,Math.PI*2);X.fill();
+  X.beginPath();X.arc(600,300,100,0,Math.PI*2);X.fill();
+  X.globalAlpha=1;
+  // title
+  X.fillStyle='#e0d0b8';X.font='800 48px Nunito';X.textAlign='center';X.fillText('INCH',W/2,180);
+  X.fillStyle='#8a7a60';X.font='italic 500 16px Nunito';X.fillText('A Tiny Exploration Game',W/2,210);
+  // pip
+  X.fillStyle='#c8a878';X.beginPath();X.ellipse(W/2,270,14,10,0,0,Math.PI*2);X.fill();
+  X.fillStyle='#d4b888';X.beginPath();X.arc(W/2,258,7,0,Math.PI*2);X.fill();
+  X.fillStyle='#fff';X.beginPath();X.arc(W/2-3,256,3.5,0,Math.PI*2);X.fill();
+  X.beginPath();X.arc(W/2+3,256,3.5,0,Math.PI*2);X.fill();
+  X.fillStyle='#222';X.beginPath();X.arc(W/2-2,256,1.8,0,Math.PI*2);X.fill();
+  X.beginPath();X.arc(W/2+4,256,1.8,0,Math.PI*2);X.fill();
+  // start
+  X.fillStyle='#c8a060';X.font='600 16px Inter';X.fillText('Click to Enter the House',W/2,330);
+  X.fillStyle='#5a5040';X.font='500 11px Inter';
+  X.fillText('Explore 5 rooms · Craft tools · Fight tiny creatures · Discover what happened',W/2,360);
+  X.fillText('WASD move · Space jump · E interact · J shoot · C craft',W/2,380);
+}
+
+// ══════ INPUT ══════
+document.addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys[k]=true;justPressed[k]=true;
+  if(k===' ')e.preventDefault();
+  if(st==='read'&&k==='e'){st='play';readText=''}
+  if(st==='dead'&&k==='enter'){st='play';hp=maxHp;loadRoom(roomIdx)}
+  // craft clicking via number keys
+  if(st==='craft'&&k>='1'&&k<='6'){
+    const recipes=Object.entries(RECIPES);const idx=parseInt(k)-1;
+    if(idx<recipes.length){const[id,r]=recipes[idx];
+      const has=Object.entries(r.need).every(([m,n])=>(inventory[m]||0)>=n);
+      if(has&&!tools[id]){Object.entries(r.need).forEach(([m,n])=>{inventory[m]-=n});tools[id]=true;sndCraft()}}}
+});
+document.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
+C.addEventListener('click',e=>{
+  aud();
+  if(st==='menu'){st='play';loadRoom(0);return}
+  if(st==='craft'){
+    // check craft button clicks
+    const rect=C.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(W/rect.width),my=(e.clientY-rect.top)*(H/rect.height);
+    let cy=100;
+    Object.entries(RECIPES).forEach(([id,r])=>{
+      const has=Object.entries(r.need).every(([m,n])=>(inventory[m]||0)>=n);
+      if(has&&!tools[id]&&mx>=W-180&&mx<=W-100&&my>=cy-12&&my<=cy+12){
+        Object.entries(r.need).forEach(([m,n])=>{inventory[m]-=n});tools[id]=true;sndCraft();
+        emitP(W/2,cy,'#f0d030',10,50,.3);}
+      cy+=52;
+    });
+  }
+});
+
+// ══════ LOOP ══════
+let lastT=0,acc=0;
+function loop(ts){
+  const dt=Math.min(.05,(ts-lastT)/1000);lastT=ts;time+=dt;
+  if(st==='menu'){renderMenu();requestAnimationFrame(loop);return}
+  if(st==='play'){
+    acc+=dt;while(acc>=FDT){
+      updatePlayer(FDT);updateEnemies(FDT);
+      // projectile update
+      for(let i=particles.length-1;i>=0;i--){
+        const p=particles[i];p.x+=(p.vx||0)*FDT;p.y+=(p.vy||0)*FDT;
+        if(!p.proj)p.vy=(p.vy||0)+300*FDT;
+        p.life-=FDT;if(p.life<=0)particles.splice(i,1);}
+      acc-=FDT;}
+  }
+  render();justPressed={};
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
