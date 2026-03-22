@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rock Paper Scissors — Petru Tudorica</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Roboto:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #0f1118;
+    color: #e0e4eb;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* Site navbar */
+  .site-nav {
+    background: rgba(15,17,24,0.85);
+    backdrop-filter: blur(10px);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    z-index: 500;
+    position: relative;
+  }
+  .site-nav a { color: #ccc; text-decoration: none; font-family: 'Roboto', sans-serif; font-size: 14px; transition: color 0.2s; }
+  .site-nav a:hover { color: #fff; }
+  .site-nav .brand { display: flex; align-items: center; gap: 10px; font-weight: 500; font-size: 16px; }
+  .site-nav .brand img { width: 28px; height: 28px; }
+  .site-nav .nav-links { display: flex; gap: 20px; align-items: center; }
+  .site-nav .nav-links a:hover { color: #60a5fa; }
+
+  /* Background */
+  #bg {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse at 30% 40%, rgba(96,165,250,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse at 70% 60%, rgba(244,114,182,0.05) 0%, transparent 60%),
+      linear-gradient(180deg, #0f1118 0%, #1a1a2e 40%, #0f1118 100%);
+  }
+
+  /* Footer */
+  .site-footer {
+    text-align: center; padding: 16px; color: rgba(255,255,255,0.3);
+    font-size: 12px; font-family: 'Roboto', sans-serif; position: relative; z-index: 1;
+  }
+
+  /* Game wrapper */
+  .game-wrapper { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; }
+
+  .game-content {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 24px; padding: 24px; width: 100%; max-width: 520px;
+  }
+
+  h1 {
+    font-size: 1.6rem; font-weight: 800; letter-spacing: 0.04em;
+    color: #e0e4eb;
+    text-shadow: 0 0 30px rgba(96,165,250,0.2);
+  }
+
+  /* Scoreboard */
+  .scoreboard {
+    display: flex; gap: 2rem; font-size: 0.9rem;
+    padding: 10px 24px; border-radius: 20px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+  }
+  .scoreboard .score-item { text-align: center; }
+  .scoreboard .score-label { display: block; color: #6a6a80; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; }
+  .scoreboard .score-val { font-size: 1.3rem; font-weight: 700; }
+  .score-you .score-val { color: #60a5fa; }
+  .score-cpu .score-val { color: #f472b6; }
+  .score-draw .score-val { color: #9aa0a6; }
+
+  /* Arena */
+  .arena {
+    display: flex; align-items: center; gap: 28px; width: 100%;
+    justify-content: center; min-height: 140px;
+  }
+  .arena-side { text-align: center; flex: 1; max-width: 160px; }
+  .arena-label { font-size: 0.75rem; color: #6a6a80; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .arena-pick {
+    font-size: 4rem; line-height: 1;
+    width: 100px; height: 100px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+    border: 2px solid rgba(255,255,255,0.08);
+    transition: all 0.3s;
+  }
+  .arena-pick.picked { border-color: rgba(96,165,250,0.4); background: rgba(96,165,250,0.06); }
+  .arena-pick.cpu-picked { border-color: rgba(244,114,182,0.4); background: rgba(244,114,182,0.06); }
+  .arena-vs {
+    font-size: 1.2rem; font-weight: 700; color: #3a3a50;
+    flex-shrink: 0;
+  }
+
+  /* Result */
+  .result {
+    font-size: 1.2rem; font-weight: 700; min-height: 1.6em;
+    transition: all 0.3s;
+  }
+  .result.win { color: #4ade80; }
+  .result.lose { color: #f87171; }
+  .result.draw { color: #9aa0a6; }
+
+  /* Choice buttons */
+  .choices { display: flex; gap: 16px; }
+  .choice-btn {
+    width: 80px; height: 80px; border-radius: 50%;
+    background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.1);
+    font-size: 2.2rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .choice-btn:hover {
+    transform: translateY(-4px) scale(1.08);
+    border-color: #60a5fa;
+    background: rgba(96,165,250,0.1);
+    box-shadow: 0 8px 24px rgba(96,165,250,0.2);
+  }
+  .choice-btn:active { transform: translateY(-1px) scale(1.02); }
+  .choice-btn.selected {
+    border-color: #60a5fa;
+    background: rgba(96,165,250,0.15);
+    box-shadow: 0 0 20px rgba(96,165,250,0.3);
+  }
+
+  /* Mode & controls */
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .ctrl-btn {
+    padding: 8px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.06); color: #a0a8b8;
+    font-family: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .ctrl-btn:hover { border-color: #60a5fa; color: #60a5fa; background: rgba(96,165,250,0.08); }
+  .ctrl-btn.active { border-color: #60a5fa; color: #60a5fa; background: rgba(96,165,250,0.12); }
+
+  .hint { font-size: 0.8rem; color: #4a4a60; }
+
+  /* Streak */
+  .streak { font-size: 0.85rem; color: #6a6a80; min-height: 1.2em; }
+  .streak strong { color: #e8c547; }
+
+  /* History */
+  .history-wrap {
+    width: 100%; padding: 12px 16px; border-radius: 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.04);
+  }
+  .history-label { font-size: 0.7rem; color: #4a4a60; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .history {
+    display: flex; gap: 6px; flex-wrap: wrap; min-height: 28px;
+  }
+  .history-item {
+    width: 28px; height: 28px; border-radius: 6px; font-size: 0.7rem;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+  }
+  .history-item.w { background: rgba(74,222,128,0.15); color: #4ade80; }
+  .history-item.l { background: rgba(248,113,113,0.15); color: #f87171; }
+  .history-item.d { background: rgba(154,160,166,0.1); color: #6a6a80; }
+
+  /* Shake animation */
+  @keyframes shake {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-15deg); }
+    75% { transform: rotate(15deg); }
+  }
+  .shaking { animation: shake 0.3s ease-in-out 2; }
+
+  @media (max-width: 480px) {
+    .game-content { padding: 16px; gap: 16px; }
+    h1 { font-size: 1.3rem; }
+    .arena-pick { width: 80px; height: 80px; font-size: 3rem; }
+    .choice-btn { width: 64px; height: 64px; font-size: 1.8rem; }
+    .scoreboard { gap: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a href="/" class="brand">
+    <img src="/favicon.svg" alt="Home">
+    Petru Tudorica
+  </a>
+  <div class="nav-links">
+    <a href="/#projects">Games</a>
+  </div>
+</nav>
+
+<div class="game-wrapper">
+<div id="bg"></div>
+
+<div class="game-content">
+  <h1>Rock Paper Scissors</h1>
+
+  <div class="scoreboard">
+    <div class="score-item score-you"><span class="score-label">You</span><span class="score-val" id="score-you">0</span></div>
+    <div class="score-item score-draw"><span class="score-label">Draw</span><span class="score-val" id="score-draw">0</span></div>
+    <div class="score-item score-cpu"><span class="score-label">CPU</span><span class="score-val" id="score-cpu">0</span></div>
+  </div>
+
+  <div class="arena">
+    <div class="arena-side">
+      <div class="arena-label">You</div>
+      <div class="arena-pick" id="pick-you">?</div>
+    </div>
+    <div class="arena-vs">VS</div>
+    <div class="arena-side">
+      <div class="arena-label">CPU</div>
+      <div class="arena-pick" id="pick-cpu">?</div>
+    </div>
+  </div>
+
+  <div class="result" id="result">&nbsp;</div>
+  <div class="streak" id="streak">&nbsp;</div>
+
+  <div class="choices" id="choices">
+    <button type="button" class="choice-btn" data-choice="rock" title="Rock">&#9994;</button>
+    <button type="button" class="choice-btn" data-choice="paper" title="Paper">&#9995;</button>
+    <button type="button" class="choice-btn" data-choice="scissors" title="Scissors">&#9996;</button>
+  </div>
+
+  <div class="controls">
+    <button type="button" class="ctrl-btn" id="btn-mode">Best of 3</button>
+    <button type="button" class="ctrl-btn" id="btn-reset">Reset</button>
+  </div>
+
+  <div class="history-wrap">
+    <div class="history-label">History</div>
+    <div class="history" id="history"></div>
+  </div>
+
+  <p class="hint">Pick rock, paper, or scissors to play</p>
+</div>
+</div>
+
+<footer class="site-footer">
+  &copy; 2026 Petru Tudorica &middot; All Rights Reserved
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  const EMOJI = { rock: '\u270A', paper: '\u270B', scissors: '\u270C' };
+  const BEATS = { rock: 'scissors', paper: 'rock', scissors: 'paper' };
+  const CHOICES = ['rock', 'paper', 'scissors'];
+  const MODES = [0, 3, 5, 10]; // 0 = unlimited
+  const MODE_LABELS = ['Unlimited', 'Best of 3', 'Best of 5', 'Best of 10'];
+
+  let modeIdx = 1;
+  let you = 0, cpu = 0, draws = 0;
+  let streak = 0, bestStreak = 0;
+  let history = [];
+  let playing = true;
+
+  const $you = document.getElementById('score-you');
+  const $cpu = document.getElementById('score-cpu');
+  const $draw = document.getElementById('score-draw');
+  const $pickYou = document.getElementById('pick-you');
+  const $pickCpu = document.getElementById('pick-cpu');
+  const $result = document.getElementById('result');
+  const $streak = document.getElementById('streak');
+  const $history = document.getElementById('history');
+  const $modeBtn = document.getElementById('btn-mode');
+
+  function cpuChoice() {
+    return CHOICES[Math.floor(Math.random() * 3)];
+  }
+
+  function getResult(a, b) {
+    if (a === b) return 'draw';
+    return BEATS[a] === b ? 'win' : 'lose';
+  }
+
+  function neededWins() {
+    const m = MODES[modeIdx];
+    return m === 0 ? Infinity : Math.ceil(m / 2);
+  }
+
+  function updateScoreboard() {
+    $you.textContent = you;
+    $cpu.textContent = cpu;
+    $draw.textContent = draws;
+  }
+
+  function updateStreak() {
+    if (streak > 0) {
+      $streak.innerHTML = 'Win streak: <strong>' + streak + '</strong>' + (bestStreak > 1 ? '  (best: ' + bestStreak + ')' : '');
+    } else {
+      $streak.innerHTML = bestStreak > 1 ? 'Best streak: <strong>' + bestStreak + '</strong>' : '&nbsp;';
+    }
+  }
+
+  function addHistory(res) {
+    history.push(res);
+    if (history.length > 20) history.shift();
+    $history.innerHTML = '';
+    history.forEach(function (r) {
+      var cls = r === 'win' ? 'w' : r === 'lose' ? 'l' : 'd';
+      var label = r === 'win' ? 'W' : r === 'lose' ? 'L' : 'D';
+      var div = document.createElement('div');
+      div.className = 'history-item ' + cls;
+      div.textContent = label;
+      $history.appendChild(div);
+    });
+  }
+
+  function showResult(res) {
+    $result.className = 'result ' + res;
+    if (res === 'win') $result.textContent = 'You win!';
+    else if (res === 'lose') $result.textContent = 'You lose!';
+    else $result.textContent = 'Draw!';
+  }
+
+  function checkSeriesEnd() {
+    var need = neededWins();
+    if (need === Infinity) return;
+    if (you >= need) {
+      playing = false;
+      $result.className = 'result win';
+      $result.textContent = 'You win the series!';
+    } else if (cpu >= need) {
+      playing = false;
+      $result.className = 'result lose';
+      $result.textContent = 'CPU wins the series!';
+    }
+  }
+
+  function play(yourChoice) {
+    if (!playing) return;
+
+    var cpuPick = cpuChoice();
+
+    // Shake animation
+    $pickYou.classList.add('shaking');
+    $pickCpu.classList.add('shaking');
+    setTimeout(function () {
+      $pickYou.classList.remove('shaking');
+      $pickCpu.classList.remove('shaking');
+    }, 600);
+
+    $pickYou.textContent = EMOJI[yourChoice];
+    $pickYou.className = 'arena-pick picked';
+    $pickCpu.textContent = EMOJI[cpuPick];
+    $pickCpu.className = 'arena-pick cpu-picked';
+
+    // Clear selected state
+    document.querySelectorAll('.choice-btn').forEach(function (b) { b.classList.remove('selected'); });
+    document.querySelector('[data-choice="' + yourChoice + '"]').classList.add('selected');
+
+    var res = getResult(yourChoice, cpuPick);
+    if (res === 'win') { you++; streak++; if (streak > bestStreak) bestStreak = streak; }
+    else if (res === 'lose') { cpu++; streak = 0; }
+    else { draws++; }
+
+    updateScoreboard();
+    updateStreak();
+    showResult(res);
+    addHistory(res);
+    checkSeriesEnd();
+  }
+
+  function resetGame() {
+    you = 0; cpu = 0; draws = 0; streak = 0; history = [];
+    playing = true;
+    updateScoreboard();
+    $pickYou.textContent = '?'; $pickYou.className = 'arena-pick';
+    $pickCpu.textContent = '?'; $pickCpu.className = 'arena-pick';
+    $result.textContent = '\u00A0'; $result.className = 'result';
+    $streak.innerHTML = bestStreak > 1 ? 'Best streak: <strong>' + bestStreak + '</strong>' : '&nbsp;';
+    $history.innerHTML = '';
+    document.querySelectorAll('.choice-btn').forEach(function (b) { b.classList.remove('selected'); });
+  }
+
+  function cycleMode() {
+    modeIdx = (modeIdx + 1) % MODES.length;
+    $modeBtn.textContent = MODE_LABELS[modeIdx];
+    resetGame();
+  }
+
+  // Events
+  document.getElementById('choices').addEventListener('click', function (e) {
+    var btn = e.target.closest('.choice-btn');
+    if (btn) play(btn.dataset.choice);
+  });
+
+  document.getElementById('btn-reset').addEventListener('click', resetGame);
+  $modeBtn.addEventListener('click', cycleMode);
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function (e) {
+    var key = e.key.toLowerCase();
+    if (key === 'r' || key === '1') play('rock');
+    else if (key === 'p' || key === '2') play('paper');
+    else if (key === 's' || key === '3') play('scissors');
+  });
+
+  // Init
+  $modeBtn.textContent = MODE_LABELS[modeIdx];
+  updateScoreboard();
+})();
+</script>
+</body>
+</html>

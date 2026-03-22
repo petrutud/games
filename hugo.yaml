@@ -62,6 +62,16 @@ params:
     enable: true
     title: "Games"
     items:
+      - title: "Rock Paper Scissors"
+        content: "The classic hand game vs CPU! Multiple modes (unlimited, best of 3/5/10), win streaks, match history, and keyboard shortcuts."
+        image: "/images/games/rock-paper-scissors.svg"
+        badges:
+          - "HTML5"
+          - "JavaScript"
+        featured:
+          name: Play Game
+          link: /games/rock-paper-scissors/
+
       - title: "Tower Defense"
         content: "Build towers, defend the path! Multiple levels, 8 visual themes, a shop for buffs, and a super ability to wipe enemies."
         image: "/images/games/tawer-defense.svg"

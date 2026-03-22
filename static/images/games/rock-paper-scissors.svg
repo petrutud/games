@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f1118"/>
+      <stop offset="100%" stop-color="#1a1a2e"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="24" fill="url(#bg)"/>
+  <!-- Rock -->
+  <circle cx="58" cy="75" r="30" fill="none" stroke="rgba(96,165,250,0.3)" stroke-width="2"/>
+  <text x="58" y="84" text-anchor="middle" font-size="34">&#9994;</text>
+  <!-- Paper -->
+  <circle cx="142" cy="75" r="30" fill="none" stroke="rgba(244,114,182,0.3)" stroke-width="2"/>
+  <text x="142" y="84" text-anchor="middle" font-size="34">&#9995;</text>
+  <!-- Scissors -->
+  <circle cx="100" cy="135" r="30" fill="none" stroke="rgba(74,222,128,0.3)" stroke-width="2"/>
+  <text x="100" y="144" text-anchor="middle" font-size="34">&#9996;</text>
+  <!-- Arrows -->
+  <line x1="82" y1="62" x2="118" y2="62" stroke="#4a4a60" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <line x1="130" y1="98" x2="112" y2="122" stroke="#4a4a60" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <line x1="88" y1="122" x2="70" y2="98" stroke="#4a4a60" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <!-- Title -->
+  <text x="100" y="186" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="11" fill="#60a5fa" letter-spacing="1.5">RPS</text>
+</svg>
