@@ -185,3 +185,13 @@ params:
         featured:
           name: Play Game
           link: /games/kingdom-rush/
+
+      - title: "Tic-Tac-Toe"
+        content: "The classic X and O game. Play against a friend or challenge the computer in this simple but timeless strategy game."
+        image: "/images/games/tic-tac-toe.svg"
+        badges:
+          - "HTML5"
+          - "JavaScript"
+        featured:
+          name: Play Game
+          link: /games/tic-tac-toe/
