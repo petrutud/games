@@ -1,95 +1,162 @@
 (function () {
   'use strict';
 
-  const COLS = 20;
-  const ROWS = 15;
+  const GRID = 20;
   const CELL = 20;
-  const TICK_MS = 160;
+  const TICK_MS = 110;
 
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
-  const scoreEl = document.getElementById('score');
+  const elScore = document.getElementById('score');
+  const elHigh = document.getElementById('high-score');
   const overlay = document.getElementById('overlay');
   const overlayMsg = document.getElementById('overlay-msg');
-  const btnAgain = document.getElementById('btn-again');
+  const elOverlayScore = document.getElementById('overlay-score');
+  const overlayScoreRow = elOverlayScore ? elOverlayScore.closest('.overlay-score') : null;
+  const btnRestart = document.getElementById('btn-restart');
+  const btnPause = document.getElementById('btn-pause');
+  const hint = document.getElementById('hint');
 
-  let snake = [];
-  let dx = 1;
-  let dy = 0;
-  let nextDx = 1;
-  let nextDy = 0;
-  let food = { x: 0, y: 0 };
-  let score = 0;
-  let gameOver = false;
-  let started = false;
-  let intervalId = null;
+  const HIGH_KEY = 'snake-high-score';
 
-  function randomCell() {
-    return { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
+  let snake;
+  let dir;
+  let nextDir;
+  let food;
+  let score;
+  let highScore;
+  let running;
+  let paused;
+  let tickTimer;
+  let started;
+
+  function loadHigh() {
+    const n = parseInt(localStorage.getItem(HIGH_KEY) || '0', 10);
+    return Number.isFinite(n) ? n : 0;
   }
 
-  function cellInSnake(x, y) {
-    for (var i = 0; i < snake.length; i++) {
-      if (snake[i].x === x && snake[i].y === y) return true;
-    }
-    return false;
+  function saveHigh(n) {
+    localStorage.setItem(HIGH_KEY, String(n));
   }
 
-  function spawnFood() {
-    var empty = [];
-    for (var y = 0; y < ROWS; y++) {
-      for (var x = 0; x < COLS; x++) {
-        if (!cellInSnake(x, y)) empty.push({ x: x, y: y });
+  function cellKey(r, c) {
+    return r * GRID + c;
+  }
+
+  function parseKey(k) {
+    return { r: (k / GRID) | 0, c: k % GRID };
+  }
+
+  function randomFood(occupied) {
+    const free = [];
+    for (let r = 0; r < GRID; r++) {
+      for (let c = 0; c < GRID; c++) {
+        const k = cellKey(r, c);
+        if (!occupied.has(k)) free.push(k);
       }
     }
-    if (empty.length === 0) return;
-    food = empty[Math.floor(Math.random() * empty.length)];
+    if (free.length === 0) return null;
+    return free[(Math.random() * free.length) | 0];
   }
 
-  function initGame() {
-    var cx = Math.floor(COLS / 2);
-    var cy = Math.floor(ROWS / 2);
-    snake = [
-      { x: cx, y: cy },
-      { x: cx - 1, y: cy },
-      { x: cx - 2, y: cy }
-    ];
-    dx = 1;
-    dy = 0;
-    nextDx = 1;
-    nextDy = 0;
+  function setOverlayScoreVisible(on) {
+    if (overlayScoreRow) overlayScoreRow.style.display = on ? '' : 'none';
+  }
+
+  function showTitleScreen() {
+    stopTick();
+    const mid = (GRID / 2) | 0;
+    snake = [cellKey(mid, mid), cellKey(mid, mid - 1), cellKey(mid, mid - 2)];
+    dir = { dr: 0, dc: 1 };
+    nextDir = { dr: 0, dc: 1 };
     score = 0;
-    gameOver = false;
-    spawnFood();
-    scoreEl.textContent = '0';
+    food = randomFood(new Set(snake));
+    running = false;
+    paused = false;
+    started = false;
+    elScore.textContent = '0';
+    btnPause.disabled = true;
+    btnPause.textContent = 'Pause';
+    overlay.classList.remove('hidden');
+    overlayMsg.textContent = 'Snake';
+    if (elOverlayScore) elOverlayScore.textContent = '0';
+    setOverlayScoreVisible(false);
+    hint.textContent = 'Press Space or Enter to start · Arrow keys or WASD';
+  }
+
+  function newGame() {
+    stopTick();
+    const mid = (GRID / 2) | 0;
+    snake = [cellKey(mid, mid), cellKey(mid, mid - 1), cellKey(mid, mid - 2)];
+    dir = { dr: 0, dc: 1 };
+    nextDir = { dr: 0, dc: 1 };
+    score = 0;
+    food = randomFood(new Set(snake));
+    elScore.textContent = '0';
+    started = true;
+    running = true;
+    paused = false;
     overlay.classList.add('hidden');
+    setOverlayScoreVisible(true);
+    btnPause.disabled = false;
+    btnPause.textContent = 'Pause';
+    hint.textContent = 'Arrow keys or WASD · P to pause';
+    draw();
+    scheduleTick();
+  }
+
+  function scheduleTick() {
+    if (tickTimer) clearInterval(tickTimer);
+    tickTimer = setInterval(tick, TICK_MS);
+  }
+
+  function stopTick() {
+    if (tickTimer) {
+      clearInterval(tickTimer);
+      tickTimer = null;
+    }
   }
 
   function tick() {
-    if (gameOver || !started) return;
+    if (!running || paused) return;
 
-    dx = nextDx;
-    dy = nextDy;
-    var head = snake[0];
-    var nx = head.x + dx;
-    var ny = head.y + dy;
-
-    if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) {
-      gameOver = true;
-      showOverlay('Game over! Score: ' + score);
-      return;
-    }
-    if (cellInSnake(nx, ny)) {
-      gameOver = true;
-      showOverlay('Game over! Score: ' + score);
-      return;
+    const nd = nextDir;
+    if (!(nd.dr === -dir.dr && nd.dc === -dir.dc)) {
+      dir = nd;
     }
 
-    snake.unshift({ x: nx, y: ny });
-    if (nx === food.x && ny === food.y) {
-      score += 1;
-      scoreEl.textContent = score;
-      spawnFood();
+    const head = snake[0];
+    const { r, c } = parseKey(head);
+    const nr = r + dir.dr;
+    const nc = c + dir.dc;
+
+    if (nr < 0 || nr >= GRID || nc < 0 || nc >= GRID) {
+      gameOver();
+      return;
+    }
+
+    const nk = cellKey(nr, nc);
+    const body = snake.slice(0, -1);
+    if (body.indexOf(nk) !== -1) {
+      gameOver();
+      return;
+    }
+
+    snake.unshift(nk);
+
+    if (nk === food) {
+      score += 10;
+      if (score > highScore) {
+        highScore = score;
+        saveHigh(highScore);
+        elHigh.textContent = String(highScore);
+      }
+      elScore.textContent = String(score);
+      const occ = new Set(snake);
+      food = randomFood(occ);
+      if (food === null) {
+        win();
+      }
     } else {
       snake.pop();
     }
@@ -97,90 +164,170 @@
     draw();
   }
 
+  function gameOver() {
+    running = false;
+    started = false;
+    stopTick();
+    btnPause.disabled = true;
+    overlay.classList.remove('hidden');
+    overlayMsg.textContent = 'Game over';
+    if (elOverlayScore) elOverlayScore.textContent = String(score);
+    setOverlayScoreVisible(true);
+    hint.textContent = 'Space or Enter to play again';
+  }
+
+  function win() {
+    running = false;
+    started = false;
+    stopTick();
+    btnPause.disabled = true;
+    overlay.classList.remove('hidden');
+    overlayMsg.textContent = 'You win!';
+    if (elOverlayScore) elOverlayScore.textContent = String(score);
+    setOverlayScoreVisible(true);
+    hint.textContent = 'Space or Enter to play again';
+  }
+
   function draw() {
-    ctx.fillStyle = '#1e2433';
+    ctx.fillStyle = '#0d1117';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    var gridColor = 'rgba(255,255,255,0.06)';
-    ctx.strokeStyle = gridColor;
-    ctx.lineWidth = 1;
-    for (var x = 0; x <= COLS; x++) {
+    ctx.strokeStyle = 'rgba(48, 54, 61, 0.4)';
+    for (let i = 0; i <= GRID; i++) {
+      const p = i * CELL;
       ctx.beginPath();
-      ctx.moveTo(x * CELL, 0);
-      ctx.lineTo(x * CELL, ROWS * CELL);
+      ctx.moveTo(p, 0);
+      ctx.lineTo(p, canvas.height);
       ctx.stroke();
-    }
-    for (var y = 0; y <= ROWS; y++) {
       ctx.beginPath();
-      ctx.moveTo(0, y * CELL);
-      ctx.lineTo(COLS * CELL, y * CELL);
+      ctx.moveTo(0, p);
+      ctx.lineTo(canvas.width, p);
       ctx.stroke();
     }
 
-    for (var i = 0; i < snake.length; i++) {
-      var seg = snake[i];
+    if (food != null) {
+      const { r, c } = parseKey(food);
+      const pad = 2;
+      const g = CELL - pad * 2;
+      const gx = c * CELL + pad;
+      const gy = r * CELL + pad;
+      const rad = g / 2;
+      ctx.fillStyle = '#f85149';
+      ctx.beginPath();
+      ctx.arc(gx + rad, gy + rad, rad - 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.arc(gx + rad * 0.65, gy + rad * 0.55, rad * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (let i = 0; i < snake.length; i++) {
+      const { r, c } = parseKey(snake[i]);
+      const pad = i === 0 ? 1 : 2;
+      const g = CELL - pad * 2;
+      const x = c * CELL + pad;
+      const y = r * CELL + pad;
+      const hue = 120 + (i / Math.max(snake.length, 1)) * 40;
+      ctx.fillStyle = i === 0 ? '#3fb950' : 'hsl(' + hue + ', 65%, ' + (42 - i * 0.4) + '%)';
+      roundRect(ctx, x, y, g, g, 4);
+      ctx.fill();
       if (i === 0) {
-        ctx.fillStyle = '#7caf5e';
-      } else {
-        ctx.fillStyle = '#5a8a45';
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        const ex = x + g * 0.5 + dir.dc * g * 0.22;
+        const ey = y + g * 0.5 + dir.dr * g * 0.22;
+        const px = -dir.dr * g * 0.11;
+        const py = dir.dc * g * 0.11;
+        ctx.beginPath();
+        ctx.arc(ex - px, ey - py, 2.2, 0, Math.PI * 2);
+        ctx.arc(ex + px, ey + py, 2.2, 0, Math.PI * 2);
+        ctx.fill();
       }
-      ctx.fillRect(seg.x * CELL + 1, seg.y * CELL + 1, CELL - 2, CELL - 2);
     }
-
-    ctx.fillStyle = '#e8c547';
-    ctx.beginPath();
-    var fx = food.x * CELL + CELL / 2;
-    var fy = food.y * CELL + CELL / 2;
-    ctx.arc(fx, fy, CELL / 2 - 2, 0, Math.PI * 2);
-    ctx.fill();
   }
 
-  function showOverlay(msg) {
-    overlayMsg.textContent = msg;
-    overlay.classList.remove('hidden');
+  function roundRect(context, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    context.beginPath();
+    context.moveTo(x + rr, y);
+    context.arcTo(x + w, y, x + w, y + h, rr);
+    context.arcTo(x + w, y + h, x, y + h, rr);
+    context.arcTo(x, y + h, x, y, rr);
+    context.arcTo(x, y, x + w, y, rr);
+    context.closePath();
   }
 
-  function startLoop() {
-    if (intervalId) clearInterval(intervalId);
-    intervalId = setInterval(tick, TICK_MS);
+  function setDirection(dr, dc) {
+    if (!started) return;
+    nextDir = { dr, dc };
   }
 
   document.addEventListener('keydown', function (e) {
-    if (!started) {
-      if (e.code === 'Space') {
-        e.preventDefault();
-        started = true;
-        overlay.classList.add('hidden');
-        startLoop();
+    if (e.code === 'KeyP') {
+      if (!started || !running) return;
+      paused = !paused;
+      btnPause.textContent = paused ? 'Resume' : 'Pause';
+      hint.textContent = paused ? 'Paused — P or Resume to continue' : 'Arrow keys or WASD · P to pause';
+      if (paused) {
+        stopTick();
+      } else {
+        scheduleTick();
       }
+      e.preventDefault();
       return;
     }
-    if (gameOver) return;
 
-    if (e.code === 'ArrowUp' || e.code === 'KeyW') {
+    if (e.code === 'Space' || e.code === 'Enter') {
+      if (!running) {
+        newGame();
+      } else if (paused) {
+        paused = false;
+        btnPause.textContent = 'Pause';
+        scheduleTick();
+      }
       e.preventDefault();
-      if (dy !== 1) { nextDx = 0; nextDy = -1; }
-    } else if (e.code === 'ArrowDown' || e.code === 'KeyS') {
-      e.preventDefault();
-      if (dy !== -1) { nextDx = 0; nextDy = 1; }
-    } else if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
-      e.preventDefault();
-      if (dx !== 1) { nextDx = -1; nextDy = 0; }
-    } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
-      e.preventDefault();
-      if (dx !== -1) { nextDx = 1; nextDy = 0; }
+      return;
+    }
+
+    switch (e.code) {
+      case 'ArrowUp':
+      case 'KeyW':
+        setDirection(-1, 0);
+        e.preventDefault();
+        break;
+      case 'ArrowDown':
+      case 'KeyS':
+        setDirection(1, 0);
+        e.preventDefault();
+        break;
+      case 'ArrowLeft':
+      case 'KeyA':
+        setDirection(0, -1);
+        e.preventDefault();
+        break;
+      case 'ArrowRight':
+      case 'KeyD':
+        setDirection(0, 1);
+        e.preventDefault();
+        break;
+      default:
+        break;
     }
   });
 
-  btnAgain.addEventListener('click', function () {
-    initGame();
-    started = true;
-    overlay.classList.add('hidden');
-    draw();
-    startLoop();
+  btnRestart.addEventListener('click', newGame);
+
+  btnPause.addEventListener('click', function () {
+    if (!started || !running) return;
+    paused = !paused;
+    btnPause.textContent = paused ? 'Resume' : 'Pause';
+    hint.textContent = paused ? 'Paused — click Resume to continue' : 'Arrow keys or WASD · P to pause';
+    if (paused) stopTick();
+    else scheduleTick();
   });
 
-  initGame();
+  highScore = loadHigh();
+  elHigh.textContent = String(highScore);
+  showTitleScreen();
   draw();
-  showOverlay('Press space to start');
 })();

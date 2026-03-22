@@ -9,12 +9,20 @@
 <body>
   <div class="game-wrap">
     <h1>Snake</h1>
-    <p class="score-line">Score: <strong id="score">0</strong></p>
-    <canvas id="game-canvas" width="400" height="300"></canvas>
-    <div id="overlay" class="overlay hidden">
-      <p id="overlay-msg" class="overlay-msg"></p>
-      <button type="button" class="btn" id="btn-again">Play again</button>
+    <div class="hud">
+      <span class="hud-item">Score <strong id="score">0</strong></span>
+      <span class="hud-item">High <strong id="high-score">0</strong></span>
     </div>
+    <div class="board-wrap">
+      <canvas id="game-canvas" width="400" height="400" aria-label="Snake playfield"></canvas>
+      <div id="overlay" class="overlay hidden">
+        <p id="overlay-msg" class="overlay-msg">Game over</p>
+        <p class="overlay-score">Score: <strong id="overlay-score">0</strong></p>
+        <button type="button" class="btn" id="btn-restart">Play again</button>
+      </div>
+    </div>
+    <p class="hint" id="hint">Arrow keys or WASD · Space to start · P to pause</p>
+    <button type="button" class="btn btn-secondary" id="btn-pause" disabled>Pause</button>
   </div>
   <script src="js/game.js"></script>
 </body>

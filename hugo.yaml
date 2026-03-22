@@ -108,3 +108,14 @@ params:
         featured:
           name: Play Game
           link: /games/puzzle-blocks/
+
+      - title: "Battle Simulator"
+        content: "Place your army and watch them clash! A tactical battle simulator with unit types, abilities, and team budgets."
+        image: "/images/games/battle-simulator.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Strategy"
+        featured:
+          name: Play Game
+          link: /games/battle-simulator/

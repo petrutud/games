@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Puzzle Blocks</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <h1>Puzzle Blocks</h1>
+    <div class="layout">
+      <aside class="panel panel-left">
+        <div class="stat"><span class="label">Score</span><strong id="score">0</strong></div>
+        <div class="stat"><span class="label">Lines</span><strong id="lines">0</strong></div>
+        <div class="stat"><span class="label">Level</span><strong id="level">1</strong></div>
+        <div class="next-wrap">
+          <span class="label">Next</span>
+          <canvas id="next-canvas" width="120" height="120"></canvas>
+        </div>
+      </aside>
+      <div class="board-wrap">
+        <canvas id="game-canvas" width="300" height="600" aria-label="Playfield"></canvas>
+        <div id="overlay" class="overlay hidden">
+          <p id="overlay-msg" class="overlay-msg">Game over</p>
+          <button type="button" class="btn" id="btn-restart">Play again</button>
+        </div>
+      </div>
+      <aside class="panel panel-right">
+        <p class="controls-title">Controls</p>
+        <ul class="controls-list">
+          <li><kbd>←</kbd><kbd>→</kbd> move</li>
+          <li><kbd>↑</kbd> rotate</li>
+          <li><kbd>↓</kbd> soft drop</li>
+          <li><kbd>Space</kbd> hard drop</li>
+          <li><kbd>P</kbd> pause</li>
+        </ul>
+        <button type="button" class="btn btn-secondary" id="btn-pause">Pause</button>
+      </aside>
+    </div>
+    <p class="hint" id="status-line">Clear horizontal lines to score. Speed increases every 10 lines.</p>
+  </div>
+  <script src="js/game.js"></script>
+</body>
+</html>

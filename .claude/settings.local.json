@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(hugo:*)"
+      "Bash(hugo:*)",
+      "Bash(gh api:*)",
+      "Bash(git ls-tree:*)"
     ]
   }
 }

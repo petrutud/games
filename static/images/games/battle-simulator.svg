@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 225" width="400" height="225">
+  <defs>
+    <linearGradient id="bg1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <radialGradient id="glow-red" cx="30%" cy="50%" r="35%">
+      <stop offset="0%" style="stop-color:rgba(233,69,96,0.3)"/>
+      <stop offset="100%" style="stop-color:rgba(233,69,96,0)"/>
+    </radialGradient>
+    <radialGradient id="glow-blue" cx="70%" cy="50%" r="35%">
+      <stop offset="0%" style="stop-color:rgba(78,205,196,0.3)"/>
+      <stop offset="100%" style="stop-color:rgba(78,205,196,0)"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="225" fill="url(#bg1)"/>
+  <rect width="400" height="225" fill="url(#glow-red)"/>
+  <rect width="400" height="225" fill="url(#glow-blue)"/>
+  <!-- Ground line -->
+  <line x1="40" y1="160" x2="360" y2="160" stroke="#0f3460" stroke-width="2"/>
+  <!-- Red team units -->
+  <g fill="#e94560" opacity="0.9">
+    <circle cx="80" cy="140" r="12"/>
+    <circle cx="110" cy="140" r="10"/>
+    <circle cx="135" cy="140" r="14"/>
+    <circle cx="60" cy="140" r="9"/>
+    <!-- Swords -->
+    <line x1="80" y1="125" x2="90" y2="110" stroke="#e94560" stroke-width="2"/>
+    <line x1="135" y1="122" x2="145" y2="108" stroke="#e94560" stroke-width="2.5"/>
+  </g>
+  <!-- Blue team units -->
+  <g fill="#4ecdc4" opacity="0.9">
+    <circle cx="280" cy="140" r="11"/>
+    <circle cx="310" cy="140" r="13"/>
+    <circle cx="335" cy="140" r="10"/>
+    <circle cx="260" cy="140" r="12"/>
+    <!-- Swords -->
+    <line x1="310" y1="123" x2="300" y2="109" stroke="#4ecdc4" stroke-width="2.5"/>
+    <line x1="260" y1="124" x2="250" y2="110" stroke="#4ecdc4" stroke-width="2"/>
+  </g>
+  <!-- VS text -->
+  <text x="200" y="105" text-anchor="middle" fill="#ffd93d" font-family="sans-serif" font-size="28" font-weight="bold" opacity="0.8">VS</text>
+  <!-- Clash sparks -->
+  <line x1="190" y1="85" x2="185" y2="75" stroke="#ffd93d" stroke-width="1.5" opacity="0.6"/>
+  <line x1="200" y1="82" x2="200" y2="70" stroke="#ffd93d" stroke-width="1.5" opacity="0.6"/>
+  <line x1="210" y1="85" x2="215" y2="75" stroke="#ffd93d" stroke-width="1.5" opacity="0.6"/>
+  <!-- Title -->
+  <text x="200" y="195" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="12">Battle Simulator</text>
+</svg>
