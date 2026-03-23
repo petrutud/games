@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stick War Legacy — Petru Tudorica</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@500;700&family=Roboto:wght@400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#1a1a2e;font-family:'Inter',sans-serif;display:flex;flex-direction:column;overflow:hidden}
+.site-nav{background:rgba(15,15,35,0.85);backdrop-filter:blur(10px);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.06);z-index:500;position:relative}
+.site-nav a{color:#ccc;text-decoration:none;font-family:'Roboto',sans-serif;font-size:14px;transition:color 0.2s}
+.site-nav a:hover{color:#fff}
+.site-nav .brand{display:flex;align-items:center;gap:10px;font-weight:500;font-size:16px}
+.site-nav .brand img{width:28px;height:28px}
+.site-nav .nav-links{display:flex;gap:20px;align-items:center}
+.site-nav .nav-links a:hover{color:#ffd700}
+.game-wrapper{flex:1;position:relative;display:flex;justify-content:center;align-items:center;background:#000}
+canvas{display:block}
+.site-footer{text-align:center;padding:8px;color:rgba(255,255,255,0.3);font-size:12px;font-family:'Roboto',sans-serif;position:relative;z-index:1;background:rgba(15,15,35,0.85)}
+.site-footer a{color:rgba(255,255,255,0.5);text-decoration:none}
+</style>
+</head>
+<body>
+<nav class="site-nav">
+  <a href="/" class="brand"><img src="/favicon.svg" alt="Home">Petru Tudorica</a>
+  <div class="nav-links"><a href="/#projects">Games</a></div>
+</nav>
+<div class="game-wrapper">
+  <canvas id="c"></canvas>
+</div>
+<footer class="site-footer">&copy; 2026 Petru Tudorica &middot; All Rights Reserved</footer>
+
+<script>
+// ==================== SETUP ====================
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 960, H = 540;
+canvas.width = W; canvas.height = H;
+
+const WORLD_W = 4000;
+const GROUND_Y = 430;
+const STATUE_HP = 800;
+const MAX_POP = 20;
+
+// ==================== UNIT DEFINITIONS ====================
+const UNITS = {
+  miner:     {cost:50,  hp:60,  atk:5,  speed:1.8, range:28,  trainTime:2.5, key:'1', icon:'\u26CF',       color:'#FFD700'},
+  swordsman: {cost:100, hp:140, atk:18, speed:1.3, range:28,  trainTime:3.5, key:'2', icon:'\u2694',       color:'#eee'},
+  archer:    {cost:125, hp:70,  atk:14, speed:1.0, range:220, trainTime:4.0, key:'3', icon:'\uD83C\uDFF9', color:'#8BC34A'},
+  spearman:  {cost:100, hp:110, atk:16, speed:1.4, range:45,  trainTime:3.5, key:'4', icon:'\uD83D\uDD31', color:'#FF9800'},
+  giant:     {cost:450, hp:500, atk:45, speed:0.5, range:40,  trainTime:10,  key:'5', icon:'\uD83D\uDCAA', color:'#E91E63'},
+  ninja:     {cost:175, hp:90,  atk:28, speed:2.2, range:30,  trainTime:4.5, key:'6', icon:'\uD83E\uDD77', color:'#7C4DFF'},
+  wizard:    {cost:200, hp:65,  atk:22, speed:0.9, range:200, trainTime:5.5, key:'7', icon:'\uD83E\uDDD9', color:'#00BCD4'},
+  knight:    {cost:250, hp:280, atk:25, speed:1.0, range:30,  trainTime:6.0, key:'8', icon:'\uD83E\uDDB8', color:'#CFD8DC'},
+  healer:    {cost:150, hp:55,  atk:3,  speed:1.1, range:120, trainTime:4.0, key:'9', icon:'\uD83D\uDC9A', color:'#69F0AE'},
+};
+
+// ==================== GEMS & SHOP (persists via localStorage) ====================
+let gems = parseInt(localStorage.getItem('stickwar_gems') || '0');
+let wins = parseInt(localStorage.getItem('stickwar_wins') || '0');
+function saveGems() { localStorage.setItem('stickwar_gems', gems); localStorage.setItem('stickwar_wins', wins); }
+
+const SHOP_ABILITIES = [
+  {id:'meteor',     name:'Meteor Strike',  desc:'Rain fire on enemies',       cost:30, icon:'\u2604\uFE0F',  cd:45, type:'mortal'},
+  {id:'heal_wave',  name:'Heal Wave',      desc:'Heal all your units +60HP',  cost:15, icon:'\uD83D\uDC9A',  cd:30, type:'ability'},
+  {id:'rage',       name:'Battle Rage',    desc:'All units +50% damage 10s',  cost:20, icon:'\uD83D\uDD25',  cd:40, type:'ability'},
+  {id:'shield',     name:'Divine Shield',  desc:'All units invincible 5s',    cost:25, icon:'\uD83D\uDEE1\uFE0F', cd:50, type:'ability'},
+  {id:'lightning',  name:'Lightning Bolt',  desc:'Massive damage to one area', cost:20, icon:'\u26A1',        cd:35, type:'mortal'},
+  {id:'freeze',     name:'Freeze',          desc:'Freeze all enemies 6s',     cost:25, icon:'\u2744\uFE0F',  cd:45, type:'mortal'},
+  {id:'gold_rush',  name:'Gold Rush',       desc:'Instant +500 gold',         cost:10, icon:'\uD83D\uDCB0',  cd:60, type:'ability'},
+  {id:'summon',     name:'Summon Giant',    desc:'Free giant, instantly',      cost:35, icon:'\uD83D\uDCAA',  cd:90, type:'mortal'},
+];
+
+// Owned abilities (persists)
+let ownedAbilities = JSON.parse(localStorage.getItem('stickwar_owned') || '[]');
+// Equipped abilities (up to 3 slots: Q, W, E)
+let equippedAbilities = JSON.parse(localStorage.getItem('stickwar_equipped') || '[]');
+function saveShop() { localStorage.setItem('stickwar_owned', JSON.stringify(ownedAbilities)); localStorage.setItem('stickwar_equipped', JSON.stringify(equippedAbilities)); }
+
+let shopOpen = false;
+let abilityCooldowns = {}; // {id: remaining seconds}
+
+// ==================== GAME STATE ====================
+let game, lastTime = 0, frame = 0;
+
+function newGame() {
+  game = {
+    state: 'menu',
+    cam: 0,
+    gold: [200, 200],
+    queue: [[],[]],       // training queues [{type, timer, maxTime}]
+    units: [],
+    projectiles: [],
+    particles: [],
+    floatTexts: [],
+    statues: [
+      {x:120, hp:STATUE_HP, maxHp:STATUE_HP, team:0},
+      {x:WORLD_W-120, hp:STATUE_HP, maxHp:STATUE_HP, team:1},
+    ],
+    mines: [{x:450, team:0}, {x:WORLD_W-450, team:1}],
+    stance: ['defend','attack'],
+    aiTimer: 0,
+    aiInterval: 4,
+    time: 0,
+    shakeTimer: 0,
+    shakeAmt: 0,
+    rageTimer: 0,
+    shieldTimer: 0,
+    freezeTimer: 0,
+    gemReward: 0,
+  };
+  abilityCooldowns = {};
+  shopOpen = false;
+}
+newGame();
+
+// ==================== INPUT ====================
+const keys = {};
+let mouseX = 0, mouseY = 0, mouseDown = false;
+let hoveredBtn = -1, hoveredStance = -1;
+let selected = []; // selected player units
+let dragSelect = null; // {startX, startY} for box select
+
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (game.state === 'menu') { game.state = 'playing'; return; }
+  if (game.state === 'won' || game.state === 'lost') { newGame(); game.state = 'playing'; return; }
+  if (game.state !== 'playing') return;
+  // Unit hotkeys
+  const typeKeys = ['miner','swordsman','archer','spearman','giant','ninja','wizard','knight','healer'];
+  if (e.key >= '1' && e.key <= '9') trainUnit(0, typeKeys[e.key - 1]);
+
+  // WASD when units selected = direct movement control
+  // When nothing selected = stances/shop
+  if (selected.length > 0) {
+    // WASD moves selected units — handled in update loop via keys[]
+  } else {
+    if (e.code === 'KeyA') game.stance[0] = 'attack';
+    if (e.code === 'KeyD') game.stance[0] = 'defend';
+    if (e.code === 'KeyS') { shopOpen = !shopOpen; }
+  }
+  if (e.code === 'KeyG') game.stance[0] = 'garrison';
+  // Shop also opens with Tab when units selected
+  if (e.code === 'Tab') { e.preventDefault(); shopOpen = !shopOpen; }
+  // Abilities Q, W, E — only when NOT moving with WASD (no selected units)
+  if (selected.length === 0) {
+    if (e.code === 'KeyQ') useAbility(0);
+    if (e.code === 'KeyW') useAbility(1);
+    if (e.code === 'KeyE') useAbility(2);
+  }
+  // Abilities also on F1/F2/F3 so they always work
+  if (e.code === 'F1') { e.preventDefault(); useAbility(0); }
+  if (e.code === 'F2') { e.preventDefault(); useAbility(1); }
+  if (e.code === 'F3') { e.preventDefault(); useAbility(2); }
+  // Deselect
+  if (e.code === 'Escape') { selected = []; shopOpen = false; }
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  mouseX = (e.clientX - r.left) * (W / r.width);
+  mouseY = (e.clientY - r.top) * (H / r.height);
+});
+
+// Helper: check if click is on HUD
+function isOnHUD(mx, my) {
+  return my >= H - 85;
+}
+
+// Helper: find unit at screen position
+function unitAtScreen(mx, my) {
+  const worldX = mx + game.cam;
+  for (const u of game.units) {
+    if (u.state === 'dead') continue;
+    const s = u.type === 'giant' ? 1.8 : 1;
+    const hitW = 16 * s, hitH = 40 * s;
+    if (worldX > u.x - hitW && worldX < u.x + hitW && my > u.y - hitH && my < u.y + 5) {
+      return u;
+    }
+  }
+  return null;
+}
+
+canvas.addEventListener('mousedown', e => {
+  mouseDown = true;
+  if (e.button === 0 && game.state === 'playing' && !isOnHUD(mouseX, mouseY)) {
+    dragSelect = {startX: mouseX, startY: mouseY};
+  }
+});
+
+canvas.addEventListener('mouseup', e => {
+  mouseDown = false;
+  // Box select on left button release
+  if (e.button === 0 && dragSelect && game.state === 'playing') {
+    const dx = Math.abs(mouseX - dragSelect.startX);
+    const dy = Math.abs(mouseY - dragSelect.startY);
+    if (dx > 10 || dy > 10) {
+      // Box select
+      const x1 = Math.min(mouseX, dragSelect.startX) + game.cam;
+      const x2 = Math.max(mouseX, dragSelect.startX) + game.cam;
+      const y1 = Math.min(mouseY, dragSelect.startY);
+      const y2 = Math.max(mouseY, dragSelect.startY);
+      if (!e.shiftKey) selected = [];
+      for (const u of game.units) {
+        if (u.team !== 0 || u.state === 'dead') continue;
+        if (u.x >= x1 && u.x <= x2 && u.y >= y1 - 40 && u.y <= y2) {
+          if (!selected.includes(u)) selected.push(u);
+        }
+      }
+    }
+    dragSelect = null;
+  }
+});
+
+canvas.addEventListener('click', e => {
+  if (game.state === 'menu') { game.state = 'playing'; return; }
+  if (game.state === 'won' || game.state === 'lost') { newGame(); game.state = 'playing'; return; }
+  if (game.state !== 'playing') return;
+
+  // Shop click
+  if (shopOpen && mouseY < H - 85) {
+    const cardW = 105, cardH = 130, gap2 = 10;
+    const totalW2 = SHOP_ABILITIES.length * (cardW + gap2) - gap2;
+    const sx2 = (W - totalW2) / 2;
+    const sy2 = 90;
+    for (let i = 0; i < SHOP_ABILITIES.length; i++) {
+      const ab = SHOP_ABILITIES[i];
+      const cx = sx2 + i * (cardW + gap2);
+      if (mouseX >= cx && mouseX <= cx + cardW && mouseY >= sy2 && mouseY <= sy2 + cardH) {
+        if (!ownedAbilities.includes(ab.id)) {
+          if (gems >= ab.cost) {
+            gems -= ab.cost;
+            ownedAbilities.push(ab.id);
+            saveGems(); saveShop();
+          }
+        } else if (!equippedAbilities.includes(ab.id)) {
+          if (equippedAbilities.length < 3) {
+            equippedAbilities.push(ab.id);
+          } else {
+            equippedAbilities[2] = ab.id; // replace slot 3
+          }
+          saveShop();
+        }
+        return;
+      }
+    }
+    return;
+  }
+
+  // HUD buttons — 9 units
+  const typeKeys = ['miner','swordsman','archer','spearman','giant','ninja','wizard','knight','healer'];
+  const btnY = H - 75, btnH = 60, btnW = 56, gap = 3;
+  const startX = 90;
+  for (let i = 0; i < 9; i++) {
+    const bx = startX + i * (btnW + gap);
+    if (mouseX >= bx && mouseX <= bx + btnW && mouseY >= btnY && mouseY <= btnY + btnH) {
+      trainUnit(0, typeKeys[i]);
+      return;
+    }
+  }
+  // Stance buttons
+  const stances = ['attack','defend','garrison'];
+  const sx = W - 80;
+  for (let i = 0; i < 3; i++) {
+    const by = btnY + i * 20;
+    if (mouseX >= sx && mouseX <= sx + 68 && mouseY >= by && mouseY <= by + 18) {
+      game.stance[0] = stances[i];
+      return;
+    }
+  }
+
+  // Don't select/command if on HUD
+  if (isOnHUD(mouseX, mouseY)) return;
+
+  // Left click on units
+  const clicked = unitAtScreen(mouseX, mouseY);
+
+  // Left-click enemy while units selected = ATTACK that enemy
+  if (clicked && clicked.team === 1 && selected.length > 0) {
+    for (const u of selected) {
+      if (u.state === 'dead') continue;
+      u.commandTarget = clicked;
+      u.commandX = null;
+      u.commandStatue = false;
+      u.controlled = true;
+    }
+    spawnParticles(clicked.x, clicked.y - 15, '#f44', 6);
+    spawnFloat(clicked.x, clicked.y - 45, 'ATTACK!', '#f44');
+    return;
+  }
+
+  // Left-click own unit = select it
+  if (clicked && clicked.team === 0) {
+    if (e.shiftKey) {
+      const idx = selected.indexOf(clicked);
+      if (idx >= 0) selected.splice(idx, 1);
+      else selected.push(clicked);
+    } else {
+      selected = [clicked];
+    }
+    return;
+  }
+
+  // Left click on empty ground with no drag — deselect
+  if (!clicked && !e.shiftKey) {
+    selected = [];
+  }
+});
+
+// Right click — command selected units to move or attack
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if (game.state !== 'playing' || selected.length === 0) return;
+
+  const r = canvas.getBoundingClientRect();
+  const mx = (e.clientX - r.left) * (W / r.width);
+  const my = (e.clientY - r.top) * (H / r.height);
+  const worldX = mx + game.cam;
+
+  // Check if right-clicked on an enemy unit
+  const target = unitAtScreen(mx, my);
+  if (target && target.team === 1) {
+    // Command: attack this enemy
+    for (const u of selected) {
+      if (u.state === 'dead') continue;
+      u.commandTarget = target;
+      u.commandX = null;
+      u.controlled = true;
+    }
+    spawnParticles(target.x, target.y - 15, '#f44', 6);
+    return;
+  }
+
+  // Check if right-clicked on enemy statue
+  const es = game.statues[1];
+  if (Math.abs(worldX - es.x) < 40 && my > GROUND_Y - 70) {
+    for (const u of selected) {
+      if (u.state === 'dead') continue;
+      u.commandTarget = null;
+      u.commandStatue = true;
+      u.commandX = es.x;
+      u.controlled = true;
+    }
+    spawnParticles(es.x, GROUND_Y - 30, '#f44', 6);
+    return;
+  }
+
+  // Command: move to position
+  for (const u of selected) {
+    if (u.state === 'dead') continue;
+    u.commandX = worldX;
+    u.commandTarget = null;
+    u.commandStatue = false;
+    u.controlled = true;
+  }
+  // Move marker particle
+  spawnParticles(worldX, GROUND_Y - 5, '#4f8', 8);
+});
+
+// ==================== ABILITIES ====================
+function useAbility(slot) {
+  if (game.state !== 'playing') return;
+  if (slot >= equippedAbilities.length) return;
+  const id = equippedAbilities[slot];
+  const ab = SHOP_ABILITIES.find(a => a.id === id);
+  if (!ab) return;
+  if (abilityCooldowns[id] > 0) return;
+
+  abilityCooldowns[id] = ab.cd;
+  game.shakeTimer = 0.3; game.shakeAmt = 5;
+
+  const alive = game.units.filter(u => u.state !== 'dead');
+  const enemies = alive.filter(u => u.team === 1);
+  const allies = alive.filter(u => u.team === 0);
+
+  switch(id) {
+    case 'meteor': {
+      // Rain fire — deal 80 dmg to all enemies in a wide area around camera center
+      const cx = game.cam + W/2;
+      for (const e of enemies) {
+        if (Math.abs(e.x - cx) < 300) {
+          damageUnit(e, 80);
+          spawnParticles(e.x, e.y - 15, '#FF6D00', 10);
+        }
+      }
+      // Also damage enemy statue if near
+      const es = game.statues[1];
+      if (Math.abs(es.x - cx) < 300) { es.hp = Math.max(0, es.hp - 80); spawnFloat(es.x, GROUND_Y-70, '-80', '#FF6D00'); }
+      // Big particle burst
+      for (let i = 0; i < 40; i++) {
+        const px = cx - 250 + Math.random()*500;
+        spawnParticles(px, GROUND_Y - 20 - Math.random()*60, '#FF6D00', 2);
+      }
+      spawnFloat(cx, GROUND_Y - 100, 'METEOR STRIKE!', '#FF6D00');
+      break;
+    }
+    case 'heal_wave': {
+      for (const u of allies) { u.hp = Math.min(u.maxHp, u.hp + 60); spawnParticles(u.x, u.y-15, '#69F0AE', 4); }
+      spawnFloat(game.cam + W/2, GROUND_Y - 100, 'HEAL WAVE! +60HP', '#69F0AE');
+      break;
+    }
+    case 'rage': {
+      game.rageTimer = 10;
+      spawnFloat(game.cam + W/2, GROUND_Y - 100, 'BATTLE RAGE! +50% DMG', '#FF5722');
+      for (const u of allies) spawnParticles(u.x, u.y-15, '#FF5722', 5);
+      break;
+    }
+    case 'shield': {
+      game.shieldTimer = 5;
+      spawnFloat(game.cam + W/2, GROUND_Y - 100, 'DIVINE SHIELD!', '#FFD700');
+      for (const u of allies) spawnParticles(u.x, u.y-15, '#FFD700', 5);
+      break;
+    }
+    case 'lightning': {
+      const cx = game.cam + W/2;
+      for (const e of enemies) {
+        if (Math.abs(e.x - cx) < 200) {
+          damageUnit(e, 120);
+          spawnParticles(e.x, e.y-15, '#FFEB3B', 8);
+        }
+      }
+      const es = game.statues[1];
+      if (Math.abs(es.x - cx) < 200) { es.hp = Math.max(0, es.hp - 120); spawnFloat(es.x, GROUND_Y-70, '-120', '#FFEB3B'); }
+      spawnFloat(cx, GROUND_Y - 100, 'LIGHTNING!', '#FFEB3B');
+      // Vertical bolt particles
+      for (let i = 0; i < 30; i++) spawnParticles(cx - 150 + Math.random()*300, Math.random()*GROUND_Y, '#FFEB3B', 1);
+      break;
+    }
+    case 'freeze': {
+      game.freezeTimer = 6;
+      spawnFloat(game.cam + W/2, GROUND_Y - 100, 'FROZEN!', '#80DEEA');
+      for (const e of enemies) spawnParticles(e.x, e.y-15, '#80DEEA', 6);
+      break;
+    }
+    case 'gold_rush': {
+      game.gold[0] += 500;
+      spawnFloat(game.cam + W/2, GROUND_Y - 100, '+500 GOLD!', '#FFD700');
+      for (let i = 0; i < 20; i++) spawnParticles(game.cam + Math.random()*W, GROUND_Y - 20 - Math.random()*40, '#FFD700', 1);
+      break;
+    }
+    case 'summon': {
+      spawnUnit(0, 'giant');
+      spawnFloat(game.statues[0].x + 50, GROUND_Y - 60, 'GIANT SUMMONED!', '#E91E63');
+      spawnParticles(game.statues[0].x + 50, GROUND_Y - 20, '#E91E63', 15);
+      break;
+    }
+  }
+}
+
+// ==================== HELPERS ====================
+function teamColor(t) { return t === 0 ? '#4488ff' : '#ff4444'; }
+function teamDir(t) { return t === 0 ? 1 : -1; }
+function popCount(t) { return game.units.filter(u => u.team === t && u.state !== 'dead').length + game.queue[t].length; }
+
+function spawnFloat(x, y, text, color) {
+  game.floatTexts.push({x, y, text, color, life: 1.2});
+}
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = 1 + Math.random() * 3;
+    game.particles.push({x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s - 2, life: 0.5 + Math.random()*0.5, color, size: 2+Math.random()*2});
+  }
+}
+
+// ==================== TRAINING ====================
+function trainUnit(team, type) {
+  const info = UNITS[type];
+  if (game.gold[team] < info.cost) return;
+  if (popCount(team) >= MAX_POP) return;
+  game.gold[team] -= info.cost;
+  game.queue[team].push({type, timer: 0, maxTime: info.trainTime});
+}
+
+function spawnUnit(team, type) {
+  const info = UNITS[type];
+  const statue = game.statues[team];
+  game.units.push({
+    type, team,
+    x: statue.x + teamDir(team) * 30,
+    y: GROUND_Y,
+    hp: info.hp, maxHp: info.hp,
+    atk: info.atk, speed: info.speed, range: info.range,
+    state: 'idle',
+    target: null,
+    cooldown: 0,
+    attackTime: type === 'giant' ? 1.8 : type === 'archer' ? 1.5 : 1.0,
+    animFrame: Math.random() * 100,
+    // Miner
+    carriedGold: 0,
+    mineTimer: 0,
+    dir: teamDir(team),
+  });
+}
+
+// ==================== UPDATE ====================
+function update(dt) {
+  if (game.state !== 'playing') return;
+  game.time += dt;
+  frame++;
+
+  // Passive gold
+  game.gold[0] += 3 * dt;
+  game.gold[1] += 3 * dt;
+
+  // Ability cooldowns
+  for (const id in abilityCooldowns) {
+    if (abilityCooldowns[id] > 0) abilityCooldowns[id] -= dt;
+  }
+  // Buff timers
+  if (game.rageTimer > 0) game.rageTimer -= dt;
+  if (game.shieldTimer > 0) game.shieldTimer -= dt;
+  if (game.freezeTimer > 0) game.freezeTimer -= dt;
+
+  // Training queues
+  for (let t = 0; t < 2; t++) {
+    if (game.queue[t].length > 0) {
+      const q = game.queue[t][0];
+      q.timer += dt;
+      if (q.timer >= q.maxTime) {
+        game.queue[t].shift();
+        spawnUnit(t, q.type);
+      }
+    }
+  }
+
+  // WASD direct control of selected units
+  if (selected.length > 0) {
+    const moveSpeed = 2.5; // direct control speed multiplier
+    let dx = 0;
+    if (keys['KeyA'] || keys['ArrowLeft']) dx = -1;
+    if (keys['KeyD'] || keys['ArrowRight']) dx = 1;
+    if (dx !== 0) {
+      for (const u of selected) {
+        if (u.state === 'dead') continue;
+        u.x += dx * u.speed * 60 * moveSpeed * dt;
+        u.x = Math.max(20, Math.min(WORLD_W - 20, u.x));
+        u.dir = dx;
+        u.state = 'walking';
+        u.controlled = true;
+        u.commandX = null;
+        u.commandTarget = null;
+        u.commandStatue = false;
+        u.wasdControlled = true; // flag for WASD mode
+      }
+    } else {
+      // Not pressing movement — if WASD controlled, stop but stay controlled
+      for (const u of selected) {
+        if (u.wasdControlled && !u.commandTarget && u.commandX == null) {
+          u.state = 'idle';
+          // Auto-attack nearby enemies
+          const alive = game.units.filter(e => e.team !== u.team && e.state !== 'dead');
+          let closest = null, closestDist = Infinity;
+          for (const e of alive) {
+            const d = Math.abs(e.x - u.x);
+            if (d < closestDist) { closestDist = d; closest = e; }
+          }
+          if (closest && closestDist <= u.range + 15) {
+            attackTarget(u, closest, null, dt);
+          }
+          // Also attack statue if close
+          const es = game.statues[1 - u.team];
+          if (Math.abs(es.x - u.x) <= u.range && (!closest || closestDist > u.range)) {
+            attackTarget(u, null, es, dt);
+          }
+        }
+      }
+    }
+    // Camera follows selected units
+    const avgX = selected.reduce((s,u) => s + u.x, 0) / selected.length;
+    const targetCam = avgX - W/2;
+    game.cam += (targetCam - game.cam) * 3 * dt;
+  } else {
+    // Camera scroll — arrow keys + edge scroll
+    if (keys['ArrowLeft']) game.cam -= 400 * dt;
+    if (keys['ArrowRight']) game.cam += 400 * dt;
+  }
+  // Edge scroll always works
+  if (mouseX < 40) game.cam -= 300 * dt;
+  if (mouseX > W - 40) game.cam += 300 * dt;
+  game.cam = Math.max(0, Math.min(WORLD_W - W, game.cam));
+
+  // Clean up dead from selected
+  selected = selected.filter(u => u.state !== 'dead');
+
+  // Update units
+  const alive = game.units.filter(u => u.state !== 'dead');
+  for (const u of game.units) {
+    if (u.state === 'dead') { u.deathTimer -= dt; continue; }
+    u.animFrame += dt * 60;
+    u.cooldown = Math.max(0, u.cooldown - dt);
+
+    if (u.type === 'miner' && !u.controlled) {
+      updateMiner(u, dt);
+      continue;
+    }
+
+    // ===== PLAYER MANUAL CONTROL =====
+    if (u.controlled && u.team === 0) {
+      // Clear command if target died
+      if (u.commandTarget && (u.commandTarget.state === 'dead' || u.commandTarget.hp <= 0)) {
+        u.commandTarget = null;
+        u.controlled = false;
+      }
+
+      // Attack a specific enemy unit
+      if (u.commandTarget) {
+        const ct = u.commandTarget;
+        const d = Math.abs(ct.x - u.x);
+        if (d <= u.range) {
+          attackTarget(u, ct, null, dt);
+        } else {
+          u.x += Math.sign(ct.x - u.x) * u.speed * 60 * dt;
+          u.dir = Math.sign(ct.x - u.x);
+          u.state = 'walking';
+        }
+        // Auto-fight nearby enemies even while moving to target
+        continue;
+      }
+
+      // Attack enemy statue
+      if (u.commandStatue) {
+        const es = game.statues[1];
+        const d = Math.abs(es.x - u.x);
+        if (d <= u.range) {
+          attackTarget(u, null, es, dt);
+        } else {
+          u.x += Math.sign(es.x - u.x) * u.speed * 60 * dt;
+          u.dir = Math.sign(es.x - u.x);
+          u.state = 'walking';
+        }
+        // Fight enemies that get in the way
+        let closest = null, closestDist = Infinity;
+        for (const e of alive) {
+          if (e.team === u.team || e.state === 'dead') continue;
+          const dd = Math.abs(e.x - u.x);
+          if (dd < closestDist) { closestDist = dd; closest = e; }
+        }
+        if (closest && closestDist <= u.range) {
+          attackTarget(u, closest, null, dt);
+        }
+        continue;
+      }
+
+      // Move to position
+      if (u.commandX != null) {
+        const d = Math.abs(u.commandX - u.x);
+        if (d > 15) {
+          u.x += Math.sign(u.commandX - u.x) * u.speed * 60 * dt;
+          u.dir = Math.sign(u.commandX - u.x);
+          u.state = 'walking';
+          // Fight enemies encountered on the way
+          let closest = null, closestDist = Infinity;
+          for (const e of alive) {
+            if (e.team === u.team || e.state === 'dead') continue;
+            const dd = Math.abs(e.x - u.x);
+            if (dd < closestDist) { closestDist = dd; closest = e; }
+          }
+          if (closest && closestDist <= u.range) {
+            attackTarget(u, closest, null, dt);
+          }
+        } else {
+          // Arrived — hold position, fight nearby
+          u.state = 'idle';
+          let closest = null, closestDist = Infinity;
+          for (const e of alive) {
+            if (e.team === u.team || e.state === 'dead') continue;
+            const dd = Math.abs(e.x - u.x);
+            if (dd < closestDist) { closestDist = dd; closest = e; }
+          }
+          if (closest && closestDist <= u.range + 30) {
+            attackTarget(u, closest, null, dt);
+          }
+        }
+        continue;
+      }
+
+      // WASD direct control — handled in the movement section above, just skip AI
+      if (u.wasdControlled && selected.includes(u)) {
+        continue;
+      }
+
+      // No command left — release control
+      u.controlled = false;
+      u.wasdControlled = false;
+    }
+
+    // ===== NORMAL AI BEHAVIOR =====
+    // Freeze — enemy units can't move or attack
+    if (u.team === 1 && game.freezeTimer > 0) {
+      u.state = 'idle';
+      continue;
+    }
+
+    // Healer AI — follow allies and heal
+    if (u.type === 'healer' && u.team !== 0) {
+      const allies = game.units.filter(a => a.team === u.team && a.state !== 'dead' && a !== u && a.hp < a.maxHp);
+      if (allies.length > 0) {
+        allies.sort((a,b) => Math.abs(a.x - u.x) - Math.abs(b.x - u.x));
+        const t = allies[0];
+        if (Math.abs(t.x - u.x) > u.range) {
+          u.x += Math.sign(t.x - u.x) * u.speed * 60 * dt;
+          u.dir = Math.sign(t.x - u.x);
+          u.state = 'walking';
+        } else {
+          attackTarget(u, t, null, dt); // healer's attackTarget heals
+        }
+        continue;
+      }
+    }
+
+    // Find target
+    let closest = null, closestDist = Infinity;
+    for (const e of alive) {
+      if (e.team === u.team || e.state === 'dead') continue;
+      const d = Math.abs(e.x - u.x);
+      if (d < closestDist) { closestDist = d; closest = e; }
+    }
+    // Also consider enemy statue
+    const eStatue = game.statues[1 - u.team];
+    const sDist = Math.abs(eStatue.x - u.x);
+    const targetIsStatue = !closest || sDist < closestDist;
+    const targetX = closest ? closest.x : eStatue.x;
+    const targetDist = closest ? closestDist : sDist;
+
+    // Stance behavior
+    const myStatue = game.statues[u.team];
+    const midpoint = WORLD_W / 2;
+    const stance = game.stance[u.team];
+
+    if (stance === 'garrison') {
+      const homeX = myStatue.x + teamDir(u.team) * 60;
+      if (Math.abs(u.x - homeX) > 20) {
+        u.x += Math.sign(homeX - u.x) * u.speed * 60 * dt;
+        u.dir = Math.sign(homeX - u.x);
+        u.state = 'walking';
+      } else {
+        u.state = 'idle';
+        if (closest && closestDist < u.range + 10) {
+          attackTarget(u, closest, null, dt);
+        }
+      }
+      continue;
+    }
+
+    if (stance === 'defend') {
+      const limitX = u.team === 0 ? midpoint - 100 : midpoint + 100;
+      const pastLimit = u.team === 0 ? u.x > limitX : u.x < limitX;
+
+      if (closest && closestDist < u.range + 30) {
+        attackTarget(u, closest, null, dt);
+      } else if (closest && closestDist < 300 && !pastLimit) {
+        u.x += teamDir(u.team) * u.speed * 60 * dt;
+        u.dir = teamDir(u.team);
+        u.state = 'walking';
+      } else if (pastLimit) {
+        u.x -= teamDir(u.team) * u.speed * 30 * dt;
+        u.dir = -teamDir(u.team);
+        u.state = 'walking';
+      } else {
+        u.state = 'idle';
+      }
+      continue;
+    }
+
+    // Attack stance — march forward
+    if (targetDist <= u.range) {
+      if (targetIsStatue && (!closest || closestDist > u.range)) {
+        attackTarget(u, null, eStatue, dt);
+      } else if (closest) {
+        attackTarget(u, closest, null, dt);
+      }
+    } else {
+      u.x += teamDir(u.team) * u.speed * 60 * dt;
+      u.dir = teamDir(u.team);
+      u.state = 'walking';
+    }
+  }
+
+  // Projectiles
+  for (const p of game.projectiles) {
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 300 * dt; // gravity
+    p.life -= dt;
+
+    // Hit check
+    for (const u of alive) {
+      if (u.team === p.team || u.state === 'dead') continue;
+      if (Math.abs(u.x - p.x) < 15 && Math.abs(u.y - p.y) < 30) {
+        damageUnit(u, p.dmg);
+        p.life = 0;
+        break;
+      }
+    }
+    // Hit statue
+    const es = game.statues[1 - p.team];
+    if (Math.abs(es.x - p.x) < 30 && p.y > GROUND_Y - 60) {
+      es.hp -= p.dmg;
+      spawnFloat(es.x, GROUND_Y - 70, '-' + p.dmg, '#ff4');
+      spawnParticles(p.x, p.y, '#ccc', 3);
+      p.life = 0;
+      if (es.hp <= 0) es.hp = 0;
+    }
+  }
+  game.projectiles = game.projectiles.filter(p => p.life > 0);
+
+  // Remove dead units
+  game.units = game.units.filter(u => u.state !== 'dead' || u.deathTimer > 0);
+
+  // Particles
+  for (const p of game.particles) {
+    p.x += p.vx * 60 * dt; p.y += p.vy * 60 * dt;
+    p.vy += 3 * dt; p.life -= dt;
+  }
+  game.particles = game.particles.filter(p => p.life > 0);
+
+  // Float texts
+  for (const f of game.floatTexts) { f.y -= 40 * dt; f.life -= dt; }
+  game.floatTexts = game.floatTexts.filter(f => f.life > 0);
+
+  // Shake
+  if (game.shakeTimer > 0) game.shakeTimer -= dt;
+
+  // AI
+  updateAI(dt);
+
+  // Win/loss
+  if (game.statues[1].hp <= 0 && game.state === 'playing') {
+    game.state = 'won';
+    game.gemReward = 10 + Math.floor(Math.random() * 11); // 10-20 gems
+    gems += game.gemReward;
+    wins++;
+    saveGems();
+  }
+  if (game.statues[0].hp <= 0 && game.state === 'playing') {
+    game.state = 'lost';
+    game.gemReward = 2; // consolation
+    gems += game.gemReward;
+    saveGems();
+  }
+}
+
+function attackTarget(u, enemy, statue, dt) {
+  u.state = 'attacking';
+  u.dir = enemy ? Math.sign(enemy.x - u.x) || teamDir(u.team) : teamDir(u.team);
+
+  if (u.cooldown > 0) return;
+  u.cooldown = u.attackTime;
+
+  // Rage damage multiplier
+  const rageMult = (u.team === 0 && game.rageTimer > 0) ? 1.5 : 1;
+
+  // Healer — heals allies instead of attacking
+  if (u.type === 'healer') {
+    const allies = game.units.filter(a => a.team === u.team && a.state !== 'dead' && a !== u && a.hp < a.maxHp);
+    if (allies.length > 0) {
+      // Heal closest damaged ally
+      allies.sort((a,b) => Math.abs(a.x - u.x) - Math.abs(b.x - u.x));
+      const target = allies[0];
+      target.hp = Math.min(target.maxHp, target.hp + 12);
+      spawnFloat(target.x, target.y - 40, '+12', '#69F0AE');
+      spawnParticles(target.x, target.y - 15, '#69F0AE', 3);
+    }
+    return;
+  }
+
+  if (u.type === 'archer' || u.type === 'wizard') {
+    // Ranged attack — shoot projectile
+    const tx = enemy ? enemy.x : statue.x;
+    const ty = GROUND_Y - 20;
+    const dx = tx - u.x, dy = ty - (u.y - 25);
+    const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+    const speed = u.type === 'wizard' ? 280 : 350;
+    const t = dist / speed;
+    const vx = dx / t;
+    const vy = dy / t - 150 * t * 0.5;
+    const dmg = Math.floor(u.atk * rageMult);
+    game.projectiles.push({x: u.x, y: u.y - 25, vx, vy, dmg, team: u.team, life: 3, magic: u.type === 'wizard'});
+    if (u.type === 'wizard') spawnParticles(u.x, u.y - 25, '#00BCD4', 4);
+    return;
+  }
+
+  // Melee
+  if (enemy) {
+    // Freeze check — frozen enemies can't be targeted (they just stand still, but CAN be hit)
+    let dmg = Math.floor(u.atk * rageMult);
+    // Spearman bonus vs giant
+    if (u.type === 'spearman' && enemy.type === 'giant') dmg = Math.floor(dmg * 1.5);
+    // Ninja double strike (30% chance)
+    if (u.type === 'ninja' && Math.random() < 0.3) {
+      dmg *= 2;
+      spawnFloat(u.x, u.y - 50, 'DOUBLE!', '#7C4DFF');
+    }
+    damageUnit(enemy, dmg);
+
+    // Giant area damage
+    if (u.type === 'giant') {
+      game.shakeTimer = 0.15; game.shakeAmt = 4;
+      const nearby = game.units.filter(e => e.team !== u.team && e.state !== 'dead' && Math.abs(e.x - u.x) < 60 && e !== enemy);
+      for (const n of nearby.slice(0, 2)) damageUnit(n, Math.floor(u.atk * rageMult * 0.5));
+    }
+    // Knight stun (20% chance)
+    if (u.type === 'knight' && Math.random() < 0.2) {
+      enemy.cooldown += 1.5;
+      spawnFloat(enemy.x, enemy.y - 50, 'STUNNED!', '#CFD8DC');
+    }
+  } else if (statue) {
+    const dmg = Math.floor(u.atk * rageMult);
+    statue.hp -= dmg;
+    spawnFloat(statue.x, GROUND_Y - 70, '-' + dmg, '#ff4');
+    spawnParticles(statue.x, GROUND_Y - 30, '#aaa', 4);
+    if (statue.hp <= 0) statue.hp = 0;
+    game.shakeTimer = 0.1; game.shakeAmt = 3;
+  }
+}
+
+function damageUnit(u, dmg) {
+  // Divine shield blocks all damage for player units
+  if (u.team === 0 && game.shieldTimer > 0) {
+    spawnFloat(u.x, u.y - 40, 'BLOCKED', '#FFD700');
+    return;
+  }
+  u.hp -= dmg;
+  spawnFloat(u.x, u.y - 40, '-' + dmg, '#f44');
+  if (u.hp <= 0) {
+    u.hp = 0;
+    u.state = 'dead';
+    u.deathTimer = 0.6;
+    spawnParticles(u.x, u.y - 15, teamColor(u.team), 8);
+  }
+}
+
+// ==================== MINER AI ====================
+function updateMiner(u, dt) {
+  const mine = game.mines[u.team];
+  const statue = game.statues[u.team];
+
+  if (u.carriedGold > 0) {
+    // Walk back to statue
+    if (Math.abs(u.x - statue.x) > 25) {
+      u.dir = Math.sign(statue.x - u.x);
+      u.x += u.dir * u.speed * 60 * dt;
+      u.state = 'walking';
+    } else {
+      // Deposit
+      game.gold[u.team] += u.carriedGold;
+      spawnFloat(statue.x, GROUND_Y - 50, '+' + u.carriedGold + 'g', '#FFD700');
+      spawnParticles(statue.x, GROUND_Y - 20, '#FFD700', 5);
+      u.carriedGold = 0;
+      u.state = 'idle';
+    }
+  } else {
+    // Walk to mine
+    if (Math.abs(u.x - mine.x) > 20) {
+      u.dir = Math.sign(mine.x - u.x);
+      u.x += u.dir * u.speed * 60 * dt;
+      u.state = 'walking';
+    } else {
+      // Mining
+      u.state = 'mining';
+      u.mineTimer += dt;
+      if (u.mineTimer >= 2.0) {
+        u.mineTimer = 0;
+        u.carriedGold = 40 + Math.floor(Math.random() * 20);
+      }
+    }
+  }
+}
+
+// ==================== AI ====================
+function updateAI(dt) {
+  game.aiTimer -= dt;
+  if (game.aiTimer > 0) return;
+  // AI gets faster over time
+  game.aiInterval = Math.max(1.5, 4 - game.time * 0.02);
+  game.aiTimer = game.aiInterval;
+
+  const aiGold = game.gold[1];
+  const aiUnits = game.units.filter(u => u.team === 1 && u.state !== 'dead');
+  const miners = aiUnits.filter(u => u.type === 'miner');
+  const fighters = aiUnits.filter(u => u.type !== 'miner');
+
+  // Ensure miners
+  if (miners.length < 2 && aiGold >= 50 && popCount(1) < MAX_POP) {
+    trainUnit(1, 'miner');
+    return;
+  }
+
+  // Build army — varied composition including new units
+  if (popCount(1) < MAX_POP) {
+    const roll = Math.random();
+    const hasHealer = aiUnits.some(u => u.type === 'healer');
+    if (aiGold >= 450 && fighters.length > 6 && roll < 0.08) trainUnit(1, 'giant');
+    else if (aiGold >= 250 && fighters.length > 4 && roll < 0.14) trainUnit(1, 'knight');
+    else if (aiGold >= 200 && roll < 0.22) trainUnit(1, 'wizard');
+    else if (aiGold >= 175 && roll < 0.30) trainUnit(1, 'ninja');
+    else if (aiGold >= 150 && !hasHealer && roll < 0.38) trainUnit(1, 'healer');
+    else if (aiGold >= 125 && roll < 0.52) trainUnit(1, 'archer');
+    else if (aiGold >= 100 && roll < 0.72) trainUnit(1, 'spearman');
+    else if (aiGold >= 100) trainUnit(1, 'swordsman');
+    else if (aiGold >= 50 && miners.length < 3) trainUnit(1, 'miner');
+  }
+
+  // Stance
+  if (fighters.length >= 5) game.stance[1] = 'attack';
+  else if (fighters.length >= 3) game.stance[1] = Math.random() < 0.4 ? 'attack' : 'defend';
+  else game.stance[1] = 'defend';
+}
+
+// ==================== DRAW ====================
+function draw() {
+  ctx.save();
+
+  // Screen shake
+  if (game.shakeTimer > 0) {
+    ctx.translate((Math.random()-0.5)*game.shakeAmt*2, (Math.random()-0.5)*game.shakeAmt*2);
+  }
+
+  const cam = game.cam;
+
+  // Sky
+  const skyGrd = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+  skyGrd.addColorStop(0, '#87CEEB');
+  skyGrd.addColorStop(0.7, '#b8e6f0');
+  skyGrd.addColorStop(1, '#d4edaa');
+  ctx.fillStyle = skyGrd;
+  ctx.fillRect(0, 0, W, GROUND_Y);
+
+  // Parallax mountains
+  ctx.fillStyle = 'rgba(80,120,80,0.25)';
+  for (let mx = -200; mx < W + 200; mx += 3) {
+    const worldX = mx + cam * 0.2;
+    const mh = 50 + Math.sin(worldX * 0.005) * 35 + Math.sin(worldX * 0.013) * 20;
+    ctx.fillRect(mx, GROUND_Y - mh, 3, mh);
+  }
+
+  // Ground
+  ctx.fillStyle = '#4a7c3f';
+  ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+  ctx.fillStyle = '#3d6b35';
+  ctx.fillRect(0, GROUND_Y + 8, W, H - GROUND_Y - 8);
+  // Grass blades
+  ctx.fillStyle = '#5a9a4f';
+  for (let gx = 0; gx < W; gx += 6) {
+    const wx = gx + cam;
+    const gh = 3 + Math.sin(wx * 0.3 + frame * 0.02) * 2;
+    ctx.fillRect(gx, GROUND_Y - gh, 1, gh);
+  }
+
+  // Gold mines
+  for (const m of game.mines) {
+    const mx = m.x - cam;
+    if (mx < -60 || mx > W + 60) continue;
+    // Mound
+    ctx.fillStyle = '#8B7355';
+    ctx.beginPath();
+    ctx.moveTo(mx - 30, GROUND_Y);
+    ctx.quadraticCurveTo(mx, GROUND_Y - 35, mx + 30, GROUND_Y);
+    ctx.fill();
+    // Gold sparkle
+    ctx.fillStyle = '#FFD700';
+    for (let i = 0; i < 5; i++) {
+      const sx = mx - 15 + ((i * 37 + frame) % 30);
+      const sy = GROUND_Y - 10 - ((i * 23 + frame * 0.5) % 20);
+      if ((frame + i * 7) % 20 < 10) {
+        ctx.fillRect(sx, sy, 3, 3);
+      }
+    }
+    // Label
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('MINE', mx, GROUND_Y - 38);
+  }
+
+  // Statues
+  for (const s of game.statues) {
+    const sx = s.x - cam;
+    if (sx < -60 || sx > W + 60) continue;
+    const col = s.team === 0 ? '#4488ff' : '#ff4444';
+    const h = 55;
+
+    // Base
+    ctx.fillStyle = '#555';
+    ctx.fillRect(sx - 15, GROUND_Y - 12, 30, 12);
+
+    // Totem body
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(sx, GROUND_Y - 12);
+    ctx.lineTo(sx, GROUND_Y - h);
+    ctx.stroke();
+    // Head
+    ctx.beginPath();
+    ctx.arc(sx, GROUND_Y - h - 8, 8, 0, Math.PI * 2);
+    ctx.stroke();
+    // Arms
+    ctx.beginPath();
+    ctx.moveTo(sx - 15, GROUND_Y - h + 15);
+    ctx.lineTo(sx, GROUND_Y - h + 10);
+    ctx.lineTo(sx + 15, GROUND_Y - h + 15);
+    ctx.stroke();
+    // Shield
+    ctx.fillStyle = col;
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath();
+    ctx.ellipse(sx, GROUND_Y - 35, 12, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // HP bar
+    const barW = 50, barH = 6;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(sx - barW/2, GROUND_Y - h - 25, barW, barH);
+    ctx.fillStyle = s.hp > s.maxHp * 0.5 ? '#4CAF50' : s.hp > s.maxHp * 0.25 ? '#FF9800' : '#f44';
+    ctx.fillRect(sx - barW/2, GROUND_Y - h - 25, barW * (s.hp / s.maxHp), barH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sx - barW/2, GROUND_Y - h - 25, barW, barH);
+  }
+
+  // Units (sorted by x for overlap)
+  const sortedUnits = [...game.units].sort((a,b) => a.x - b.x);
+  for (const u of sortedUnits) {
+    const ux = u.x - cam;
+    if (ux < -40 || ux > W + 40) continue;
+
+    // Selection ring
+    if (selected.includes(u)) {
+      ctx.strokeStyle = '#0f0';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(ux, u.y + 2, 12, 4, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      // Command destination marker
+      if (u.controlled && u.commandX != null && !u.commandTarget) {
+        ctx.strokeStyle = 'rgba(0,255,100,0.3)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4,4]);
+        ctx.beginPath();
+        ctx.moveTo(ux, u.y);
+        ctx.lineTo(u.commandX - cam, GROUND_Y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    drawStickUnit(ux, u.y, u);
+  }
+
+  // Drag select box
+  if (dragSelect && mouseDown) {
+    const x1 = Math.min(mouseX, dragSelect.startX);
+    const y1 = Math.min(mouseY, dragSelect.startY);
+    const bw = Math.abs(mouseX - dragSelect.startX);
+    const bh = Math.abs(mouseY - dragSelect.startY);
+    if (bw > 5 || bh > 5) {
+      ctx.strokeStyle = 'rgba(0,255,100,0.7)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x1, y1, bw, bh);
+      ctx.fillStyle = 'rgba(0,255,100,0.08)';
+      ctx.fillRect(x1, y1, bw, bh);
+    }
+  }
+
+  // Projectiles
+  for (const p of game.projectiles) {
+    const px = p.x - cam;
+    if (p.magic) {
+      // Wizard magic orb
+      ctx.fillStyle = '#00BCD4';
+      ctx.beginPath(); ctx.arc(px, p.y, 5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(0,188,212,0.3)';
+      ctx.beginPath(); ctx.arc(px, p.y, 9, 0, Math.PI*2); ctx.fill();
+    } else {
+      ctx.save();
+      ctx.translate(px, p.y);
+      ctx.rotate(Math.atan2(p.vy, p.vx));
+      ctx.fillStyle = '#FFD700';
+      ctx.fillRect(-6, -1, 12, 2);
+      ctx.fillStyle = '#ccc';
+      ctx.beginPath();
+      ctx.moveTo(6, 0); ctx.lineTo(3, -2); ctx.lineTo(3, 2);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // Particles
+  for (const p of game.particles) {
+    const px = p.x - cam;
+    ctx.globalAlpha = Math.min(1, p.life * 2);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(px - p.size/2, p.y - p.size/2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+
+  // Float texts
+  for (const f of game.floatTexts) {
+    const fx = f.x - cam;
+    ctx.globalAlpha = Math.min(1, f.life * 2);
+    ctx.fillStyle = f.color;
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(f.text, fx, f.y);
+  }
+  ctx.globalAlpha = 1;
+
+  // ===== HUD =====
+  drawHUD();
+
+  // ===== Minimap =====
+  drawMinimap();
+
+  // ===== Overlays =====
+  if (game.state === 'playing' && shopOpen) drawShop();
+  if (game.state === 'menu') drawMenu();
+  if (game.state === 'won') drawEndScreen('VICTORY!', '#4CAF50');
+  if (game.state === 'lost') drawEndScreen('DEFEATED', '#f44336');
+
+  ctx.restore();
+}
+
+// ==================== DRAW STICK FIGURE ====================
+function drawStickUnit(x, y, u) {
+  const col = teamColor(u.team);
+  const dead = u.state === 'dead';
+  const scale = u.type === 'giant' ? 1.8 : 1;
+  const dir = u.dir || 1;
+
+  ctx.save();
+  ctx.translate(x, y);
+  if (dead) {
+    ctx.globalAlpha = Math.max(0, u.deathTimer / 0.6);
+    ctx.rotate(dir * 1.3);
+  }
+  ctx.scale(dir * scale, scale);
+
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+
+  // Head
+  ctx.beginPath();
+  ctx.arc(0, -32, 5, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Body
+  ctx.beginPath();
+  ctx.moveTo(0, -27);
+  ctx.lineTo(0, -8);
+  ctx.stroke();
+
+  // Legs
+  const legSwing = u.state === 'walking' ? Math.sin(u.animFrame * 0.15) * 10 : 0;
+  ctx.beginPath();
+  ctx.moveTo(0, -8);
+  ctx.lineTo(-5 + legSwing, 0);
+  ctx.moveTo(0, -8);
+  ctx.lineTo(5 - legSwing, 0);
+  ctx.stroke();
+
+  // Arms + weapon
+  const atkSwing = u.state === 'attacking' ? Math.sin(u.animFrame * 0.3) * 0.8 : 0;
+
+  if (u.type === 'miner') {
+    // Pickaxe
+    ctx.beginPath();
+    ctx.moveTo(0, -22);
+    ctx.lineTo(8, -22);
+    ctx.stroke();
+    ctx.save();
+    ctx.translate(8, -22);
+    ctx.rotate(-0.5 + (u.state === 'mining' ? Math.sin(u.animFrame * 0.2) * 0.8 : 0));
+    ctx.strokeStyle = '#8B7355';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -10);
+    ctx.lineTo(4, -8);
+    ctx.stroke();
+    ctx.restore();
+    // Back arm
+    ctx.strokeStyle = col;
+    ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(-6, -16); ctx.stroke();
+    // Gold bag
+    if (u.carriedGold > 0) {
+      ctx.fillStyle = '#FFD700';
+      ctx.beginPath(); ctx.arc(-4, -14, 4, 0, Math.PI*2); ctx.fill();
+    }
+  } else if (u.type === 'swordsman') {
+    // Sword arm
+    ctx.beginPath();
+    ctx.moveTo(0, -22);
+    ctx.lineTo(8, -20);
+    ctx.stroke();
+    ctx.save();
+    ctx.translate(8, -20);
+    ctx.rotate(-0.3 + atkSwing);
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(12, -3); ctx.stroke();
+    ctx.restore();
+    // Shield arm
+    ctx.strokeStyle = col;
+    ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(-7, -17); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath(); ctx.arc(-8, -15, 5, 0, Math.PI*2); ctx.fill();
+  } else if (u.type === 'archer') {
+    // Bow arm
+    ctx.beginPath();
+    ctx.moveTo(0, -22);
+    ctx.lineTo(8, -22);
+    ctx.stroke();
+    // Bow
+    ctx.strokeStyle = '#8B4513';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(10, -22, 10, -1.2, 1.2);
+    ctx.stroke();
+    // String
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(10 + Math.cos(-1.2)*10, -22 + Math.sin(-1.2)*10);
+    ctx.lineTo(10 + Math.cos(1.2)*10, -22 + Math.sin(1.2)*10);
+    ctx.stroke();
+    // Back arm
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(-6, -17); ctx.stroke();
+  } else if (u.type === 'spearman') {
+    // Spear arm
+    ctx.beginPath();
+    ctx.moveTo(0, -22);
+    ctx.lineTo(7, -20);
+    ctx.stroke();
+    ctx.save();
+    ctx.translate(7, -20);
+    ctx.rotate(-0.2 + atkSwing * 0.7);
+    ctx.strokeStyle = '#8B7355';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, -5); ctx.stroke();
+    // Spear tip
+    ctx.fillStyle = '#ccc';
+    ctx.beginPath(); ctx.moveTo(18, -5); ctx.lineTo(22, -6); ctx.lineTo(18, -8); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    // Back arm
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(-6, -16); ctx.stroke();
+  } else if (u.type === 'giant') {
+    // Club arm
+    ctx.beginPath();
+    ctx.moveTo(0, -22);
+    ctx.lineTo(8, -18);
+    ctx.stroke();
+    ctx.save();
+    ctx.translate(8, -18);
+    ctx.rotate(-0.5 + atkSwing);
+    ctx.strokeStyle = '#6D4C41';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(14, -6); ctx.stroke();
+    ctx.restore();
+    // Back arm
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(-8, -14); ctx.stroke();
+  } else if (u.type === 'ninja') {
+    // Dual daggers
+    ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(8, -20); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(-8, -20); ctx.stroke();
+    ctx.save();
+    ctx.translate(8, -20); ctx.rotate(-0.4 + atkSwing);
+    ctx.strokeStyle = '#B0BEC5'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(8, -2); ctx.stroke();
+    ctx.restore();
+    ctx.save();
+    ctx.translate(-8, -20); ctx.rotate(0.4 - atkSwing);
+    ctx.strokeStyle = '#B0BEC5'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-8, -2); ctx.stroke();
+    ctx.restore();
+    // Scarf
+    ctx.strokeStyle = '#7C4DFF'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(-2, -27); ctx.quadraticCurveTo(-10, -22 + Math.sin(u.animFrame*0.1)*3, -14, -20); ctx.stroke();
+  } else if (u.type === 'wizard') {
+    // Staff
+    ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(8, -20); ctx.stroke();
+    ctx.strokeStyle = '#6D4C41'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(8, -20); ctx.lineTo(10, 0); ctx.stroke();
+    // Orb
+    ctx.fillStyle = '#00BCD4';
+    ctx.beginPath(); ctx.arc(10, -22, 4, 0, Math.PI*2); ctx.fill();
+    if (u.state === 'attacking') {
+      ctx.fillStyle = 'rgba(0,188,212,0.3)';
+      ctx.beginPath(); ctx.arc(10, -22, 7, 0, Math.PI*2); ctx.fill();
+    }
+    // Back arm
+    ctx.strokeStyle = col; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(-6, -16); ctx.stroke();
+    // Hat
+    ctx.fillStyle = '#7C4DFF';
+    ctx.beginPath(); ctx.moveTo(-5, -37); ctx.lineTo(0, -48); ctx.lineTo(5, -37); ctx.closePath(); ctx.fill();
+  } else if (u.type === 'knight') {
+    // Sword + shield (beefier swordsman)
+    ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(8, -19); ctx.stroke();
+    ctx.save(); ctx.translate(8, -19); ctx.rotate(-0.3 + atkSwing);
+    ctx.strokeStyle = '#eee'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(14, -4); ctx.stroke();
+    // Guard
+    ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-1, -2); ctx.lineTo(-1, 2); ctx.stroke();
+    ctx.restore();
+    // Shield arm
+    ctx.strokeStyle = col; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(-8, -17); ctx.stroke();
+    ctx.fillStyle = '#CFD8DC';
+    ctx.fillRect(-12, -20, 7, 9);
+    ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 1;
+    ctx.strokeRect(-12, -20, 7, 9);
+    // Helmet
+    ctx.fillStyle = '#90A4AE';
+    ctx.fillRect(-5, -38, 10, 4);
+  } else if (u.type === 'healer') {
+    // Staff with cross
+    ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(7, -20); ctx.stroke();
+    ctx.strokeStyle = '#4CAF50'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(7, -20); ctx.lineTo(8, 0); ctx.stroke();
+    // Cross
+    ctx.strokeStyle = '#69F0AE'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(5, -28); ctx.lineTo(11, -28); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(8, -31); ctx.lineTo(8, -25); ctx.stroke();
+    // Heal glow
+    if (u.state === 'attacking') {
+      ctx.fillStyle = 'rgba(105,240,174,0.25)';
+      ctx.beginPath(); ctx.arc(8, -28, 8, 0, Math.PI*2); ctx.fill();
+    }
+    // Back arm
+    ctx.strokeStyle = col; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(-6, -16); ctx.stroke();
+  }
+
+  // HP bar (only if damaged)
+  if (u.hp < u.maxHp && !dead) {
+    ctx.strokeStyle = 'transparent';
+    const bw = 20 / scale, bh = 3;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(-bw/2, -40, bw, bh);
+    ctx.fillStyle = u.hp > u.maxHp * 0.5 ? '#4CAF50' : '#f44';
+    ctx.fillRect(-bw/2, -40, bw * (u.hp / u.maxHp), bh);
+  }
+
+  ctx.restore();
+}
+
+// ==================== HUD ====================
+function drawHUD() {
+  // Bottom bar
+  ctx.fillStyle = 'rgba(10,10,30,0.88)';
+  ctx.fillRect(0, H - 85, W, 85);
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H - 85); ctx.lineTo(W, H - 85); ctx.stroke();
+
+  // Gold + Gems
+  ctx.fillStyle = '#FFD700';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('\u2B50 ' + Math.floor(game.gold[0]), 10, H - 63);
+
+  ctx.fillStyle = '#CE93D8';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('\uD83D\uDC8E ' + gems, 10, H - 48);
+
+  // Population
+  ctx.fillStyle = '#aaa';
+  ctx.font = '10px sans-serif';
+  const pop = popCount(0);
+  ctx.fillText('Army ' + pop + '/' + MAX_POP, 10, H - 35);
+
+  // Stance
+  ctx.fillStyle = '#777';
+  ctx.font = '9px sans-serif';
+  ctx.fillText(game.stance[0].toUpperCase(), 10, H - 24);
+
+  // Active buffs
+  let buffY = H - 14;
+  if (game.rageTimer > 0) { ctx.fillStyle = '#FF5722'; ctx.fillText('RAGE ' + Math.ceil(game.rageTimer) + 's', 10, buffY); buffY -= 10; }
+  if (game.shieldTimer > 0) { ctx.fillStyle = '#FFD700'; ctx.fillText('SHIELD ' + Math.ceil(game.shieldTimer) + 's', 10, buffY); buffY -= 10; }
+  if (game.freezeTimer > 0) { ctx.fillStyle = '#80DEEA'; ctx.fillText('FREEZE ' + Math.ceil(game.freezeTimer) + 's', 10, buffY); }
+
+  // Selection info
+  if (selected.length > 0) {
+    ctx.fillStyle = '#0f0';
+    ctx.font = '9px sans-serif';
+    ctx.fillText('Sel:' + selected.length + ' WASD:move Click:attack', 10, H - 3);
+  }
+
+  // Unit buttons — 9 units, smaller
+  const types = ['miner','swordsman','archer','spearman','giant','ninja','wizard','knight','healer'];
+  const btnW = 56, btnH = 58, gap = 3;
+  const totalBtnW = 9 * btnW + 8 * gap;
+  const startX = 90;
+  const btnY = H - 75;
+
+  for (let i = 0; i < 9; i++) {
+    const type = types[i];
+    const info = UNITS[type];
+    const bx = startX + i * (btnW + gap);
+    const hover = mouseX >= bx && mouseX <= bx + btnW && mouseY >= btnY && mouseY <= btnY + btnH;
+    const canAfford = game.gold[0] >= info.cost && popCount(0) < MAX_POP;
+
+    ctx.fillStyle = hover ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)';
+    ctx.fillRect(bx, btnY, btnW, btnH);
+    ctx.strokeStyle = canAfford ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, btnY, btnW, btnH);
+
+    // Training progress
+    if (game.queue[0].length > 0 && game.queue[0][0].type === type) {
+      const q = game.queue[0][0];
+      const pct = q.timer / q.maxTime;
+      ctx.fillStyle = 'rgba(76,175,80,0.3)';
+      ctx.fillRect(bx, btnY + btnH * (1 - pct), btnW, btnH * pct);
+    }
+
+    ctx.globalAlpha = canAfford ? 1 : 0.3;
+    ctx.fillStyle = info.color;
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(info.icon, bx + btnW/2, btnY + 18);
+    ctx.fillStyle = '#bbb';
+    ctx.font = '8px sans-serif';
+    ctx.fillText(type.charAt(0).toUpperCase() + type.slice(1,5), bx + btnW/2, btnY + 32);
+    ctx.fillStyle = '#FFD700';
+    ctx.font = '9px sans-serif';
+    ctx.fillText(info.cost + 'g', bx + btnW/2, btnY + 44);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.font = '8px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(info.key, bx + btnW - 3, btnY + 10);
+    ctx.globalAlpha = 1;
+  }
+
+  // Ability bar (Q, W, E) — right of unit buttons
+  const abX = startX + totalBtnW + 15;
+  const abKeys = ['Q','W','E'];
+  for (let i = 0; i < 3; i++) {
+    const by = btnY + i * 20;
+    const id = equippedAbilities[i];
+    const ab = id ? SHOP_ABILITIES.find(a => a.id === id) : null;
+    const cd = id ? (abilityCooldowns[id] || 0) : 0;
+    const ready = ab && cd <= 0;
+
+    ctx.fillStyle = ready ? 'rgba(150,100,255,0.2)' : 'rgba(255,255,255,0.03)';
+    ctx.fillRect(abX, by, 100, 18);
+    ctx.strokeStyle = ready ? 'rgba(150,100,255,0.5)' : 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(abX, by, 100, 18);
+
+    // Cooldown bar
+    if (ab && cd > 0) {
+      ctx.fillStyle = 'rgba(100,50,200,0.3)';
+      ctx.fillRect(abX, by, 100 * (cd / ab.cd), 18);
+    }
+
+    ctx.fillStyle = ready ? '#CE93D8' : '#555';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'left';
+    if (ab) {
+      ctx.fillText('[' + abKeys[i] + '] ' + ab.icon + ' ' + ab.name, abX + 4, by + 13);
+      if (cd > 0) {
+        ctx.fillStyle = '#888';
+        ctx.textAlign = 'right';
+        ctx.fillText(Math.ceil(cd) + 's', abX + 96, by + 13);
+      }
+    } else {
+      ctx.fillStyle = '#444';
+      ctx.fillText('[' + abKeys[i] + '] empty', abX + 4, by + 13);
+    }
+  }
+
+  // Shop button
+  ctx.fillStyle = shopOpen ? 'rgba(150,100,255,0.3)' : 'rgba(255,255,255,0.05)';
+  ctx.fillRect(abX, btnY + 62, 100, 14);
+  ctx.strokeStyle = 'rgba(150,100,255,0.4)';
+  ctx.strokeRect(abX, btnY + 62, 100, 14);
+  ctx.fillStyle = '#CE93D8';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('\uD83D\uDC8E SHOP [S]', abX + 50, btnY + 73);
+
+  // Stance buttons — far right
+  const stances = [
+    {name:'Attack', key:'A', color:'#f44'},
+    {name:'Defend', key:'D', color:'#4CAF50'},
+    {name:'Garrison', key:'G', color:'#FF9800'},
+  ];
+  const sx = W - 80;
+  for (let i = 0; i < 3; i++) {
+    const s = stances[i];
+    const by = btnY + 3 + i * 20;
+    const active = game.stance[0] === s.name.toLowerCase();
+    ctx.fillStyle = active ? s.color : 'rgba(255,255,255,0.05)';
+    if (active) ctx.globalAlpha = 0.7;
+    ctx.fillRect(sx, by, 68, 17);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = active ? '#fff' : '#888';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(s.name + '[' + s.key + ']', sx + 34, by + 12);
+  }
+}
+
+// ==================== SHOP OVERLAY ====================
+function drawShop() {
+  if (!shopOpen) return;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.8)';
+  ctx.fillRect(0, 0, W, H - 85);
+
+  ctx.fillStyle = '#CE93D8';
+  ctx.font = 'bold 28px Cinzel, serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('\uD83D\uDC8E ABILITY SHOP', W/2, 45);
+
+  ctx.fillStyle = '#aaa';
+  ctx.font = '13px sans-serif';
+  ctx.fillText('Gems: ' + gems + '  |  Wins: ' + wins + '  |  Click to buy or equip  |  [S] close', W/2, 70);
+
+  // Ability cards
+  const cardW = 105, cardH = 130, gap = 10;
+  const totalW = SHOP_ABILITIES.length * (cardW + gap) - gap;
+  const startX = (W - totalW) / 2;
+  const startY = 90;
+
+  for (let i = 0; i < SHOP_ABILITIES.length; i++) {
+    const ab = SHOP_ABILITIES[i];
+    const cx = startX + i * (cardW + gap);
+    const owned = ownedAbilities.includes(ab.id);
+    const equipped = equippedAbilities.includes(ab.id);
+    const hover = mouseX >= cx && mouseX <= cx + cardW && mouseY >= startY && mouseY <= startY + cardH;
+
+    // Card bg
+    ctx.fillStyle = equipped ? 'rgba(150,100,255,0.2)' : owned ? 'rgba(100,200,100,0.1)' : 'rgba(255,255,255,0.04)';
+    ctx.fillRect(cx, startY, cardW, cardH);
+    ctx.strokeStyle = hover ? 'rgba(255,255,255,0.4)' : equipped ? 'rgba(150,100,255,0.4)' : owned ? 'rgba(100,200,100,0.2)' : 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = hover ? 2 : 1;
+    ctx.strokeRect(cx, startY, cardW, cardH);
+
+    // Type badge
+    const isM = ab.type === 'mortal';
+    ctx.fillStyle = isM ? 'rgba(255,50,50,0.2)' : 'rgba(50,150,255,0.2)';
+    ctx.fillRect(cx, startY, cardW, 14);
+    ctx.fillStyle = isM ? '#f66' : '#6af';
+    ctx.font = 'bold 8px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(isM ? 'MORTAL' : 'ABILITY', cx + cardW/2, startY + 10);
+
+    // Icon
+    ctx.font = '28px sans-serif';
+    ctx.fillText(ab.icon, cx + cardW/2, startY + 50);
+
+    // Name
+    ctx.fillStyle = '#eee';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.fillText(ab.name, cx + cardW/2, startY + 68);
+
+    // Desc
+    ctx.fillStyle = '#888';
+    ctx.font = '8px sans-serif';
+    const words = ab.desc.split(' ');
+    let line1 = '', line2 = '';
+    for (const w of words) { if (line1.length < 18) line1 += w + ' '; else line2 += w + ' '; }
+    ctx.fillText(line1.trim(), cx + cardW/2, startY + 82);
+    if (line2) ctx.fillText(line2.trim(), cx + cardW/2, startY + 92);
+
+    // Cooldown
+    ctx.fillStyle = '#666';
+    ctx.font = '8px sans-serif';
+    ctx.fillText('CD: ' + ab.cd + 's', cx + cardW/2, startY + 104);
+
+    // Buy/Equip button
+    if (!owned) {
+      ctx.fillStyle = gems >= ab.cost ? '#CE93D8' : '#555';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillText('\uD83D\uDC8E ' + ab.cost, cx + cardW/2, startY + 122);
+    } else if (!equipped) {
+      ctx.fillStyle = '#4CAF50';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillText('EQUIP', cx + cardW/2, startY + 122);
+    } else {
+      ctx.fillStyle = '#CE93D8';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillText('EQUIPPED', cx + cardW/2, startY + 122);
+    }
+  }
+
+  // Equipped slots display
+  ctx.fillStyle = '#aaa';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Equipped (3 slots): ' + equippedAbilities.map((id,i) => {
+    const ab = SHOP_ABILITIES.find(a => a.id === id);
+    return ab ? '[' + ['Q','W','E'][i] + '] ' + ab.icon + ab.name : '';
+  }).join('  '), W/2, startY + cardH + 25);
+}
+
+// ==================== MINIMAP ====================
+function drawMinimap() {
+  const mw = 200, mh = 10, mx = (W - mw) / 2, my = 5;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(mx, my, mw, mh);
+
+  // Units
+  for (const u of game.units) {
+    if (u.state === 'dead') continue;
+    const ux = mx + (u.x / WORLD_W) * mw;
+    ctx.fillStyle = teamColor(u.team);
+    ctx.fillRect(ux - 1, my + 1, 2, mh - 2);
+  }
+  // Statues
+  for (const s of game.statues) {
+    const sx = mx + (s.x / WORLD_W) * mw;
+    ctx.fillStyle = s.team === 0 ? '#4488ff' : '#ff4444';
+    ctx.fillRect(sx - 2, my, 4, mh);
+  }
+  // Camera view
+  const vx = mx + (game.cam / WORLD_W) * mw;
+  const vw = (W / WORLD_W) * mw;
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(vx, my, vw, mh);
+}
+
+// ==================== MENU / OVERLAYS ====================
+function drawMenu() {
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = '#FFD700';
+  ctx.font = 'bold 48px Cinzel, serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('STICK WAR', W/2, H/2 - 50);
+
+  ctx.fillStyle = '#aaa';
+  ctx.font = '18px sans-serif';
+  ctx.fillText('LEGACY', W/2, H/2 - 18);
+
+  ctx.fillStyle = '#ccc';
+  ctx.font = '14px sans-serif';
+  ctx.fillText('Click or press any key to start', W/2, H/2 + 30);
+
+  // Gems display
+  ctx.fillStyle = '#CE93D8';
+  ctx.font = '16px sans-serif';
+  ctx.fillText('\uD83D\uDC8E ' + gems + ' Gems  |  ' + wins + ' Wins', W/2, H/2 + 60);
+
+  ctx.fillStyle = '#888';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('[1-9] Train  |  Click unit + WASD to move  |  Click enemy to attack  |  [S] Shop  |  [F1/F2/F3] Abilities', W/2, H/2 + 82);
+}
+
+function drawEndScreen(text, color) {
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = color;
+  ctx.font = 'bold 52px Cinzel, serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, W/2, H/2 - 40);
+
+  // Gem reward
+  ctx.fillStyle = '#CE93D8';
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillText('\uD83D\uDC8E +' + game.gemReward + ' Gems!', W/2, H/2 + 5);
+
+  ctx.fillStyle = '#888';
+  ctx.font = '13px sans-serif';
+  ctx.fillText('Total: ' + gems + ' gems  |  Wins: ' + wins, W/2, H/2 + 30);
+
+  ctx.fillStyle = '#ccc';
+  ctx.font = '14px sans-serif';
+  ctx.fillText('Click or press any key to play again', W/2, H/2 + 55);
+}
+
+// ==================== GAME LOOP ====================
+function gameLoop(ts) {
+  const dt = Math.min(0.05, (ts - lastTime) / 1000);
+  lastTime = ts;
+
+  update(dt);
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
