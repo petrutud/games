@@ -48,5 +48,5 @@
   <!-- Sun -->
   <circle cx="50" cy="30" r="15" fill="rgba(255,240,180,0.9)"/>
   <circle cx="50" cy="30" r="25" fill="none" stroke="rgba(255,230,150,0.2)" stroke-width="2"/>
-  <text x="200" y="218" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="12">Terraria</text>
+  <text x="200" y="218" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="12">Minecraft</text>
 </svg>

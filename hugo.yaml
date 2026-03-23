@@ -386,16 +386,16 @@ params:
           name: Play Game
           link: /games/breakout/
 
-      - title: "Terraria"
+      - title: "Minecraft"
         content: "Mine, craft, build, and survive! Dig caves, fight enemies, craft bows and armor, build plank houses for protection, and explore a procedural world."
-        image: "/images/games/terraria.svg"
+        image: "/images/games/minecraft.svg"
         badges:
           - "HTML5"
           - "Canvas"
           - "Sandbox"
         featured:
           name: Play Game
-          link: /games/terraria/
+          link: /games/minecraft/
 
       - title: "Minesweeper"
         content: "The classic logic puzzle. Reveal cells, flag mines, and clear the board. Three difficulty levels from easy to expert."
