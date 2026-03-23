@@ -110,6 +110,7 @@ function newGame() {
     shieldTimer: 0,
     freezeTimer: 0,
     gemReward: 0,
+    infiniteMoney: false,
   };
   abilityCooldowns = {};
   shopOpen = false;
@@ -142,6 +143,7 @@ document.addEventListener('keydown', e => {
     if (e.code === 'KeyS') { shopOpen = !shopOpen; }
   }
   if (e.code === 'KeyG') game.stance[0] = 'garrison';
+  if (e.code === 'KeyM') game.infiniteMoney = !game.infiniteMoney;
   // Shop also opens with Tab when units selected
   if (e.code === 'Tab') { e.preventDefault(); shopOpen = !shopOpen; }
   // Abilities Q, W, E — only when NOT moving with WASD (no selected units)
@@ -270,6 +272,12 @@ canvas.addEventListener('click', e => {
       game.stance[0] = stances[i];
       return;
     }
+  }
+  // Infinite money button
+  const imY = btnY + 65;
+  if (mouseX >= sx && mouseX <= sx + 68 && mouseY >= imY && mouseY <= imY + 17) {
+    game.infiniteMoney = !game.infiniteMoney;
+    return;
   }
 
   // Don't select/command if on HUD
@@ -505,6 +513,9 @@ function update(dt) {
   // Passive gold
   game.gold[0] += 3 * dt;
   game.gold[1] += 3 * dt;
+
+  // Infinite money cheat
+  if (game.infiniteMoney) game.gold[0] = 99999;
 
   // Ability cooldowns
   for (const id in abilityCooldowns) {
@@ -1615,6 +1626,20 @@ function drawHUD() {
     ctx.textAlign = 'center';
     ctx.fillText(s.name + '[' + s.key + ']', sx + 34, by + 12);
   }
+
+  // Infinite money button
+  const imY = btnY + 65;
+  const imHover = mouseX >= sx && mouseX <= sx + 68 && mouseY >= imY && mouseY <= imY + 17;
+  const imActive = game.infiniteMoney;
+  ctx.fillStyle = imActive ? 'rgba(255,215,0,0.35)' : imHover ? 'rgba(255,215,0,0.15)' : 'rgba(255,255,255,0.05)';
+  ctx.fillRect(sx, imY, 68, 17);
+  ctx.strokeStyle = imActive ? '#FFD700' : 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(sx, imY, 68, 17);
+  ctx.fillStyle = imActive ? '#FFD700' : '#888';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(imActive ? '\u221E MONEY ON' : '\u221E Money[M]', sx + 34, imY + 12);
 }
 
 // ==================== SHOP OVERLAY ====================
