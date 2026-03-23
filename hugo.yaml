@@ -364,6 +364,17 @@ params:
           name: Play Game
           link: /games/septica/
 
+      - title: "Breakout"
+        content: "Classic brick-breaker with power-ups, combos, and multi-ball! Smash colorful bricks, collect shields, slow-mo, and more."
+        image: "/images/games/breakout.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Arcade"
+        featured:
+          name: Play Game
+          link: /games/breakout/
+
       - title: "Minesweeper"
         content: "The classic logic puzzle. Reveal cells, flag mines, and clear the board. Three difficulty levels from easy to expert."
         image: "/images/games/minesweeper.svg"
