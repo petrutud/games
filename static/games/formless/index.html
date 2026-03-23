@@ -88,7 +88,7 @@ const FORMS={
         color:'#336',accentColor:'#66a',
         armor:0,attackDmg:8,attackRange:28,attackCd:22,
         abilities:['teleport','phase'],
-        passiveDesc:'Teleport, phase through walls',
+        passiveDesc:'Click to teleport, phase through walls',
         desc:'Spectral form. Attacks ignore armor.'
     }
 };
@@ -194,7 +194,7 @@ const SUPER_ABILITIES={
 };
 
 // ==================== GAME STATE ====================
-let player,camera,enemies,projectiles,particles,effects,drops;
+let player,camera={x:0,y:0},enemies,projectiles,particles,effects,drops;
 let rooms,currentRoom,currentBiome,currentFloor;
 let keys={},frame=0,screenShake=0,transition=0,transDir=0;
 let gameState='title';
@@ -1038,8 +1038,11 @@ function useAbility1(){
             showEcho('Wall walk is passive near walls!');
             break;
         case 'teleport':
-            // Blink forward
-            player.x+=player.dir*80;
+            // Teleport to mouse cursor position
+            spawnBurst(player.x+getPlayerW()/2,player.y+getPlayerH()/2,15,FORMS.phantom.accentColor,3,15);
+            player.x=mouseWorldX-getPlayerW()/2;
+            player.y=mouseWorldY-getPlayerH()/2;
+            player.vy=0;
             player.ability1Cd=40;
             spawnBurst(player.x+getPlayerW()/2,player.y+getPlayerH()/2,20,FORMS.phantom.accentColor,4,20);
             break;
@@ -2514,12 +2517,15 @@ document.addEventListener('keydown',e=>{
 document.addEventListener('keyup',e=>{
     keys[e.code]=false;
 });
-// Mouse for sacrifice hover
+// Mouse tracking (world coordinates for phantom teleport)
+let mouseWorldX=0,mouseWorldY=0;
 C.addEventListener('mousemove',e=>{
-    if(gameState!=='sacrifice')return;
     const rect=C.getBoundingClientRect();
     const mx=(e.clientX-rect.left)*(GW/rect.width);
     const my=(e.clientY-rect.top)*(GH/rect.height);
+    mouseWorldX=mx+camera.x;
+    mouseWorldY=my+camera.y;
+    if(gameState!=='sacrifice')return;
     const slotW=180,gap=20;
     const totalW=3*(slotW+gap)-gap;
     const sx=(GW-totalW)/2;
@@ -2535,6 +2541,25 @@ C.addEventListener('mousemove',e=>{
 C.addEventListener('click',e=>{
     if(gameState==='sacrifice'&&sacrificeHover>=0){
         sacrificeForm(sacrificeHover);
+        return;
+    }
+    // Phantom click-to-teleport
+    if(gameState==='play'&&player&&!player.dead&&player.activeForm>=0){
+        const slot=player.forms[player.activeForm];
+        if(slot&&slot.hp>0&&FORMS[slot.type].abilities[0]==='teleport'&&player.ability1Cd<=0){
+            const rect=C.getBoundingClientRect();
+            const mx=(e.clientX-rect.left)*(GW/rect.width);
+            const my=(e.clientY-rect.top)*(GH/rect.height);
+            const targetX=mx+camera.x-getPlayerW()/2;
+            const targetY=my+camera.y-getPlayerH()/2;
+            spawnBurst(player.x+getPlayerW()/2,player.y+getPlayerH()/2,15,FORMS.phantom.accentColor,3,15);
+            player.x=targetX;
+            player.y=targetY;
+            player.vy=0;
+            player.ability1Cd=40;
+            spawnBurst(player.x+getPlayerW()/2,player.y+getPlayerH()/2,20,FORMS.phantom.accentColor,4,20);
+            showEcho('Teleport!');
+        }
     }
 });
 
