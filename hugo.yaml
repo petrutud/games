@@ -215,6 +215,17 @@ params:
           name: Play Game
           link: /games/chess/
 
+      - title: "Checkers"
+        content: "Classic checkers with forced jumps, multi-jumps, and king promotions. Play local 2-player or vs AI with 3 difficulty levels."
+        image: "/images/games/checkers.svg"
+        badges:
+          - "HTML5"
+          - "JavaScript"
+          - "Board Game"
+        featured:
+          name: Play Game
+          link: /games/checkers/
+
       - title: "Space Shooter"
         content: "A classic arcade-style space shooter. Dodge asteroids and blast enemies in this fast-paced game."
         image: "/images/games/space-shooter.svg"
