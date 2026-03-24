@@ -277,6 +277,18 @@ params:
           name: Play Game
           link: /games/battle-simulator/
 
+      - title: "Star Wars Battle"
+        content: "Rebels vs Empire! Deploy Jedi, Sith, Stormtroopers, and iconic Star Wars characters in epic tactical battles with lightsabers, Force powers, and laser blasts."
+        image: "/images/games/star-wars-battel.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Star Wars"
+          - "Strategy"
+        featured:
+          name: Play Game
+          link: /games/star-wars-battel/
+
       - title: "Backgammon"
         content: "The classic board game with AI opponents. Roll dice, move checkers, and bear off before your opponent!"
         image: "/images/games/backgammon.svg"

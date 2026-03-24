@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 225" width="400" height="225">
+  <defs>
+    <linearGradient id="bg1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0a1a"/>
+      <stop offset="100%" style="stop-color:#0d1117"/>
+    </linearGradient>
+    <radialGradient id="glow-rebel" cx="70%" cy="50%" r="35%">
+      <stop offset="0%" style="stop-color:rgba(78,168,222,0.3)"/>
+      <stop offset="100%" style="stop-color:rgba(78,168,222,0)"/>
+    </radialGradient>
+    <radialGradient id="glow-empire" cx="30%" cy="50%" r="35%">
+      <stop offset="0%" style="stop-color:rgba(233,69,96,0.3)"/>
+      <stop offset="100%" style="stop-color:rgba(233,69,96,0)"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="225" fill="url(#bg1)"/>
+  <rect width="400" height="225" fill="url(#glow-rebel)"/>
+  <rect width="400" height="225" fill="url(#glow-empire)"/>
+  <!-- Stars -->
+  <circle cx="30" cy="20" r="1" fill="#fff" opacity="0.6"/>
+  <circle cx="90" cy="45" r="0.8" fill="#fff" opacity="0.4"/>
+  <circle cx="150" cy="15" r="1.2" fill="#fff" opacity="0.5"/>
+  <circle cx="220" cy="35" r="0.7" fill="#fff" opacity="0.3"/>
+  <circle cx="300" cy="20" r="1" fill="#fff" opacity="0.5"/>
+  <circle cx="350" cy="50" r="0.9" fill="#fff" opacity="0.4"/>
+  <circle cx="370" cy="15" r="1.1" fill="#fff" opacity="0.6"/>
+  <circle cx="55" cy="55" r="0.6" fill="#fff" opacity="0.3"/>
+  <!-- Ground line (desert) -->
+  <line x1="40" y1="160" x2="360" y2="160" stroke="#3a2a1a" stroke-width="2"/>
+  <!-- Empire units (red/left) -->
+  <g opacity="0.9">
+    <circle cx="80" cy="140" r="12" fill="#e94560"/>
+    <circle cx="110" cy="140" r="10" fill="#f0f0f0"/>
+    <circle cx="135" cy="140" r="14" fill="#111"/>
+    <circle cx="60" cy="140" r="9" fill="#e94560"/>
+    <!-- Red lightsaber -->
+    <line x1="135" y1="122" x2="145" y2="105" stroke="#ff0000" stroke-width="2.5" opacity="0.9"/>
+    <line x1="135" y1="122" x2="145" y2="105" stroke="#ff4444" stroke-width="4" opacity="0.3"/>
+    <!-- Blaster -->
+    <line x1="80" y1="135" x2="95" y2="135" stroke="#888" stroke-width="1.5"/>
+  </g>
+  <!-- Rebel units (blue/right) -->
+  <g opacity="0.9">
+    <circle cx="280" cy="140" r="11" fill="#4ea8de"/>
+    <circle cx="310" cy="140" r="13" fill="#228B22"/>
+    <circle cx="335" cy="140" r="10" fill="#f5f5dc"/>
+    <circle cx="260" cy="140" r="12" fill="#8B4513"/>
+    <!-- Green lightsaber -->
+    <line x1="310" y1="123" x2="300" y2="106" stroke="#00ff00" stroke-width="2.5" opacity="0.9"/>
+    <line x1="310" y1="123" x2="300" y2="106" stroke="#44ff44" stroke-width="4" opacity="0.3"/>
+    <!-- Blue lightsaber -->
+    <line x1="335" y1="126" x2="325" y2="110" stroke="#00bfff" stroke-width="2" opacity="0.9"/>
+    <line x1="335" y1="126" x2="325" y2="110" stroke="#44ddff" stroke-width="3.5" opacity="0.3"/>
+  </g>
+  <!-- Laser bolts crossing -->
+  <circle cx="185" cy="125" r="2.5" fill="#ff0000" opacity="0.8"/>
+  <line x1="160" y1="130" x2="185" y2="125" stroke="#ff0000" stroke-width="1.5" opacity="0.5"/>
+  <circle cx="215" cy="130" r="2.5" fill="#00bfff" opacity="0.8"/>
+  <line x1="240" y1="135" x2="215" y2="130" stroke="#00bfff" stroke-width="1.5" opacity="0.5"/>
+  <!-- VS text in Star Wars yellow -->
+  <text x="200" y="105" text-anchor="middle" fill="#ffe81f" font-family="sans-serif" font-size="28" font-weight="bold" opacity="0.8">VS</text>
+  <!-- Sparks -->
+  <line x1="190" y1="85" x2="185" y2="75" stroke="#ffe81f" stroke-width="1.5" opacity="0.6"/>
+  <line x1="200" y1="82" x2="200" y2="70" stroke="#ffe81f" stroke-width="1.5" opacity="0.6"/>
+  <line x1="210" y1="85" x2="215" y2="75" stroke="#ffe81f" stroke-width="1.5" opacity="0.6"/>
+  <!-- Title -->
+  <text x="200" y="195" text-anchor="middle" fill="#ffe81f" font-family="sans-serif" font-size="13" font-weight="bold" letter-spacing="2">STAR WARS BATTLE</text>
+</svg>

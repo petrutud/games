@@ -1,0 +1,2283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Star Wars Battle Simulator</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; font-family: 'Segoe UI', sans-serif; color: #fff; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+#header { background: #0d1117; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; z-index: 10; border-bottom: 2px solid #1a3a5c; }
+#header h1 { font-size: 18px; letter-spacing: 2px; }
+#header h1 span { color: #ffe81f; }
+#phase-info { font-size: 14px; color: #aaa; }
+#budget-bar { display: flex; gap: 20px; align-items: center; }
+.budget { font-size: 14px; }
+.budget b { font-size: 18px; }
+.budget.red b { color: #e94560; }
+.budget.blue b { color: #4ea8de; }
+#main { display: flex; flex: 1; overflow: hidden; }
+#sidebar { width: 180px; background: #0d1117; padding: 10px; overflow-y: auto; border-right: 2px solid #1a3a5c; }
+#sidebar h3 { font-size: 13px; color: #ffe81f; margin: 8px 0 4px; text-transform: uppercase; letter-spacing: 1px; }
+.unit-btn { background: #1a2332; border: 2px solid transparent; color: #fff; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 12px; width: 100%; margin-bottom: 4px; text-align: left; transition: all 0.15s; display: flex; justify-content: space-between; align-items: center; }
+.unit-btn:hover { background: #243447; }
+.unit-btn.active { border-color: #ffe81f; background: #2a2a1e; }
+.unit-btn .cost { color: #ffe81f; font-weight: bold; }
+.unit-btn .icon { font-size: 18px; margin-right: 6px; }
+#canvas-wrap { flex: 1; position: relative; }
+canvas { display: block; width: 100%; height: 100%; }
+#controls { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 10; }
+#controls button { background: #1a2332; border: 2px solid #333; color: #fff; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: bold; transition: all 0.15s; }
+#controls button:hover { background: #243447; }
+#controls button.fight { background: #c0392b; border-color: #e74c3c; font-size: 18px; padding: 12px 36px; }
+#controls button.fight:hover { background: #a93226; }
+#overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 48px; font-weight: bold; text-shadow: 3px 3px 12px #000; pointer-events: none; opacity: 0; transition: opacity 0.5s; z-index: 20; }
+#speed-indicator { position: absolute; top: 10px; right: 16px; font-size: 13px; color: #aaa; z-index: 10; }
+#control-hint { position: absolute; top: 10px; left: 16px; font-size: 12px; color: #ffe81f; z-index: 10; background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
+#control-hint.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1><span>STAR WARS</span> BATTLE SIMULATOR</h1>
+  <div id="budget-bar">
+    <div class="budget blue">Rebels: <b id="blueBudget">500</b> credits</div>
+    <div class="budget red">Empire: <b id="redBudget">500</b> credits</div>
+    <span id="phase-info">DEPLOYMENT PHASE</span>
+  </div>
+</div>
+<div id="main">
+  <div id="sidebar">
+    <h3>Infantry</h3>
+    <div id="melee-units"></div>
+    <h3>Ranged</h3>
+    <div id="ranged-units"></div>
+    <h3>Special</h3>
+    <div id="special-units"></div>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="c"></canvas>
+    <div id="overlay"></div>
+    <div id="speed-indicator">Speed: 1x</div>
+    <div id="control-hint">WASD to move | Arrow keys to pan | Click enemy to attack | ESC to deselect</div>
+    <div id="controls">
+      <button onclick="game.clearUnits()">Clear</button>
+      <button onclick="game.switchTeam()">Switch Faction</button>
+      <button class="fight" onclick="game.startBattle()">ENGAGE!</button>
+      <button id="speed-btn" onclick="game.changeSpeed()">Speed: 1x</button>
+      <button id="drag-btn" onclick="game.toggleDrag()">Drag: OFF</button>
+      <button onclick="game.redo()">Redo Battle</button>
+      <button onclick="game.reset()">Reset All</button>
+      <button id="slow-btn" onclick="game.toggleSlow()">Slow-Mo: OFF</button>
+      <button id="ability-btn" onclick="game.toggleAbilities()">Abilities: ON</button>
+      <button id="activate-btn" onclick="game.activateAllAbilities()">Activate All!</button>
+      <button id="inf-btn" onclick="game.toggleInfinite()">Credits Infinite: OFF</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const UNIT_DEFS = [
+  // Melee (Infantry)
+  { name:'Rebel Trooper', cat:'melee', cost:15, hp:40, dmg:5, speed:0.5, range:14, atkSpeed:0.8, size:12, color:'#8B7D6B', icon:'🔫', ability:'Rally Cry', abilityDesc:'2x damage + speed' },
+  { name:'Clone Trooper', cat:'melee', cost:60, hp:100, dmg:15, speed:0.4, range:16, atkSpeed:1.0, size:14, color:'#e0e0e0', icon:'⚔️', ability:'Order 66', abilityDesc:'Boosts ally speed' },
+  { name:'Stormtrooper', cat:'melee', cost:120, hp:200, dmg:25, speed:0.3, range:18, atkSpeed:1.2, size:16, color:'#f0f0f0', icon:'🛡️', ability:'Shield Bash', abilityDesc:'Stuns nearby enemies' },
+  { name:'Wookiee', cat:'melee', cost:80, hp:150, dmg:20, speed:0.45, range:16, atkSpeed:0.9, size:15, color:'#8B4513', icon:'🦁', ability:'Wookiee Rage', abilityDesc:'3x damage, loses HP' },
+  { name:'Jedi Knight', cat:'melee', cost:100, hp:120, dmg:30, speed:0.55, range:20, atkSpeed:0.7, size:14, color:'#6b4226', icon:'⚡', ability:'Lightsaber Storm', abilityDesc:'AOE slash all nearby' },
+  { name:'Rancor', cat:'melee', cost:250, hp:600, dmg:50, speed:0.2, range:28, atkSpeed:2.0, size:26, color:'#5a4a3a', icon:'👹', ability:'Ground Pound', abilityDesc:'Damages + knocks all' },
+  // Ranged
+  { name:'Rebel Sniper', cat:'ranged', cost:50, hp:50, dmg:12, speed:0.3, range:200, atkSpeed:1.5, size:12, color:'#4a7a4a', icon:'🎯', projSpeed:3, ability:'Covering Fire', abilityDesc:'8 shots everywhere' },
+  { name:'Death Trooper', cat:'ranged', cost:90, hp:60, dmg:35, speed:0.25, range:250, atkSpeed:2.5, size:13, color:'#1a1a1a', icon:'💀', projSpeed:5, ability:'Headshot', abilityDesc:'One 200dmg precision shot' },
+  { name:'Sith Sorcerer', cat:'ranged', cost:150, hp:70, dmg:40, speed:0.25, range:180, atkSpeed:2.0, size:13, color:'#4a0000', icon:'🔮', projSpeed:2.5, magic:true, ability:'Force Storm', abilityDesc:'Huge AOE lightning' },
+  { name:'AT-ST', cat:'ranged', cost:200, hp:80, dmg:60, speed:0.1, range:350, atkSpeed:4.0, size:20, color:'#888', icon:'🤖', projSpeed:2, aoe:40, ability:'Barrage', abilityDesc:'5 rapid blasts' },
+  // Special
+  { name:'Bacta Medic', cat:'special', cost:100, hp:60, dmg:0, speed:0.35, range:120, atkSpeed:2.0, size:12, color:'#2ecc71', icon:'💚', heals:15, magic:true, ability:'Bacta Bomb', abilityDesc:'Full heal all allies' },
+  { name:'Darth Maul', cat:'special', cost:90, hp:80, dmg:12, speed:0.7, range:14, atkSpeed:0.4, size:13, color:'#e74c3c', icon:'😈', ability:'Dark Rage', abilityDesc:'4x speed + damage' },
+  { name:'Droideka', cat:'special', cost:70, hp:350, dmg:3, speed:0.15, range:14, atkSpeed:1.5, size:17, color:'#95a5a6', icon:'🔵', ability:'Shield Mode', abilityDesc:'Invincible 10s' },
+  { name:'Speeder Bike', cat:'special', cost:130, hp:160, dmg:35, speed:0.9, range:18, atkSpeed:1.0, size:18, color:'#556B2F', icon:'🏍️', ability:'Blitz Run', abilityDesc:'100dmg dash through' },
+  { name:'Emperor Palpatine', cat:'special', cost:200, hp:90, dmg:25, speed:0.25, range:160, atkSpeed:1.8, size:14, color:'#2c2c3e', icon:'⚡', projSpeed:2, aoe:30, magic:true, ability:'Force Lightning', abilityDesc:'Drains all enemies HP' },
+  // NEW — Melee
+  { name:'Mandalorian', cat:'melee', cost:90, hp:140, dmg:22, speed:0.5, range:16, atkSpeed:0.7, size:15, color:'#4682B4', icon:'🪖', ability:'Beskar Shield', abilityDesc:'Heals on every kill for 15s' },
+  { name:'Shadow Trooper', cat:'melee', cost:110, hp:70, dmg:35, speed:0.8, range:18, atkSpeed:0.5, size:11, color:'#1a1a2e', icon:'👤', ability:'Cloaking Device', abilityDesc:'Spawns 3 clones' },
+  { name:'Gamorrean Guard', cat:'melee', cost:180, hp:400, dmg:30, speed:0.2, range:22, atkSpeed:1.8, size:22, color:'#556b2f', icon:'🐷', ability:'Regenerate', abilityDesc:'Heals 50% HP over 15s' },
+  { name:'Hondo Ohnaka', cat:'melee', cost:75, hp:110, dmg:18, speed:0.5, range:16, atkSpeed:0.8, size:14, color:'#CD853F', icon:'🏴‍☠️', ability:'Pirate Bomb', abilityDesc:'Fires a thermal detonator' },
+  { name:'Chirrut Imwe', cat:'melee', cost:95, hp:90, dmg:25, speed:0.55, range:14, atkSpeed:0.6, size:13, color:'#DAA520', icon:'🙏', ability:'One with the Force', abilityDesc:'Dodges all attacks 10s' },
+  { name:'Praetorian Guard', cat:'melee', cost:140, hp:250, dmg:28, speed:0.35, range:18, atkSpeed:1.0, size:16, color:'#8B0000', icon:'🛡️', ability:'Guard Formation', abilityDesc:'Allies nearby take 50% less dmg' },
+  // NEW — Ranged
+  { name:'Boba Fett', cat:'ranged', cost:70, hp:55, dmg:20, speed:0.3, range:220, atkSpeed:2.0, size:12, color:'#2F4F4F', icon:'🚀', projSpeed:4, ability:'Rocket Barrage', abilityDesc:'Shoots through all enemies' },
+  { name:'Kylo Ren', cat:'ranged', cost:160, hp:65, dmg:30, speed:0.25, range:170, atkSpeed:1.8, size:13, color:'#2c0000', icon:'🔥', projSpeed:2.5, aoe:25, magic:true, ability:'Force Fury', abilityDesc:'Sets ground on fire' },
+  { name:'Ahsoka Tano', cat:'ranged', cost:160, hp:65, dmg:20, speed:0.25, range:170, atkSpeed:1.8, size:13, color:'#ff7f50', icon:'❄️', projSpeed:2.5, magic:true, ability:'Force Push', abilityDesc:'Freezes all enemies 5s' },
+  { name:'AT-AT', cat:'ranged', cost:220, hp:100, dmg:70, speed:0.08, range:300, atkSpeed:4.5, size:22, color:'#666', icon:'💥', projSpeed:3, aoe:50, ability:'Orbital Strike', abilityDesc:'One 300dmg blast' },
+  { name:'Nightsister', cat:'ranged', cost:130, hp:75, dmg:15, speed:0.3, range:150, atkSpeed:1.5, size:13, color:'#6a0dad', icon:'🪄', projSpeed:2, magic:true, ability:'Dark Magick', abilityDesc:'Turns enemy against allies' },
+  // NEW — Special
+  { name:'Darth Vader', cat:'special', cost:250, hp:400, dmg:35, speed:0.3, range:22, atkSpeed:1.0, size:16, color:'#111', icon:'🖤', magic:true, ability:'Imperial March', abilityDesc:'Spawns 5 Stormtroopers + boosts them', _vaderSpawn:true },
+  { name:'Luke Skywalker', cat:'special', cost:300, hp:200, dmg:45, speed:0.6, range:18, atkSpeed:0.3, size:15, color:'#f5f5dc', icon:'⭐', magic:true, ability:'Jedi Fury', abilityDesc:'10x attack speed + AOE slashes for 12s' },
+  { name:'Krayt Dragon', cat:'special', cost:400, hp:800, dmg:60, speed:0.3, range:120, atkSpeed:2.0, size:30, color:'#8B4513', icon:'🐉', projSpeed:2, aoe:35, ability:'Acid Breath', abilityDesc:'Line of acid 150dmg' },
+  { name:'Thermal Detonator', cat:'special', cost:50, hp:30, dmg:0, speed:0.6, range:14, atkSpeed:99, size:12, color:'#C0C0C0', icon:'💣', ability:'Detonate', abilityDesc:'Explodes for 200dmg AOE' },
+  { name:'Yoda', cat:'special', cost:350, hp:300, dmg:40, speed:0.45, range:20, atkSpeed:1.0, size:14, color:'#228B22', icon:'👑', magic:true, deflect:true, ability:'Force Shield', abilityDesc:'Deflects ALL projectiles + Force wave for 15s' },
+  { name:'IG-11', cat:'special', cost:280, hp:900, dmg:35, speed:0.1, range:20, atkSpeed:2.5, size:28, color:'#708090', icon:'🤖', ability:'Durasteel Plating', abilityDesc:'Takes 80% less damage 15s' },
+  { name:'Cad Bane', cat:'special', cost:150, hp:60, dmg:50, speed:0.9, range:14, atkSpeed:0.6, size:11, color:'#00008B', icon:'🎩', ability:'Bounty Execute', abilityDesc:'Instant kill lowest HP enemy' },
+  { name:'Mother Talzin', cat:'special', cost:170, hp:70, dmg:20, speed:0.3, range:160, atkSpeed:2.0, size:13, color:'#4a0e4e', icon:'🧹', projSpeed:2, magic:true, ability:'Sith Alchemy', abilityDesc:'Turns strongest enemy into trooper' },
+  // FLYING
+  { name:'X-Wing', cat:'special', cost:350, hp:200, dmg:40, speed:0.6, range:150, atkSpeed:2.5, size:18, color:'#c0c0c0', icon:'✈️', projSpeed:3, aoe:35, flying:true, ability:'Proton Torpedo', abilityDesc:'Halves ALL enemy HP' },
+];
+
+class Unit {
+  constructor(def, x, y, team) {
+    this.def = def;
+    this.x = x; this.y = y;
+    this.team = team;
+    this.hp = def.hp;
+    this.maxHp = def.hp;
+    this.vx = 0; this.vy = 0;
+    this.atkCooldown = 0;
+    this.target = null;
+    this.alive = true;
+    this.angle = 0;
+    this.wobble = 0;
+    this.wobbleSpeed = 0.05 + Math.random() * 0.05;
+    this.knockX = 0; this.knockY = 0;
+    this.stagger = 0;
+    this.deathTimer = 0;
+    this.abilityTimer = 0;
+    this.abilityUsed = false;
+    this.abilityActive = 0;
+    this.invincible = false;
+    this.spawnScale = 0;
+    this.attackFlash = 0;
+    this.hitShake = 0;
+    this.spawnTimer = 0; // Vader trooper spawn timer
+  }
+}
+
+class Projectile {
+  constructor(x, y, tx, ty, team, dmg, speed, aoe, magic) {
+    this.x = x; this.y = y;
+    this.team = team;
+    this.dmg = dmg;
+    this.aoe = aoe || 0;
+    this.magic = magic || false;
+    const a = Math.atan2(ty - y, tx - x);
+    this.vx = Math.cos(a) * speed;
+    this.vy = Math.sin(a) * speed;
+    this.life = 200;
+    this.trail = [];
+  }
+}
+
+class Game {
+  constructor() {
+    this.units = [];
+    this.projectiles = [];
+    this.particles = [];
+    this.phase = 'place';
+    this.placingTeam = 'blue';
+    this.selectedDef = null;
+    this.budgets = { blue: 500, red: 500 };
+    this.speed = 1;
+    this.battleResult = null;
+    this.W = 0; this.H = 0;
+    this.infiniteMoney = false;
+    this.slowMo = false;
+    this.abilitiesEnabled = true;
+    this.savedUnits = [];
+    this.dragMode = false;
+    this.dragUnit = null;
+    this.dragPlacing = false;
+    this.lastPlaceX = 0;
+    this.lastPlaceY = 0;
+    this.zoom = 1;
+    this.camX = 0;
+    this.camY = 0;
+    this.screenShake = 0;
+    this.shakeX = 0;
+    this.shakeY = 0;
+    this.controlledUnit = null;
+    this.keys = {};
+    this.mouseX = 0;
+    this.mouseY = 0;
+    // Star field cache
+    this.stars = [];
+    for (let i = 0; i < 200; i++) {
+      this.stars.push({ x: Math.random(), y: Math.random(), s: Math.random() * 2 + 0.5, b: Math.random() });
+    }
+    this.buildUI();
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    this.setupInput();
+    this.loop();
+  }
+
+  resize() {
+    this.W = canvas.width = canvas.parentElement.clientWidth;
+    this.H = canvas.height = canvas.parentElement.clientHeight;
+    this.grassCache = null;
+  }
+
+  screenToWorld(sx, sy) {
+    return { x: sx / this.zoom + this.camX, y: sy / this.zoom + this.camY };
+  }
+
+  buildUI() {
+    const containers = { melee: document.getElementById('melee-units'), ranged: document.getElementById('ranged-units'), special: document.getElementById('special-units') };
+    UNIT_DEFS.forEach((d, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'unit-btn';
+      btn.innerHTML = `<span><span class="icon">${d.icon}</span>${d.name}</span><span class="cost">${d.cost}</span>`;
+      btn.title = `${d.ability}: ${d.abilityDesc} (activates at 40s)`;
+      btn.onclick = () => this.selectUnit(i, btn);
+      btn.id = 'ubtn' + i;
+      containers[d.cat].appendChild(btn);
+    });
+  }
+
+  selectUnit(i, btn) {
+    document.querySelectorAll('.unit-btn').forEach(b => b.classList.remove('active'));
+    if (this.selectedDef === i) { this.selectedDef = null; return; }
+    this.selectedDef = i;
+    btn.classList.add('active');
+  }
+
+  setupInput() {
+    canvas.addEventListener('mousedown', e => {
+      const rect = canvas.getBoundingClientRect();
+      const screenX = e.clientX - rect.left;
+      const screenY = e.clientY - rect.top;
+      const world = this.screenToWorld(screenX, screenY);
+      const mx = world.x;
+      const my = world.y;
+
+      if (this.dragMode && this.phase === 'place' && e.button === 0) {
+        let closest = null, closestD = 35;
+        for (const u of this.units) {
+          const d = Math.hypot(u.x - mx, u.y - my);
+          if (d < closestD) { closest = u; closestD = d; }
+        }
+        if (closest) {
+          this.dragUnit = closest;
+          canvas.style.cursor = 'grabbing';
+        }
+        return;
+      }
+
+      if (this.phase === 'battle') {
+        if (e.button === 0) {
+          if (this.controlledUnit && this.controlledUnit.alive) {
+            for (const u of this.units) {
+              if (u.team === this.controlledUnit.team || !u.alive) continue;
+              if (Math.hypot(u.x - mx, u.y - my) < u.def.size + 8) {
+                const cu = this.controlledUnit;
+                const dist = Math.hypot(u.x - cu.x, u.y - cu.y);
+                if (dist <= cu.def.range + 10 && cu.atkCooldown <= 0) {
+                  cu.atkCooldown = cu.def.atkSpeed;
+                  if (cu.def.projSpeed) {
+                    this.projectiles.push(new Projectile(cu.x, cu.y, u.x, u.y, cu.team, cu.def.dmg, cu.def.projSpeed, cu.def.aoe));
+                  } else {
+                    this.applyDamage(u, cu.def.dmg, cu.x, cu.y);
+                  }
+                }
+                return;
+              }
+            }
+          }
+          let closest = null, closestD = 35;
+          for (const u of this.units) {
+            if (!u.alive) continue;
+            const d = Math.hypot(u.x - mx, u.y - my);
+            if (d < closestD) { closest = u; closestD = d; }
+          }
+          if (closest) {
+            this.controlledUnit = closest;
+            document.getElementById('control-hint').classList.add('show');
+          } else {
+            if (this.controlledUnit && this.controlledUnit.alive && this.controlledUnit.def.projSpeed && this.controlledUnit.atkCooldown <= 0) {
+              const cu = this.controlledUnit;
+              cu.atkCooldown = cu.def.atkSpeed;
+              this.projectiles.push(new Projectile(cu.x, cu.y, mx, my, cu.team, cu.def.dmg, cu.def.projSpeed, cu.def.aoe));
+            }
+          }
+        }
+        return;
+      }
+
+      if (this.selectedDef === null) return;
+      const def = UNIT_DEFS[this.selectedDef];
+      const halfW = this.W / 2;
+
+      if (this.placingTeam === 'blue' && mx > halfW - 30) return;
+      if (this.placingTeam === 'red' && mx < halfW + 30) return;
+
+      if (!this.infiniteMoney && this.budgets[this.placingTeam] < def.cost) return;
+
+      this.units.push(new Unit(def, mx, my, this.placingTeam));
+      if (!this.infiniteMoney) {
+        this.budgets[this.placingTeam] -= def.cost;
+        this.updateBudgetUI();
+      }
+
+      this.dragPlacing = true;
+      this.lastPlaceX = mx;
+      this.lastPlaceY = my;
+    });
+
+    canvas.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      const world = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+      this.mouseX = world.x;
+      this.mouseY = world.y;
+      if (this.dragUnit) {
+        this.dragUnit.x = this.mouseX;
+        this.dragUnit.y = this.mouseY;
+      }
+      if (this.dragPlacing && this.phase === 'place' && this.selectedDef !== null) {
+        const mx = this.mouseX, my = this.mouseY;
+        const dist = Math.hypot(mx - this.lastPlaceX, my - this.lastPlaceY);
+        if (dist >= 30) {
+          const def = UNIT_DEFS[this.selectedDef];
+          const halfW = this.W / 2;
+          const teamOk = (this.placingTeam === 'blue' && mx <= halfW - 30) ||
+                         (this.placingTeam === 'red' && mx >= halfW + 30);
+          const canAfford = this.infiniteMoney || this.budgets[this.placingTeam] >= def.cost;
+          if (teamOk && canAfford) {
+            this.units.push(new Unit(def, mx, my, this.placingTeam));
+            if (!this.infiniteMoney) {
+              this.budgets[this.placingTeam] -= def.cost;
+              this.updateBudgetUI();
+            }
+            this.lastPlaceX = mx;
+            this.lastPlaceY = my;
+          }
+        }
+      }
+    });
+
+    canvas.addEventListener('mouseup', e => {
+      if (this.dragUnit) {
+        this.dragUnit = null;
+        canvas.style.cursor = this.dragMode ? 'grab' : 'crosshair';
+      }
+      this.dragPlacing = false;
+    });
+
+    let panning = false, panStartX = 0, panStartY = 0, panCamStartX = 0, panCamStartY = 0;
+    canvas.addEventListener('mousedown', e => {
+      if (e.button === 1) {
+        e.preventDefault();
+        panning = true;
+        panStartX = e.clientX;
+        panStartY = e.clientY;
+        panCamStartX = this.camX;
+        panCamStartY = this.camY;
+      }
+    });
+    window.addEventListener('mousemove', e => {
+      if (panning) {
+        this.camX = panCamStartX - (e.clientX - panStartX) / this.zoom;
+        this.camY = panCamStartY - (e.clientY - panStartY) / this.zoom;
+      }
+    });
+    window.addEventListener('mouseup', e => {
+      if (e.button === 1) panning = false;
+    });
+
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const oldZoom = this.zoom;
+      if (e.deltaY < 0) this.zoom = Math.min(5, this.zoom * 1.15);
+      else this.zoom = Math.max(0.5, this.zoom / 1.15);
+      this.camX += mx * (1/oldZoom - 1/this.zoom);
+      this.camY += my * (1/oldZoom - 1/this.zoom);
+    }, { passive: false });
+
+    canvas.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      if (this.phase === 'battle') {
+        this.controlledUnit = null;
+        document.getElementById('control-hint').classList.remove('show');
+        return;
+      }
+      if (this.phase !== 'place') return;
+      const rect = canvas.getBoundingClientRect();
+      const world = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+      const mx = world.x;
+      const my = world.y;
+      let closest = null, closestD = 30;
+      for (let i = this.units.length - 1; i >= 0; i--) {
+        const u = this.units[i];
+        if (u.team !== this.placingTeam) continue;
+        const d = Math.hypot(u.x - mx, u.y - my);
+        if (d < closestD) { closest = i; closestD = d; }
+      }
+      if (closest !== null) {
+        if (!this.infiniteMoney) this.budgets[this.placingTeam] += this.units[closest].def.cost;
+        this.units.splice(closest, 1);
+        if (!this.infiniteMoney) this.updateBudgetUI();
+      }
+    });
+
+    document.addEventListener('keydown', e => {
+      this.keys[e.key.toLowerCase()] = true;
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
+      if (e.key === 'Escape') {
+        this.controlledUnit = null;
+        document.getElementById('control-hint').classList.remove('show');
+      }
+      if (e.key === ' ' && this.controlledUnit && this.controlledUnit.alive && this.phase === 'battle') {
+        e.preventDefault();
+        const cu = this.controlledUnit;
+        if (cu.atkCooldown > 0) return;
+        const target = this.findTarget(cu);
+        if (!target) return;
+        const dist = Math.hypot(target.x - cu.x, target.y - cu.y);
+        if (dist <= cu.def.range + 20) {
+          cu.atkCooldown = cu.def.atkSpeed;
+          if (cu.def.projSpeed) {
+            this.projectiles.push(new Projectile(cu.x, cu.y, target.x, target.y, cu.team, cu.def.dmg, cu.def.projSpeed, cu.def.aoe));
+          } else {
+            this.applyDamage(target, cu.def.dmg, cu.x, cu.y);
+          }
+        }
+      }
+    });
+    document.addEventListener('keyup', e => {
+      this.keys[e.key.toLowerCase()] = false;
+    });
+  }
+
+  updateBudgetUI() {
+    document.getElementById('blueBudget').textContent = this.budgets.blue;
+    document.getElementById('redBudget').textContent = this.budgets.red;
+  }
+
+  switchTeam() {
+    if (this.phase !== 'place') return;
+    this.placingTeam = this.placingTeam === 'blue' ? 'red' : 'blue';
+    document.getElementById('phase-info').textContent = `DEPLOYING: ${this.placingTeam === 'blue' ? 'REBELS' : 'EMPIRE'}`;
+  }
+
+  clearUnits() {
+    if (this.phase !== 'place') return;
+    const removed = this.units.filter(u => u.team === this.placingTeam);
+    this.units = this.units.filter(u => u.team !== this.placingTeam);
+    for (const u of removed) this.budgets[this.placingTeam] += u.def.cost;
+    this.updateBudgetUI();
+  }
+
+  startBattle() {
+    if (this.phase !== 'place') return;
+    const blues = this.units.filter(u => u.team === 'blue');
+    const reds = this.units.filter(u => u.team === 'red');
+    if (blues.length === 0 || reds.length === 0) return;
+    this.savedUnits = this.units.map(u => ({ def: u.def, x: u.x, y: u.y, team: u.team }));
+    this.phase = 'battle';
+    this.battleResult = null;
+    document.getElementById('phase-info').textContent = 'BATTLE!';
+    document.getElementById('overlay').style.opacity = 0;
+  }
+
+  changeSpeed() {
+    const speeds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0.5];
+    const i = speeds.indexOf(this.speed);
+    this.speed = speeds[(i + 1) % speeds.length];
+    document.getElementById('speed-indicator').textContent = `Speed: ${this.speed}x`;
+    const btn = document.getElementById('speed-btn');
+    btn.textContent = `Speed: ${this.speed}x`;
+    btn.style.background = this.speed !== 1 ? '#e67e22' : '';
+    btn.style.borderColor = this.speed !== 1 ? '#e67e22' : '';
+  }
+
+  toggleDrag() {
+    this.dragMode = !this.dragMode;
+    this.dragUnit = null;
+    const btn = document.getElementById('drag-btn');
+    btn.textContent = this.dragMode ? 'Drag: ON' : 'Drag: OFF';
+    btn.style.background = this.dragMode ? '#27ae60' : '';
+    btn.style.borderColor = this.dragMode ? '#27ae60' : '';
+    canvas.style.cursor = this.dragMode ? 'grab' : 'crosshair';
+  }
+
+  redo() {
+    if (this.savedUnits.length === 0) return;
+    this.units = this.savedUnits.map(s => new Unit(s.def, s.x, s.y, s.team));
+    this.projectiles = [];
+    this.particles = [];
+    this.phase = 'place';
+    this.battleResult = null;
+    this.controlledUnit = null;
+    document.getElementById('control-hint').classList.remove('show');
+    document.getElementById('phase-info').textContent = 'DEPLOYMENT PHASE — Edit & Engage again!';
+    document.getElementById('overlay').style.opacity = 0;
+  }
+
+  toggleAbilities() {
+    this.abilitiesEnabled = !this.abilitiesEnabled;
+    const btn = document.getElementById('ability-btn');
+    btn.textContent = this.abilitiesEnabled ? 'Abilities: ON' : 'Abilities: OFF';
+    btn.style.background = this.abilitiesEnabled ? '' : '#e94560';
+    btn.style.borderColor = this.abilitiesEnabled ? '' : '#e94560';
+  }
+
+  activateAllAbilities() {
+    if (this.phase !== 'battle') return;
+    for (const u of this.units) {
+      if (u.alive) {
+        this.triggerAbility(u);
+      }
+    }
+  }
+
+  toggleSlow() {
+    this.slowMo = !this.slowMo;
+    const btn = document.getElementById('slow-btn');
+    btn.textContent = this.slowMo ? 'Slow-Mo: ON' : 'Slow-Mo: OFF';
+    btn.style.background = this.slowMo ? '#8e44ad' : '';
+    btn.style.borderColor = this.slowMo ? '#8e44ad' : '';
+  }
+
+  toggleInfinite() {
+    this.infiniteMoney = !this.infiniteMoney;
+    const btn = document.getElementById('inf-btn');
+    btn.textContent = this.infiniteMoney ? 'Credits Infinite: ON' : 'Credits Infinite: OFF';
+    btn.style.background = this.infiniteMoney ? '#e94560' : '';
+    btn.style.borderColor = this.infiniteMoney ? '#e94560' : '';
+    if (this.infiniteMoney) {
+      document.getElementById('blueBudget').textContent = '∞';
+      document.getElementById('redBudget').textContent = '∞';
+    } else {
+      this.updateBudgetUI();
+    }
+  }
+
+  reset() {
+    this.units = [];
+    this.projectiles = [];
+    this.particles = [];
+    this.phase = 'place';
+    this.placingTeam = 'blue';
+    this.budgets = { blue: 500, red: 500 };
+    this.battleResult = null;
+    this.controlledUnit = null;
+    this.zoom = 1; this.camX = 0; this.camY = 0;
+    document.getElementById('control-hint').classList.remove('show');
+    this.updateBudgetUI();
+    document.getElementById('phase-info').textContent = 'DEPLOYMENT PHASE';
+    document.getElementById('overlay').style.opacity = 0;
+  }
+
+  findTarget(unit) {
+    let best = null, bestD = Infinity;
+    for (const u of this.units) {
+      if (u.team === unit.team || !u.alive) continue;
+      if (u.def.flying && !unit.def.magic) continue;
+      const d = Math.hypot(u.x - unit.x, u.y - unit.y);
+      if (d < bestD) { bestD = d; best = u; }
+    }
+    return best;
+  }
+
+  findAlly(unit) {
+    let best = null, bestD = Infinity, lowestHpRatio = 1;
+    for (const u of this.units) {
+      if (u.team !== unit.team || !u.alive || u === unit) continue;
+      const ratio = u.hp / u.maxHp;
+      const d = Math.hypot(u.x - unit.x, u.y - unit.y);
+      if (ratio < lowestHpRatio && d < unit.def.range) {
+        lowestHpRatio = ratio;
+        bestD = d;
+        best = u;
+      }
+    }
+    return best;
+  }
+
+  triggerAbility(u) {
+    const name = u.def.name;
+    for (let i = 0; i < 20; i++) {
+      this.particles.push({
+        x: u.x, y: u.y,
+        vx: (Math.random()-0.5) * 6, vy: (Math.random()-0.5) * 6,
+        life: 40 + Math.random() * 20,
+        color: '#ffe81f', size: 3 + Math.random() * 3
+      });
+    }
+    this.abilityPopups = this.abilityPopups || [];
+    this.abilityPopups.push({ x: u.x, y: u.y - 30, text: u.def.ability, life: 90, color: '#ffe81f' });
+
+    switch (name) {
+      case 'Rebel Trooper':
+        u.def = { ...u.def, dmg: u.def.dmg * 2, speed: u.def.speed * 2 };
+        u.abilityActive = 900;
+        break;
+      case 'Clone Trooper':
+        for (const a of this.units) {
+          if (a.team === u.team && a.alive && a !== u && Math.hypot(a.x - u.x, a.y - u.y) < 150) {
+            a.def = { ...a.def, speed: a.def.speed * 1.8 };
+            a.abilityActive = 900;
+            for (let i = 0; i < 5; i++)
+              this.particles.push({ x: a.x, y: a.y, vx: (Math.random()-0.5)*3, vy: -Math.random()*3, life: 25, color: '#4ea8de', size: 2 });
+          }
+        }
+        break;
+      case 'Stormtrooper':
+        for (const e of this.units) {
+          if (e.team !== u.team && e.alive && Math.hypot(e.x - u.x, e.y - u.y) < 80) {
+            e.stagger = 180;
+            const a = Math.atan2(e.y - u.y, e.x - u.x);
+            e.knockX += Math.cos(a) * 12;
+            e.knockY += Math.sin(a) * 12;
+            for (let i = 0; i < 5; i++)
+              this.particles.push({ x: e.x, y: e.y, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5, life: 20, color: '#f0f0f0', size: 3 });
+          }
+        }
+        break;
+      case 'Wookiee':
+        u.def = { ...u.def, dmg: u.def.dmg * 3, atkSpeed: u.def.atkSpeed * 0.5 };
+        u.hp = Math.max(1, u.hp * 0.7);
+        u.abilityActive = 900;
+        break;
+      case 'Jedi Knight':
+        for (const e of this.units) {
+          if (e.team !== u.team && e.alive && Math.hypot(e.x - u.x, e.y - u.y) < 100) {
+            this.applyDamage(e, 60, u.x, u.y);
+          }
+        }
+        for (let i = 0; i < 30; i++) {
+          const a = (i / 30) * Math.PI * 2;
+          this.particles.push({ x: u.x + Math.cos(a)*50, y: u.y + Math.sin(a)*50, vx: Math.cos(a)*3, vy: Math.sin(a)*3, life: 20, color: '#00bfff', size: 3 });
+        }
+        break;
+      case 'Rancor':
+        for (const e of this.units) {
+          if (e.team !== u.team && e.alive) {
+            const d = Math.hypot(e.x - u.x, e.y - u.y);
+            if (d < 200) {
+              this.applyDamage(e, 40, u.x, u.y);
+              const a = Math.atan2(e.y - u.y, e.x - u.x);
+              e.knockX += Math.cos(a) * 20;
+              e.knockY += Math.sin(a) * 20;
+            }
+          }
+        }
+        for (let i = 0; i < 40; i++) {
+          this.particles.push({ x: u.x + (Math.random()-0.5)*200, y: u.y + (Math.random()-0.5)*200, vx: (Math.random()-0.5)*2, vy: -Math.random()*4, life: 30, color: '#5a4a3a', size: 4 + Math.random()*3 });
+        }
+        break;
+      case 'Rebel Sniper':
+        for (let i = 0; i < 8; i++) {
+          const enemies = this.units.filter(e => e.team !== u.team && e.alive);
+          if (enemies.length > 0) {
+            const t = enemies[Math.floor(Math.random() * enemies.length)];
+            this.projectiles.push(new Projectile(u.x, u.y - 30, t.x, t.y, u.team, 20, 4, 0));
+          }
+        }
+        break;
+      case 'Death Trooper':
+        { const enemies = this.units.filter(e => e.team !== u.team && e.alive);
+          if (enemies.length > 0) {
+            let furthest = enemies[0], maxD = 0;
+            for (const e of enemies) { const d = Math.hypot(e.x - u.x, e.y - u.y); if (d > maxD) { maxD = d; furthest = e; } }
+            this.projectiles.push(new Projectile(u.x, u.y, furthest.x, furthest.y, u.team, 200, 10, 0));
+          }
+        }
+        break;
+      case 'Sith Sorcerer':
+        { const enemies = this.units.filter(e => e.team !== u.team && e.alive);
+          if (enemies.length > 0) {
+            let cx = 0, cy = 0;
+            for (const e of enemies) { cx += e.x; cy += e.y; }
+            cx /= enemies.length; cy /= enemies.length;
+            this.projectiles.push(new Projectile(cx, cy - 300, cx, cy, u.team, 80, 2, 80));
+            for (let i = 0; i < 25; i++)
+              this.particles.push({ x: cx, y: cy - 200 + Math.random()*100, vx: (Math.random()-0.5)*4, vy: Math.random()*3, life: 40, color: ['#e74c3c','#8e44ad','#c0392b'][Math.floor(Math.random()*3)], size: 4 });
+          }
+        }
+        break;
+      case 'AT-ST':
+        { const enemies = this.units.filter(e => e.team !== u.team && e.alive);
+          for (let i = 0; i < 5; i++) {
+            if (enemies.length > 0) {
+              const t = enemies[Math.floor(Math.random() * enemies.length)];
+              this.projectiles.push(new Projectile(u.x, u.y, t.x + (Math.random()-0.5)*40, t.y + (Math.random()-0.5)*40, u.team, 50, 2.5, 50));
+            }
+          }
+        }
+        break;
+      case 'Bacta Medic':
+        for (const a of this.units) {
+          if (a.team === u.team && a.alive) {
+            a.hp = a.maxHp;
+            for (let i = 0; i < 8; i++)
+              this.particles.push({ x: a.x, y: a.y, vx: (Math.random()-0.5)*3, vy: -Math.random()*4, life: 30, color: '#00e5ff', size: 3 });
+          }
+        }
+        break;
+      case 'Darth Maul':
+        u.def = { ...u.def, dmg: u.def.dmg * 4, speed: u.def.speed * 4 };
+        u.abilityActive = 600;
+        for (let i = 0; i < 15; i++)
+          this.particles.push({ x: u.x, y: u.y, vx: (Math.random()-0.5)*8, vy: -Math.random()*6, life: 30, color: '#e74c3c', size: 4 });
+        break;
+      case 'Droideka':
+        u.invincible = true;
+        u.abilityActive = 600;
+        break;
+      case 'Speeder Bike':
+        { const target = this.findTarget(u);
+          if (target) {
+            const a = Math.atan2(target.y - u.y, target.x - u.x);
+            for (let step = 0; step < 10; step++) {
+              const cx = u.x + Math.cos(a) * step * 30;
+              const cy = u.y + Math.sin(a) * step * 30;
+              for (const e of this.units) {
+                if (e.team !== u.team && e.alive && Math.hypot(e.x - cx, e.y - cy) < 30) {
+                  this.applyDamage(e, 100, cx - Math.cos(a)*10, cy - Math.sin(a)*10);
+                }
+              }
+              this.particles.push({ x: cx, y: cy, vx: (Math.random()-0.5)*3, vy: (Math.random()-0.5)*3, life: 25, color: '#556B2F', size: 4 });
+            }
+            u.x += Math.cos(a) * 250;
+            u.y += Math.sin(a) * 250;
+          }
+        }
+        break;
+      case 'Emperor Palpatine':
+        for (const e of this.units) {
+          if (e.team !== u.team && e.alive) {
+            const drain = Math.min(e.hp, 30);
+            this.applyDamage(e, drain, u.x, u.y);
+            u.hp = Math.min(u.maxHp, u.hp + drain * 0.5);
+            const steps = 5;
+            for (let s = 0; s < steps; s++) {
+              const t = s / steps;
+              this.particles.push({ x: e.x + (u.x-e.x)*t, y: e.y + (u.y-e.y)*t, vx: 0, vy: -1, life: 20, color: '#7b68ee', size: 2 });
+            }
+          }
+        }
+        break;
+      case 'Mandalorian':
+        u.def = { ...u.def, _arenaKing: true };
+        u.abilityActive = 900;
+        break;
+      case 'Shadow Trooper':
+        for (let i = 0; i < 3; i++) {
+          const clone = new Unit(u.def, u.x + (Math.random()-0.5)*60, u.y + (Math.random()-0.5)*60, u.team);
+          clone.hp = u.hp * 0.5;
+          clone.maxHp = u.maxHp * 0.5;
+          clone.abilityUsed = true;
+          this.units.push(clone);
+          for (let j = 0; j < 8; j++)
+            this.particles.push({ x: clone.x, y: clone.y, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5, life: 20, color: '#333', size: 3 });
+        }
+        break;
+      case 'Gamorrean Guard':
+        u.abilityActive = 900;
+        u.def = { ...u.def, _regen: true };
+        break;
+      case 'Hondo Ohnaka':
+        { const target = this.findTarget(u);
+          if (target) {
+            this.projectiles.push(new Projectile(u.x, u.y, target.x, target.y, u.team, 120, 4, 60));
+            for (let i = 0; i < 10; i++)
+              this.particles.push({ x: u.x, y: u.y, vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6, life: 15, color: '#888', size: 3 });
+          }
+        }
+        break;
+      case 'Chirrut Imwe':
+        u.invincible = true;
+        u.abilityActive = 600;
+        for (let i = 0; i < 15; i++) {
+          const a = (i/15)*Math.PI*2;
+          this.particles.push({ x: u.x+Math.cos(a)*20, y: u.y+Math.sin(a)*20, vx: Math.cos(a)*2, vy: Math.sin(a)*2, life: 30, color: '#ffe81f', size: 2 });
+        }
+        break;
+      case 'Praetorian Guard':
+        for (const a of this.units) {
+          if (a.team === u.team && a.alive && Math.hypot(a.x-u.x, a.y-u.y) < 120) {
+            a.def = { ...a.def, hp: a.def.hp, _shielded: true };
+            a.abilityActive = 900;
+            for (let i = 0; i < 5; i++)
+              this.particles.push({ x: a.x, y: a.y, vx: (Math.random()-0.5)*3, vy: -2, life: 25, color: '#8B0000', size: 2 });
+          }
+        }
+        break;
+      case 'Boba Fett':
+        { const target = this.findTarget(u);
+          if (target) {
+            const a = Math.atan2(target.y - u.y, target.x - u.x);
+            for (const e of this.units) {
+              if (e.team !== u.team && e.alive) {
+                const dx = e.x - u.x, dy = e.y - u.y;
+                const proj = dx*Math.cos(a) + dy*Math.sin(a);
+                const perp = Math.abs(-dx*Math.sin(a) + dy*Math.cos(a));
+                if (proj > 0 && perp < 20) {
+                  this.applyDamage(e, 50, u.x, u.y);
+                }
+              }
+            }
+            for (let i = 0; i < 20; i++)
+              this.particles.push({ x: u.x+Math.cos(a)*i*20, y: u.y+Math.sin(a)*i*20, vx: 0, vy: 0, life: 25, color: '#ff4500', size: 2 });
+          }
+        }
+        break;
+      case 'Kylo Ren':
+        u.def = { ...u.def, _inferno: true };
+        u.abilityActive = 600;
+        break;
+      case 'Ahsoka Tano':
+        for (const e of this.units) {
+          if (e.team !== u.team && e.alive) {
+            e.stagger = 300;
+            for (let i = 0; i < 6; i++)
+              this.particles.push({ x: e.x, y: e.y, vx: (Math.random()-0.5)*3, vy: -Math.random()*2, life: 40, color: '#ff7f50', size: 3 });
+          }
+        }
+        for (let i = 0; i < 30; i++)
+          this.particles.push({ x: u.x+(Math.random()-0.5)*300, y: u.y+(Math.random()-0.5)*300, vx: 0, vy: -1, life: 50, color: '#fff', size: 2+Math.random()*3 });
+        break;
+      case 'AT-AT':
+        { const target = this.findTarget(u);
+          if (target) {
+            this.projectiles.push(new Projectile(u.x, u.y, target.x, target.y, u.team, 300, 4, 80));
+            for (let i = 0; i < 15; i++)
+              this.particles.push({ x: u.x, y: u.y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8, life: 20, color: '#0f0', size: 4 });
+          }
+        }
+        break;
+      case 'Nightsister':
+        { const enemies = this.units.filter(e => e.team !== u.team && e.alive);
+          if (enemies.length > 0) {
+            const target = enemies[Math.floor(Math.random() * enemies.length)];
+            target.team = u.team;
+            for (let i = 0; i < 15; i++)
+              this.particles.push({ x: target.x, y: target.y, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5, life: 30, color: '#6a0dad', size: 3 });
+          }
+        }
+        break;
+      case 'Darth Vader': // Imperial March — spawn 5 Stormtroopers + boost all spawned
+        { const stormDef = UNIT_DEFS.find(d => d.name === 'Stormtrooper');
+          if (stormDef) {
+            for (let i = 0; i < 5; i++) {
+              const angle = (i / 5) * Math.PI * 2;
+              const trooper = new Unit(stormDef, u.x + Math.cos(angle)*60, u.y + Math.sin(angle)*60, u.team);
+              trooper.def = { ...trooper.def, dmg: trooper.def.dmg * 2, speed: trooper.def.speed * 1.5 };
+              trooper.abilityUsed = true;
+              this.units.push(trooper);
+              for (let j = 0; j < 10; j++)
+                this.particles.push({ x: trooper.x, y: trooper.y, vx: (Math.random()-0.5)*5, vy: -Math.random()*4, life: 25, color: '#e94560', size: 3 });
+            }
+            // Dark side explosion effect
+            for (let i = 0; i < 40; i++) {
+              const a = (i/40) * Math.PI * 2;
+              this.particles.push({ x: u.x+Math.cos(a)*40, y: u.y+Math.sin(a)*40, vx: Math.cos(a)*4, vy: Math.sin(a)*4, life: 30, color: '#ff0000', size: 4 });
+            }
+            this.screenShake = 8;
+          }
+          // Also boost Vader himself
+          u.def = { ...u.def, dmg: u.def.dmg * 2 };
+          u.abilityActive = 900;
+        }
+        break;
+      case 'Luke Skywalker': // Jedi Fury — 10x attack speed + AOE rapid slashes for 12s
+        u.def = { ...u.def, atkSpeed: u.def.atkSpeed * 0.1, speed: u.def.speed * 2 };
+        u.abilityActive = 720; // 12 seconds
+        // Initial burst — hit everything nearby hard
+        for (const e of this.units) {
+          if (e.team !== u.team && e.alive && Math.hypot(e.x-u.x, e.y-u.y) < 100) {
+            this.applyDamage(e, 60, u.x, u.y);
+          }
+        }
+        // Green lightsaber whirlwind effect
+        for (let i = 0; i < 40; i++) {
+          const a = (i/40)*Math.PI*2;
+          this.particles.push({ x: u.x+Math.cos(a)*50, y: u.y+Math.sin(a)*50, vx: Math.cos(a)*4, vy: Math.sin(a)*4, life: 25, color: '#00ff00', size: 4 });
+        }
+        // Inner glow
+        for (let i = 0; i < 20; i++) {
+          this.particles.push({ x: u.x, y: u.y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8, life: 30, color: '#87ceeb', size: 3 });
+        }
+        this.screenShake = 6;
+        break;
+      case 'Krayt Dragon':
+        { const target = this.findTarget(u);
+          if (target) {
+            const a = Math.atan2(target.y - u.y, target.x - u.x);
+            for (const e of this.units) {
+              if (e.team !== u.team && e.alive) {
+                const dx = e.x - u.x, dy = e.y - u.y;
+                const proj = dx*Math.cos(a) + dy*Math.sin(a);
+                const perp = Math.abs(-dx*Math.sin(a) + dy*Math.cos(a));
+                if (proj > 0 && proj < 250 && perp < 40) {
+                  this.applyDamage(e, 150, u.x, u.y);
+                }
+              }
+            }
+            for (let i = 0; i < 40; i++)
+              this.particles.push({ x: u.x+Math.cos(a)*i*6, y: u.y+Math.sin(a)*i*6+(Math.random()-0.5)*20, vx: Math.cos(a)*2, vy: Math.sin(a)*2, life: 25+Math.random()*15, color: ['#00ff00','#7cfc00','#adff2f'][Math.floor(Math.random()*3)], size: 4+Math.random()*4 });
+          }
+        }
+        break;
+      case 'Thermal Detonator':
+        for (const e of this.units) {
+          if (e.team !== u.team && e.alive && Math.hypot(e.x-u.x, e.y-u.y) < 100) {
+            this.applyDamage(e, 200, u.x, u.y);
+          }
+        }
+        u.hp = 0; u.alive = false; u.deathTimer = 60;
+        for (let i = 0; i < 40; i++)
+          this.particles.push({ x: u.x, y: u.y, vx: (Math.random()-0.5)*12, vy: (Math.random()-0.5)*12, life: 35, color: ['#ff4500','#ffe81f','#ff6347','#fff'][Math.floor(Math.random()*4)], size: 4+Math.random()*5 });
+        break;
+      case 'Yoda': // Force Shield — deflects ALL projectiles in huge range + Force wave
+        u.abilityActive = 900; // 15 seconds of super deflection
+        u.invincible = true;
+        // Force wave — push back and damage all enemies
+        for (const e of this.units) {
+          if (e.team !== u.team && e.alive) {
+            const d = Math.hypot(e.x - u.x, e.y - u.y);
+            if (d < 180) {
+              this.applyDamage(e, 40, u.x, u.y);
+              const a = Math.atan2(e.y - u.y, e.x - u.x);
+              e.knockX += Math.cos(a) * 25;
+              e.knockY += Math.sin(a) * 25;
+              e.stagger = 120;
+            }
+          }
+        }
+        // Massive green Force shockwave
+        for (let i = 0; i < 60; i++) {
+          const a = (i/60) * Math.PI * 2;
+          this.particles.push({ x: u.x+Math.cos(a)*80, y: u.y+Math.sin(a)*80, vx: Math.cos(a)*6, vy: Math.sin(a)*6, life: 35, color: '#00ff00', size: 5 });
+        }
+        // Inner Force glow
+        for (let i = 0; i < 30; i++) {
+          this.particles.push({ x: u.x, y: u.y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, life: 40, color: ['#00ff00','#228B22','#ffe81f'][Math.floor(Math.random()*3)], size: 4+Math.random()*3 });
+        }
+        this.screenShake = 10;
+        break;
+      case 'IG-11':
+        u.def = { ...u.def, _stoneSkin: true };
+        u.abilityActive = 900;
+        for (let i = 0; i < 20; i++)
+          this.particles.push({ x: u.x+(Math.random()-0.5)*30, y: u.y+(Math.random()-0.5)*30, vx: 0, vy: -1, life: 30, color: '#708090', size: 4 });
+        break;
+      case 'Cad Bane':
+        { const enemies = this.units.filter(e => e.team !== u.team && e.alive);
+          if (enemies.length > 0) {
+            let lowest = enemies[0];
+            for (const e of enemies) if (e.hp < lowest.hp) lowest = e;
+            lowest.hp = 0; lowest.alive = false; lowest.deathTimer = 60;
+            u.x = lowest.x; u.y = lowest.y;
+            for (let i = 0; i < 15; i++)
+              this.particles.push({ x: lowest.x, y: lowest.y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8, life: 25, color: '#00008B', size: 3 });
+          }
+        }
+        break;
+      case 'X-Wing':
+        for (const e of this.units) {
+          if (e.team !== u.team && e.alive) {
+            const lost = Math.floor(e.hp * 0.5);
+            e.hp -= lost;
+            e.stagger = 60;
+            const a = Math.atan2(e.y - u.y, e.x - u.x);
+            e.knockX += Math.cos(a) * 10;
+            e.knockY += Math.sin(a) * 10;
+            for (let i = 0; i < 8; i++)
+              this.particles.push({ x: e.x, y: e.y, vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6, life: 30, color: '#ffe81f', size: 3 });
+          }
+        }
+        for (let i = 0; i < 80; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const r = Math.random() * 200;
+          this.particles.push({
+            x: u.x + Math.cos(a) * r, y: u.y + Math.sin(a) * r,
+            vx: Math.cos(a) * 4, vy: Math.sin(a) * 4 - 2,
+            life: 40 + Math.random() * 30,
+            color: ['#ff4500','#ffe81f','#fff','#ff6347','#e74c3c'][Math.floor(Math.random()*5)],
+            size: 5 + Math.random() * 6
+          });
+        }
+        for (let i = 0; i < 60; i++) {
+          const a = (i/60) * Math.PI * 2;
+          this.particles.push({ x: u.x+Math.cos(a)*150, y: u.y+Math.sin(a)*150, vx: Math.cos(a)*5, vy: Math.sin(a)*5, life: 25, color: '#fff', size: 5 });
+        }
+        break;
+      case 'Mother Talzin':
+        { const enemies = this.units.filter(e => e.team !== u.team && e.alive);
+          if (enemies.length > 0) {
+            let strongest = enemies[0];
+            for (const e of enemies) if (e.maxHp > strongest.maxHp) strongest = e;
+            const trooperDef = UNIT_DEFS[0];
+            strongest.def = { ...trooperDef };
+            strongest.hp = trooperDef.hp;
+            strongest.maxHp = trooperDef.hp;
+            strongest.abilityUsed = true;
+            for (let i = 0; i < 20; i++)
+              this.particles.push({ x: strongest.x, y: strongest.y, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5, life: 30, color: '#4a0e4e', size: 3 });
+          }
+        }
+        break;
+    }
+  }
+
+  applyDamage(target, dmg, fromX, fromY) {
+    if (target.invincible) {
+      for (let i = 0; i < 3; i++)
+        this.particles.push({ x: target.x, y: target.y - 5, vx: (Math.random()-0.5)*4, vy: -Math.random()*3, life: 15, color: '#ffe81f', size: 3 });
+      return;
+    }
+    if (target.def._stoneSkin && target.abilityActive > 0) dmg *= 0.2;
+    if (target.def._shielded && target.abilityActive > 0) dmg *= 0.5;
+    target.hp -= dmg;
+    target.stagger = 8;
+    target.hitShake = Math.min(6, dmg * 0.1);
+    target.attackFlash = 0.6;
+    const a = Math.atan2(target.y - fromY, target.x - fromX);
+    const kb = Math.min(dmg * 0.3, 8);
+    target.knockX += Math.cos(a) * kb;
+    target.knockY += Math.sin(a) * kb;
+    if (dmg >= 30) {
+      this.screenShake = Math.min(12, dmg * 0.15);
+    }
+    // Laser sparks instead of blood
+    for (let i = 0; i < 2; i++) {
+      this.particles.push({
+        x: target.x, y: target.y,
+        vx: (Math.random() - 0.5) * 4 + Math.cos(a) * 2,
+        vy: (Math.random() - 0.5) * 4 + Math.sin(a) * 2,
+        life: 20 + Math.random() * 15,
+        color: target.team === 'blue' ? '#4ea8de' : '#e94560',
+        size: 2 + Math.random() * 2
+      });
+    }
+    if (target.hp <= 0) {
+      target.alive = false;
+      target.deathTimer = 60;
+      this.screenShake = Math.min(10, target.def.size * 0.5);
+      for (let i = 0; i < 8; i++) {
+        const ang = (i / 8) * Math.PI * 2;
+        this.particles.push({
+          x: target.x, y: target.y,
+          vx: Math.cos(ang) * 4, vy: Math.sin(ang) * 4,
+          life: 20 + Math.random() * 10,
+          color: target.team === 'blue' ? '#4ea8de' : '#e94560',
+          size: 2
+        });
+      }
+      for (const a of this.units) {
+        if (a.team !== target.team && a.alive && a.def._arenaKing && a.abilityActive > 0) {
+          a.hp = Math.min(a.maxHp, a.hp + 40);
+          this.particles.push({ x: a.x, y: a.y, vx: 0, vy: -3, life: 20, color: '#4682B4', size: 3 });
+        }
+      }
+      for (let i = 0; i < 6; i++) {
+        this.particles.push({
+          x: target.x, y: target.y,
+          vx: (Math.random() - 0.5) * 6,
+          vy: (Math.random() - 0.5) * 6,
+          life: 25 + Math.random() * 15,
+          color: target.team === 'blue' ? '#4ea8de' : '#e94560',
+          size: 3 + Math.random() * 3
+        });
+      }
+    }
+  }
+
+  updateUnit(u) {
+    if (!u.alive) return;
+    u.wobble += u.wobbleSpeed;
+    u.atkCooldown = Math.max(0, u.atkCooldown - 0.016 * this.speed);
+    u.stagger = Math.max(0, u.stagger - 1);
+    u.knockX *= 0.85;
+    u.knockY *= 0.85;
+    u.x += u.knockX;
+    u.y += u.knockY;
+
+    if (u.spawnScale < 1) u.spawnScale = Math.min(1, u.spawnScale + 0.08);
+    if (u.attackFlash > 0) u.attackFlash = Math.max(0, u.attackFlash - 0.1);
+    if (u.hitShake > 0) u.hitShake = Math.max(0, u.hitShake - 0.5);
+
+    if (this.phase === 'battle' && Math.abs(u.knockX) < 0.5 && Math.random() < 0.03 * u.def.speed) {
+      this.particles.push({
+        x: u.x + (Math.random() - 0.5) * u.def.size,
+        y: u.y + u.def.size * 0.5,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: -Math.random() * 0.5,
+        life: 15 + Math.random() * 10,
+        color: '#555',
+        size: 2 + Math.random() * 2
+      });
+    }
+
+    if (u.stagger > 0) return;
+
+    if (this.abilitiesEnabled) {
+      u.abilityTimer++;
+      if (u.abilityActive > 0) u.abilityActive--;
+      if (u.abilityActive === 1) {
+        u.invincible = false;
+      }
+      if (!u.abilityUsed && u.abilityTimer >= 2400) {
+        u.abilityUsed = true;
+        this.triggerAbility(u);
+      }
+    } else {
+      if (u.abilityActive > 0) {
+        u.abilityActive = 0;
+        u.invincible = false;
+      }
+    }
+
+    // Darth Vader — spawn 2 Stormtroopers every 30s (1800 frames)
+    if (u.def._vaderSpawn && u.alive && this.phase === 'battle') {
+      u.spawnTimer++;
+      if (u.spawnTimer >= 1800) {
+        u.spawnTimer = 0;
+        const stormDef = UNIT_DEFS.find(d => d.name === 'Stormtrooper');
+        if (stormDef) {
+          for (let i = 0; i < 2; i++) {
+            const trooper = new Unit(stormDef, u.x + (Math.random()-0.5)*50, u.y + (Math.random()-0.5)*50, u.team);
+            trooper.abilityUsed = true; // no ability for spawned troopers
+            this.units.push(trooper);
+            for (let j = 0; j < 8; j++)
+              this.particles.push({ x: trooper.x, y: trooper.y, vx: (Math.random()-0.5)*4, vy: -Math.random()*3, life: 20, color: '#e94560', size: 3 });
+          }
+          // Dark side arrival effect on Vader
+          for (let i = 0; i < 10; i++)
+            this.particles.push({ x: u.x, y: u.y, vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6, life: 25, color: '#ff0000', size: 3 });
+        }
+      }
+    }
+
+    // Luke Skywalker — rapid attack: hits all enemies in range every few frames during ability
+    if (u.def.name === 'Luke Skywalker' && u.abilityActive > 0 && u.alive) {
+      if (u.abilityActive % 6 === 0) { // strike every 6 frames
+        let hitAny = false;
+        for (const e of this.units) {
+          if (e.team !== u.team && e.alive && Math.hypot(e.x - u.x, e.y - u.y) < 80) {
+            this.applyDamage(e, 15, u.x, u.y);
+            hitAny = true;
+          }
+        }
+        if (hitAny) {
+          // Lightsaber swing arc
+          const swingA = Math.random() * Math.PI * 2;
+          for (let i = 0; i < 4; i++) {
+            const a = swingA + (i/4) * Math.PI * 0.8;
+            this.particles.push({ x: u.x + Math.cos(a)*25, y: u.y + Math.sin(a)*25, vx: Math.cos(a)*3, vy: Math.sin(a)*3, life: 10, color: '#00ff00', size: 3 });
+          }
+        }
+      }
+    }
+
+    if (this.abilitiesEnabled && u.abilityActive > 0) {
+      if (u.def._regen && u.abilityActive % 30 === 0) {
+        u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.01);
+        this.particles.push({ x: u.x, y: u.y, vx: 0, vy: -2, life: 15, color: '#2ecc71', size: 2 });
+      }
+      if (u.def._inferno && u.abilityActive % 20 === 0) {
+        for (const e of this.units) {
+          if (e.team !== u.team && e.alive && Math.hypot(e.x-u.x, e.y-u.y) < 120) {
+            this.applyDamage(e, 5, u.x, u.y);
+          }
+        }
+        for (let i = 0; i < 3; i++)
+          this.particles.push({ x: u.x+(Math.random()-0.5)*120, y: u.y+(Math.random()-0.5)*120, vx: 0, vy: -2, life: 20, color: '#e74c3c', size: 3 });
+      }
+      // Yoda Force Shield — green aura while active
+      if (u.def.deflect && u.abilityActive % 10 === 0) {
+        const a = Math.random() * Math.PI * 2;
+        this.particles.push({ x: u.x + Math.cos(a)*30, y: u.y + Math.sin(a)*30, vx: Math.cos(a)*1, vy: Math.sin(a)*1, life: 20, color: '#00ff00', size: 2 });
+      }
+    }
+
+    if (u === this.controlledUnit) {
+      let mx = 0, my = 0;
+      if (this.keys['w'] || this.keys['arrowup']) my = -1;
+      if (this.keys['s'] || this.keys['arrowdown']) my = 1;
+      if (this.keys['a'] || this.keys['arrowleft']) mx = -1;
+      if (this.keys['d'] || this.keys['arrowright']) mx = 1;
+      if (mx || my) {
+        const len = Math.hypot(mx, my);
+        const spd = u.def.speed * this.speed * 1.2;
+        u.x += (mx / len) * spd;
+        u.y += (my / len) * spd;
+        u.angle = Math.atan2(my, mx);
+      }
+      u.x = Math.max(u.def.size, Math.min(this.W - u.def.size, u.x));
+      u.y = Math.max(u.def.size + 50, Math.min(this.H - u.def.size - 50, u.y));
+      if (!u.alive) {
+        this.controlledUnit = null;
+        document.getElementById('control-hint').classList.remove('show');
+      }
+      return;
+    }
+
+    if (u.def.heals) {
+      const ally = this.findAlly(u);
+      if (ally) {
+        const d = Math.hypot(ally.x - u.x, ally.y - u.y);
+        if (d > u.def.range * 0.5) {
+          const a = Math.atan2(ally.y - u.y, ally.x - u.x);
+          u.x += Math.cos(a) * u.def.speed * this.speed;
+          u.y += Math.sin(a) * u.def.speed * this.speed;
+          u.angle = a;
+        }
+        if (d < u.def.range && u.atkCooldown <= 0) {
+          ally.hp = Math.min(ally.maxHp, ally.hp + u.def.heals);
+          u.atkCooldown = u.def.atkSpeed;
+          for (let i = 0; i < 5; i++) {
+            this.particles.push({
+              x: ally.x, y: ally.y,
+              vx: (Math.random() - 0.5) * 2,
+              vy: -Math.random() * 3,
+              life: 20,
+              color: '#00e5ff',
+              size: 3
+            });
+          }
+        }
+      }
+      const enemy = this.findTarget(u);
+      if (enemy) {
+        const ed = Math.hypot(enemy.x - u.x, enemy.y - u.y);
+        if (ed < 60) {
+          const a = Math.atan2(u.y - enemy.y, u.x - enemy.x);
+          u.x += Math.cos(a) * u.def.speed * this.speed * 0.5;
+          u.y += Math.sin(a) * u.def.speed * this.speed * 0.5;
+        }
+      }
+      return;
+    }
+
+    if (u.def.flying) {
+      const target = this.findTarget(u);
+      if (target) {
+        const a = Math.atan2(target.y - u.y, target.x - u.x);
+        u.x += Math.cos(a) * u.def.speed * this.speed;
+        u.y += Math.sin(a) * u.def.speed * this.speed;
+        u.angle = a;
+        if (u.atkCooldown <= 0) {
+          for (const e of this.units) {
+            if (e.team !== u.team && e.alive && Math.hypot(e.x - u.x, e.y - u.y) < 60) {
+              u.atkCooldown = u.def.atkSpeed;
+              this.projectiles.push(new Projectile(u.x, u.y, e.x, e.y, u.team, u.def.dmg, u.def.projSpeed, u.def.aoe, false));
+              this.particles.push({ x: u.x, y: u.y + 5, vx: 0, vy: 2, life: 10, color: '#888', size: 3 });
+              break;
+            }
+          }
+        }
+      }
+      u.x = Math.max(u.def.size, Math.min(this.W - u.def.size, u.x));
+      u.y = Math.max(u.def.size + 50, Math.min(this.H - u.def.size - 50, u.y));
+      return;
+    }
+
+    const target = this.findTarget(u);
+    if (!target) return;
+
+    const dx = target.x - u.x;
+    const dy = target.y - u.y;
+    const dist = Math.hypot(dx, dy);
+    u.angle = Math.atan2(dy, dx);
+
+    if (dist > u.def.range) {
+      const wobbleAngle = Math.sin(u.wobble) * 0.3;
+      const a = u.angle + wobbleAngle;
+      u.x += Math.cos(a) * u.def.speed * this.speed;
+      u.y += Math.sin(a) * u.def.speed * this.speed;
+      for (const other of this.units) {
+        if (other === u || !other.alive) continue;
+        const sd = Math.hypot(other.x - u.x, other.y - u.y);
+        if (sd < u.def.size + other.def.size && sd > 0) {
+          const sa = Math.atan2(u.y - other.y, u.x - other.x);
+          u.x += Math.cos(sa) * 0.5;
+          u.y += Math.sin(sa) * 0.5;
+        }
+      }
+    } else if (u.atkCooldown <= 0) {
+      u.atkCooldown = u.def.atkSpeed;
+      if (u.def.projSpeed) {
+        this.projectiles.push(new Projectile(u.x, u.y, target.x, target.y, u.team, u.def.dmg, u.def.projSpeed, u.def.aoe, u.def.magic));
+        const fa = Math.atan2(target.y - u.y, target.x - u.x);
+        for (let i = 0; i < 2; i++) {
+          this.particles.push({
+            x: u.x + Math.cos(fa) * u.def.size,
+            y: u.y + Math.sin(fa) * u.def.size,
+            vx: Math.cos(fa + (Math.random() - 0.5) * 0.8) * 3,
+            vy: Math.sin(fa + (Math.random() - 0.5) * 0.8) * 3,
+            life: 8 + Math.random() * 5,
+            color: u.def.magic ? '#7b68ee' : '#e74c3c',
+            size: 3
+          });
+        }
+      } else {
+        if (target.def.flying && !u.def.magic) return;
+        this.applyDamage(target, u.def.dmg, u.x, u.y);
+        const swingAngle = u.angle;
+        for (let i = 0; i < 3; i++) {
+          const a = swingAngle - 0.6 + (i / 4) * 1.2;
+          const r = u.def.range * 0.8;
+          this.particles.push({
+            x: u.x + Math.cos(a) * r, y: u.y + Math.sin(a) * r,
+            vx: Math.cos(a) * 2, vy: Math.sin(a) * 2,
+            life: 8 + Math.random() * 5,
+            color: '#ddd',
+            size: 2
+          });
+        }
+      }
+    }
+
+    u.x = Math.max(u.def.size, Math.min(this.W - u.def.size, u.x));
+    u.y = Math.max(u.def.size + 50, Math.min(this.H - u.def.size - 50, u.y));
+  }
+
+  updateProjectile(p) {
+    p.trail.push({ x: p.x, y: p.y });
+    if (p.trail.length > 8) p.trail.shift();
+    p.x += p.vx * this.speed;
+    p.y += p.vy * this.speed;
+    p.life--;
+
+    if (p.life <= 0 || p.x < 0 || p.x > this.W || p.y < 0 || p.y > this.H) return false;
+
+    // Yoda deflection — any Yoda on the opposite team can deflect nearby projectiles
+    for (const u of this.units) {
+      if (u.team === p.team || !u.alive) continue;
+      if (!u.def.deflect) continue;
+      const deflectRange = u.abilityActive > 0 ? 120 : 60; // bigger range during ability
+      if (Math.hypot(u.x - p.x, u.y - p.y) < deflectRange) {
+        // Reverse the projectile — send it back!
+        p.vx = -p.vx * 1.2;
+        p.vy = -p.vy * 1.2;
+        p.team = u.team; // now belongs to Yoda's team
+        p.life = Math.min(p.life, 100);
+        // Green deflect sparks
+        for (let i = 0; i < 4; i++) {
+          this.particles.push({
+            x: p.x, y: p.y,
+            vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5,
+            life: 15, color: '#00ff00', size: 3
+          });
+        }
+        // Don't deflect the same projectile multiple times per frame
+        break;
+      }
+    }
+
+    for (const u of this.units) {
+      if (u.team === p.team || !u.alive) continue;
+      if (u.def.flying && !p.magic) continue;
+      if (Math.hypot(u.x - p.x, u.y - p.y) < u.def.size + 4) {
+        if (p.aoe > 0) {
+          for (const t of this.units) {
+            if (t.team === p.team || !t.alive) continue;
+            if (Math.hypot(t.x - p.x, t.y - p.y) < p.aoe) {
+              this.applyDamage(t, p.dmg * (1 - Math.hypot(t.x - p.x, t.y - p.y) / p.aoe * 0.5), p.x, p.y);
+            }
+          }
+          this.screenShake = Math.min(10, p.aoe * 0.15);
+          for (let i = 0; i < 15; i++) {
+            this.particles.push({
+              x: p.x, y: p.y,
+              vx: (Math.random() - 0.5) * 8,
+              vy: (Math.random() - 0.5) * 8,
+              life: 20 + Math.random() * 15,
+              color: ['#e74c3c','#f39c12','#ffe81f'][Math.floor(Math.random()*3)],
+              size: 3 + Math.random() * 4
+            });
+          }
+          for (let i = 0; i < 10; i++) {
+            const a = (i / 10) * Math.PI * 2;
+            this.particles.push({
+              x: p.x, y: p.y,
+              vx: Math.cos(a) * 5, vy: Math.sin(a) * 5,
+              life: 12,
+              color: '#ffe81f',
+              size: 2
+            });
+          }
+        } else {
+          this.applyDamage(u, p.dmg, p.x - p.vx * 5, p.y - p.vy * 5);
+        }
+        return false;
+      }
+    }
+    return true;
+  }
+
+  update() {
+    if (this.phase !== 'battle') return;
+
+    const savedSpeed = this.speed;
+    if (this.slowMo) this.speed = this.speed * 0.2;
+
+    for (const u of this.units) this.updateUnit(u);
+    this.projectiles = this.projectiles.filter(p => this.updateProjectile(p));
+
+    for (const p of this.particles) {
+      p.x += p.vx; p.y += p.vy;
+      p.vy += 0.1;
+      p.vx *= 0.98;
+      p.life--;
+    }
+    this.particles = this.particles.filter(p => p.life > 0);
+    if (this.particles.length > 500) {
+      this.particles = this.particles.slice(-500);
+    }
+
+    if (this.screenShake > 0) {
+      this.shakeX = (Math.random() - 0.5) * this.screenShake * 2;
+      this.shakeY = (Math.random() - 0.5) * this.screenShake * 2;
+      this.screenShake *= 0.85;
+      if (this.screenShake < 0.3) { this.screenShake = 0; this.shakeX = 0; this.shakeY = 0; }
+    }
+
+    for (const u of this.units) {
+      if (!u.alive && u.deathTimer > 0) u.deathTimer--;
+    }
+
+    this.speed = savedSpeed;
+
+    if (!this.battleResult) {
+      const blueAlive = this.units.some(u => u.team === 'blue' && u.alive);
+      const redAlive = this.units.some(u => u.team === 'red' && u.alive);
+      if (!blueAlive || !redAlive) {
+        if (!blueAlive && !redAlive) this.battleResult = 'DRAW!';
+        else if (blueAlive) this.battleResult = 'REBELS WIN!';
+        else this.battleResult = 'EMPIRE WINS!';
+
+        const el = document.getElementById('overlay');
+        el.textContent = this.battleResult;
+        el.style.color = this.battleResult.includes('REBELS') ? '#4ea8de' : this.battleResult.includes('EMPIRE') ? '#e94560' : '#ffe81f';
+        el.style.opacity = 1;
+        document.getElementById('phase-info').textContent = this.battleResult;
+      }
+    }
+  }
+
+  drawUnitBody(u, ux, uy, s) {
+    const dir = u.team === 'blue' ? 1 : -1;
+    const walk = u.alive && this.phase === 'battle' ? Math.sin(u.wobble * 4) : 0;
+    const sc = s / 14;
+    const tc = u.team === 'blue' ? '#4ea8de' : '#e94560';
+    const n = u.def.name;
+
+    // Shadow
+    if (!u.def.flying) {
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(ux, uy + s * 0.9, s * 0.6, s * 0.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // --- X-WING special render ---
+    if (u.def.flying) {
+      // Ship body
+      ctx.fillStyle = '#c0c0c0';
+      ctx.beginPath();
+      ctx.ellipse(ux, uy, s * 0.9, s * 0.35, dir > 0 ? 0 : Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = tc; ctx.lineWidth = 2; ctx.stroke();
+      // Wings (X shape)
+      ctx.fillStyle = '#888';
+      ctx.beginPath();
+      ctx.moveTo(ux - 4*sc, uy);
+      ctx.lineTo(ux - 2*sc, uy - s*0.9);
+      ctx.lineTo(ux + 2*sc, uy - s*0.7);
+      ctx.lineTo(ux + 4*sc, uy);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(ux - 4*sc, uy);
+      ctx.lineTo(ux - 2*sc, uy + s*0.9);
+      ctx.lineTo(ux + 2*sc, uy + s*0.7);
+      ctx.lineTo(ux + 4*sc, uy);
+      ctx.fill();
+      // Cockpit
+      ctx.fillStyle = '#87ceeb';
+      ctx.beginPath();
+      ctx.arc(ux + dir * s * 0.4, uy, 3*sc, 0, Math.PI * 2);
+      ctx.fill();
+      // Engine glow
+      if (this.phase === 'battle') {
+        ctx.fillStyle = 'rgba(255,100,100,0.6)';
+        ctx.beginPath();
+        ctx.arc(ux - dir * s * 0.8, uy, 2 + Math.random()*2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      return;
+    }
+
+    const skinColor = {
+      'Rebel Trooper':'#d8c8a0','Clone Trooper':'#f0ece0','Stormtrooper':'#f5f5f5','Wookiee':'#8B6914',
+      'Jedi Knight':'#e0c8a0','Rancor':'#8a7a6a','Rebel Sniper':'#c8c0a0','Death Trooper':'#444',
+      'Sith Sorcerer':'#d0b0b0','AT-ST':'#aaa','Bacta Medic':'#d0f0d0','Darth Maul':'#e0a0a0',
+      'Droideka':'#b0b0b0','Speeder Bike':'#a0b0a0','Emperor Palpatine':'#d0c8d0',
+      'Mandalorian':'#b0c0d0','Shadow Trooper':'#888','Gamorrean Guard':'#a0c890','Hondo Ohnaka':'#e0c098',
+      'Chirrut Imwe':'#f0e0c0','Praetorian Guard':'#e0b0a0','Boba Fett':'#8a9a8a','Kylo Ren':'#c0b0b0',
+      'Ahsoka Tano':'#f0c8a0','AT-AT':'#c8c8c8','Nightsister':'#d0b8d0',
+      'Darth Vader':'#555','Luke Skywalker':'#f5e8c0','Krayt Dragon':'#c8a070','Thermal Detonator':'#ccc',
+      'Yoda':'#a0c880','IG-11':'#b0b0b8','Cad Bane':'#7090c0','Mother Talzin':'#d0b8d0','X-Wing':'#ddd'
+    }[n] || '#ddd';
+
+    const headR = 5 * sc;
+    const bodyH = 8 * sc;
+    const bodyW = 6 * sc;
+    const legL = 6 * sc;
+    const armL = 6 * sc;
+    const headY = uy - bodyH - headR;
+    const bodyTop = uy - bodyH;
+
+    // --- LEGS ---
+    const legSpread = 3 * sc;
+    const lKick = walk * 3 * sc;
+    ctx.strokeStyle = n === 'IG-11' ? '#606870' : n === 'Gamorrean Guard' ? '#4a6a3a' : n === 'Krayt Dragon' ? '#7a5020' : '#444';
+    ctx.lineWidth = Math.max(2, 3 * sc);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(ux - legSpread, uy - bodyH * 0.1);
+    ctx.lineTo(ux - legSpread + lKick, uy + legL);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(ux + legSpread, uy - bodyH * 0.1);
+    ctx.lineTo(ux + legSpread - lKick, uy + legL);
+    ctx.stroke();
+    // Feet
+    ctx.fillStyle = n === 'Stormtrooper' || n === 'Clone Trooper' ? '#ddd' : n === 'Shadow Trooper' ? '#222' : '#543';
+    ctx.beginPath();
+    ctx.arc(ux - legSpread + lKick, uy + legL, 2*sc, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(ux + legSpread - lKick, uy + legL, 2*sc, 0, Math.PI*2);
+    ctx.fill();
+
+    // --- BODY / TORSO ---
+    ctx.fillStyle = u.def.color;
+    if (n === 'Stormtrooper' || n === 'Clone Trooper' || n === 'Praetorian Guard') {
+      ctx.fillRect(ux - bodyW/2, bodyTop, bodyW, bodyH);
+      ctx.strokeStyle = '#aaa'; ctx.lineWidth = 1;
+      ctx.strokeRect(ux - bodyW/2, bodyTop, bodyW, bodyH);
+    } else if (n === 'Rancor' || n === 'IG-11' || n === 'Gamorrean Guard' || n === 'Krayt Dragon') {
+      ctx.beginPath();
+      ctx.ellipse(ux, uy - bodyH*0.5, bodyW*0.7, bodyH*0.6, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = tc; ctx.lineWidth = 2; ctx.stroke();
+    } else if (n === 'Speeder Bike') {
+      ctx.fillStyle = '#556B2F';
+      ctx.beginPath();
+      ctx.ellipse(ux, uy + 2*sc, bodyW*0.9, bodyH*0.3, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = u.def.color;
+      ctx.fillRect(ux - bodyW*0.35, bodyTop, bodyW*0.7, bodyH*0.7);
+    } else if (n === 'AT-AT' || n === 'AT-ST') {
+      ctx.fillStyle = u.def.color;
+      ctx.fillRect(ux - bodyW*0.6, uy - bodyH*0.4, bodyW*1.2, bodyH*0.6);
+      ctx.fillStyle = '#555';
+      ctx.fillRect(ux + dir*bodyW*0.3, uy - bodyH*0.3, bodyW*0.5*dir, bodyH*0.3);
+      ctx.fillStyle = '#4a4a4a';
+      ctx.beginPath(); ctx.arc(ux - bodyW*0.4, uy + bodyH*0.2, 3*sc, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ux + bodyW*0.4, uy + bodyH*0.2, 3*sc, 0, Math.PI*2); ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.roundRect(ux - bodyW/2, bodyTop, bodyW, bodyH, 2*sc);
+      ctx.fill();
+    }
+
+    // Team stripe
+    if (n !== 'AT-AT' && n !== 'AT-ST') {
+      ctx.fillStyle = tc;
+      ctx.globalAlpha *= 0.4;
+      ctx.fillRect(ux - bodyW/2, bodyTop + bodyH*0.3, bodyW, 3*sc);
+      ctx.globalAlpha /= 0.4;
+    }
+
+    // --- ARMS + WEAPONS ---
+    const armY = bodyTop + bodyH * 0.2;
+    const aSwing = walk * 3 * sc;
+    ctx.strokeStyle = n === 'IG-11' ? '#606870' : n === 'Gamorrean Guard' ? '#4a6a3a' : '#444';
+    ctx.lineWidth = Math.max(2, 2.5 * sc);
+
+    if (n !== 'AT-AT' && n !== 'AT-ST') {
+      ctx.beginPath();
+      ctx.moveTo(ux - bodyW/2, armY);
+      ctx.lineTo(ux - bodyW/2 - armL*0.7 - aSwing, armY + armL*0.6);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(ux + bodyW/2, armY);
+      ctx.lineTo(ux + bodyW/2 + armL*0.7 + aSwing, armY + armL*0.6);
+      ctx.stroke();
+      ctx.fillStyle = skinColor;
+      ctx.beginPath();
+      ctx.arc(ux - bodyW/2 - armL*0.7 - aSwing, armY + armL*0.6, 2*sc, 0, Math.PI*2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(ux + bodyW/2 + armL*0.7 + aSwing, armY + armL*0.6, 2*sc, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // WEAPON in dominant hand
+    const handX = ux + dir * (bodyW/2 + armL*0.7 + aSwing);
+    const handY = armY + armL*0.6;
+    ctx.lineWidth = Math.max(1.5, 2*sc);
+    ctx.lineCap = 'round';
+
+    if (n === 'Rebel Trooper') {
+      // Blaster pistol
+      ctx.fillStyle = '#555';
+      ctx.fillRect(handX, handY - 2*sc, dir*8*sc, 3*sc);
+    } else if (n === 'Clone Trooper' || n === 'Mandalorian') {
+      // Blaster rifle
+      ctx.strokeStyle = '#666';
+      ctx.lineWidth = 2.5*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY-1*sc); ctx.lineTo(handX + dir*12*sc, handY - 2*sc); ctx.stroke();
+      ctx.fillStyle = '#444';
+      ctx.fillRect(handX, handY, dir*5*sc, 2*sc);
+    } else if (n === 'Stormtrooper') {
+      // E-11 blaster
+      ctx.strokeStyle = '#eee';
+      ctx.lineWidth = 2*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY-1*sc); ctx.lineTo(handX + dir*10*sc, handY - 2*sc); ctx.stroke();
+      ctx.fillStyle = '#ccc';
+      ctx.fillRect(handX, handY, dir*4*sc, 2*sc);
+    } else if (n === 'Wookiee') {
+      // Bowcaster
+      ctx.strokeStyle = '#8B6914';
+      ctx.lineWidth = 2*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX + dir*10*sc, handY - 1*sc); ctx.stroke();
+      ctx.strokeStyle = '#4ea8de';
+      ctx.lineWidth = 1*sc;
+      ctx.beginPath();
+      ctx.arc(handX + dir*8*sc, handY - 3*sc, 5*sc, -Math.PI*0.3, Math.PI*0.3);
+      ctx.stroke();
+    } else if (n === 'Jedi Knight' || n === 'Luke Skywalker') {
+      // Blue/green lightsaber
+      const lsColor = n === 'Luke Skywalker' ? '#00ff00' : '#00bfff';
+      ctx.strokeStyle = '#ccc';
+      ctx.lineWidth = 2*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX, handY + 3*sc); ctx.stroke();
+      ctx.strokeStyle = lsColor;
+      ctx.lineWidth = 2.5*sc;
+      ctx.shadowColor = lsColor;
+      ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX + dir*2*sc, handY - 14*sc); ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else if (n === 'Darth Maul') {
+      // Double red lightsaber
+      ctx.strokeStyle = '#ccc';
+      ctx.lineWidth = 1.5*sc;
+      ctx.beginPath(); ctx.moveTo(handX - dir*2*sc, handY + 5*sc); ctx.lineTo(handX + dir*2*sc, handY - 5*sc); ctx.stroke();
+      ctx.strokeStyle = '#ff0000';
+      ctx.lineWidth = 2.5*sc;
+      ctx.shadowColor = '#ff0000';
+      ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.moveTo(handX + dir*2*sc, handY - 5*sc); ctx.lineTo(handX + dir*4*sc, handY - 14*sc); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(handX - dir*2*sc, handY + 5*sc); ctx.lineTo(handX - dir*4*sc, handY + 14*sc); ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else if (n === 'Kylo Ren') {
+      // Crossguard lightsaber
+      ctx.strokeStyle = '#ccc';
+      ctx.lineWidth = 2*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX, handY + 3*sc); ctx.stroke();
+      ctx.strokeStyle = '#ff0000';
+      ctx.lineWidth = 2.5*sc;
+      ctx.shadowColor = '#ff0000';
+      ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX + dir*2*sc, handY - 14*sc); ctx.stroke();
+      // Crossguards
+      ctx.lineWidth = 1.5*sc;
+      ctx.beginPath(); ctx.moveTo(handX - 4*sc, handY - 1*sc); ctx.lineTo(handX + 4*sc, handY - 1*sc); ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else if (n === 'Darth Vader') {
+      // Red lightsaber
+      ctx.strokeStyle = '#888';
+      ctx.lineWidth = 2*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX, handY + 3*sc); ctx.stroke();
+      ctx.strokeStyle = '#ff0000';
+      ctx.lineWidth = 3*sc;
+      ctx.shadowColor = '#ff0000';
+      ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX + dir*2*sc, handY - 16*sc); ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else if (n === 'Ahsoka Tano') {
+      // White dual lightsabers
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2*sc;
+      ctx.shadowColor = '#fff';
+      ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX + dir*2*sc, handY - 12*sc); ctx.stroke();
+      const lhX = ux - dir * (bodyW/2 + armL*0.5);
+      ctx.beginPath(); ctx.moveTo(lhX, handY); ctx.lineTo(lhX - dir*2*sc, handY - 10*sc); ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else if (n === 'Sith Sorcerer' || n === 'Emperor Palpatine' || n === 'Nightsister' || n === 'Mother Talzin') {
+      // Force lightning / dark side staff
+      const staffColor = n === 'Emperor Palpatine' ? '#333' : n === 'Nightsister' ? '#4a0e4e' : n === 'Mother Talzin' ? '#301934' : '#4a0000';
+      const orbColor = n === 'Emperor Palpatine' ? '#7b68ee' : n === 'Nightsister' ? '#9370DB' : n === 'Mother Talzin' ? '#ff69b4' : '#e74c3c';
+      ctx.strokeStyle = staffColor;
+      ctx.lineWidth = 2*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX, handY - 14*sc); ctx.stroke();
+      ctx.fillStyle = orbColor;
+      ctx.beginPath(); ctx.arc(handX, handY - 14*sc, 3*sc, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = orbColor; ctx.globalAlpha *= 0.3;
+      ctx.beginPath(); ctx.arc(handX, handY - 14*sc, 5*sc, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha /= 0.3;
+    } else if (n === 'Rebel Sniper') {
+      // Sniper rifle
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = 1.5*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY-2*sc); ctx.lineTo(handX+dir*14*sc, handY-4*sc); ctx.stroke();
+      ctx.fillStyle = '#333';
+      ctx.fillRect(handX+dir*10*sc, handY-6*sc, dir*3*sc, 2*sc);
+    } else if (n === 'Death Trooper') {
+      // Heavy blaster
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 3*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY-2*sc); ctx.lineTo(handX + dir*12*sc, handY - 3*sc); ctx.stroke();
+    } else if (n === 'Boba Fett') {
+      // Blaster + jetpack
+      ctx.fillStyle = '#444';
+      ctx.fillRect(handX, handY - 2*sc, dir*8*sc, 3*sc);
+      // Jetpack on back
+      ctx.fillStyle = '#2F4F4F';
+      ctx.fillRect(ux - dir*bodyW*0.3, bodyTop, -dir*4*sc, bodyH*0.8);
+      ctx.fillStyle = '#ff4500';
+      ctx.beginPath(); ctx.arc(ux - dir*bodyW*0.3 - dir*2*sc, bodyTop + bodyH*0.8 + 2*sc, 2*sc, 0, Math.PI*2); ctx.fill();
+    } else if (n === 'Cad Bane') {
+      // Dual pistols
+      ctx.fillStyle = '#555';
+      ctx.fillRect(handX, handY - 2*sc, dir*7*sc, 2.5*sc);
+      const lhX = ux - dir * (bodyW/2 + armL*0.5);
+      ctx.fillRect(lhX, handY - 2*sc, -dir*7*sc, 2.5*sc);
+    } else if (n === 'Chirrut Imwe') {
+      // Staff
+      ctx.strokeStyle = '#8B6914';
+      ctx.lineWidth = 2*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY + 5*sc); ctx.lineTo(handX, handY - 14*sc); ctx.stroke();
+    } else if (n === 'Hondo Ohnaka') {
+      // Pirate blaster
+      ctx.fillStyle = '#8a6a2a';
+      ctx.fillRect(handX, handY - 2*sc, dir*9*sc, 3*sc);
+      ctx.fillStyle = '#ffd700';
+      ctx.beginPath(); ctx.arc(handX + dir*9*sc, handY - 1*sc, 2*sc, 0, Math.PI*2); ctx.fill();
+    } else if (n === 'Shadow Trooper') {
+      // Stealth blaster
+      ctx.fillStyle = '#333';
+      ctx.fillRect(handX, handY - 1.5*sc, dir*8*sc, 2.5*sc);
+    } else if (n === 'Droideka') {
+      // Twin blasters
+      ctx.fillStyle = '#777';
+      ctx.fillRect(ux - bodyW*0.8, armY, 3*sc, 8*sc);
+      ctx.fillRect(ux + bodyW*0.5, armY, 3*sc, 8*sc);
+    } else if (n === 'Yoda') {
+      // Small green lightsaber
+      ctx.strokeStyle = '#888';
+      ctx.lineWidth = 1.5*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX, handY + 2*sc); ctx.stroke();
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 2*sc;
+      ctx.shadowColor = '#00ff00';
+      ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX + dir*1*sc, handY - 10*sc); ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else if (n === 'Krayt Dragon') {
+      // Claws
+      ctx.strokeStyle = '#daa520'; ctx.lineWidth = 2*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX+dir*5*sc, handY-3*sc); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX+dir*5*sc, handY+1*sc); ctx.stroke();
+    } else if (n === 'Thermal Detonator') {
+      // Bomb
+      ctx.fillStyle = '#888';
+      ctx.beginPath(); ctx.arc(handX, handY - 3*sc, 4*sc, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#ff0000';
+      ctx.beginPath(); ctx.arc(handX, handY - 7*sc, 1.5*sc, 0, Math.PI*2); ctx.fill();
+    } else if (n === 'IG-11') {
+      // Big droid arms
+      ctx.strokeStyle = '#666'; ctx.lineWidth = 3*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX+dir*6*sc, handY-2*sc); ctx.stroke();
+    } else if (n === 'Praetorian Guard') {
+      // Electro-staff
+      ctx.strokeStyle = '#8B0000'; ctx.lineWidth = 2*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY + 5*sc); ctx.lineTo(handX, handY - 16*sc); ctx.stroke();
+      ctx.fillStyle = '#ff4500';
+      ctx.beginPath(); ctx.arc(handX, handY - 16*sc, 2*sc, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(handX, handY + 5*sc, 2*sc, 0, Math.PI*2); ctx.fill();
+    } else if (n === 'Bacta Medic') {
+      // Bacta injector
+      ctx.fillStyle = '#00e5ff';
+      ctx.fillRect(handX, handY - 8*sc, dir*3*sc, 8*sc);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(handX + dir*0.5*sc, handY - 6*sc, dir*2*sc, 3*sc);
+    } else if (n === 'Gamorrean Guard') {
+      // Vibro-axe
+      ctx.strokeStyle = '#5a3a1a'; ctx.lineWidth = 2*sc;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX, handY - 12*sc); ctx.stroke();
+      ctx.fillStyle = '#888';
+      ctx.beginPath();
+      ctx.moveTo(handX, handY - 10*sc);
+      ctx.lineTo(handX + dir*5*sc, handY - 12*sc);
+      ctx.lineTo(handX + dir*5*sc, handY - 8*sc);
+      ctx.fill();
+    }
+
+    // --- HEAD ---
+    if (n !== 'AT-AT' && n !== 'AT-ST') {
+      ctx.fillStyle = skinColor;
+      ctx.beginPath();
+      ctx.arc(ux, headY, headR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1; ctx.stroke();
+
+      // Eyes
+      const eyeX = ux + dir * headR * 0.35;
+      const eyeY = headY - headR * 0.1;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(eyeX, eyeY, 2.2*sc, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = n === 'Emperor Palpatine' || n === 'Darth Vader' || n === 'Sith Sorcerer' ? '#ff4500' : n === 'Krayt Dragon' ? '#ff4500' : n === 'Darth Maul' ? '#ff0' : '#222';
+      ctx.beginPath(); ctx.arc(eyeX + dir*0.6*sc, eyeY, 1.2*sc, 0, Math.PI*2); ctx.fill();
+
+      // HEADGEAR
+      if (n === 'Stormtrooper') {
+        // Stormtrooper helmet
+        ctx.fillStyle = '#f0f0f0';
+        ctx.beginPath(); ctx.arc(ux, headY, headR + 1*sc, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = '#222';
+        ctx.fillRect(ux - headR*0.3, headY - headR*0.2, headR*0.6, headR*0.5);
+        // Eye lenses
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(ux - headR*0.2, headY - headR*0.1, 1.5*sc, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ux + headR*0.2, headY - headR*0.1, 1.5*sc, 0, Math.PI*2); ctx.fill();
+      } else if (n === 'Clone Trooper') {
+        ctx.fillStyle = '#e0e0e0';
+        ctx.beginPath(); ctx.arc(ux, headY, headR + 1*sc, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = '#333';
+        ctx.fillRect(ux - headR*0.4, headY - headR*0.1, headR*0.8, headR*0.3);
+      } else if (n === 'Darth Vader') {
+        // Vader helmet
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(ux, headY, headR + 2*sc, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#333';
+        ctx.beginPath(); ctx.moveTo(ux - headR*0.5, headY); ctx.lineTo(ux, headY - headR*0.3); ctx.lineTo(ux + headR*0.5, headY); ctx.fill();
+        // Red eye lenses
+        ctx.fillStyle = '#ff0000';
+        ctx.beginPath(); ctx.arc(ux - headR*0.3, headY - headR*0.1, 1.2*sc, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ux + headR*0.3, headY - headR*0.1, 1.2*sc, 0, Math.PI*2); ctx.fill();
+      } else if (n === 'Mandalorian') {
+        // Mando helmet
+        ctx.fillStyle = '#4682B4';
+        ctx.beginPath(); ctx.arc(ux, headY, headR + 1*sc, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#222';
+        ctx.fillRect(ux - headR*0.1, headY - headR*0.8, headR*0.2, headR*1.2);
+        ctx.fillStyle = '#87ceeb';
+        ctx.beginPath(); ctx.arc(ux - headR*0.3, headY, 1.5*sc, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ux + headR*0.3, headY, 1.5*sc, 0, Math.PI*2); ctx.fill();
+      } else if (n === 'Boba Fett') {
+        // Boba helmet
+        ctx.fillStyle = '#2F4F4F';
+        ctx.beginPath(); ctx.arc(ux, headY, headR + 1*sc, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#ff4500';
+        ctx.fillRect(ux - headR*0.1, headY - headR, headR*0.2, headR*0.5);
+        ctx.fillStyle = '#444';
+        ctx.fillRect(ux - headR*0.5, headY - headR*0.2, headR, headR*0.3);
+      } else if (n === 'Emperor Palpatine') {
+        // Hood
+        ctx.fillStyle = '#1a1a2e';
+        ctx.beginPath(); ctx.arc(ux, headY, headR + 2*sc, Math.PI, 0); ctx.fill();
+        ctx.fillRect(ux - headR - 2*sc, headY - 1*sc, headR*2 + 4*sc, headR);
+      } else if (n === 'Yoda') {
+        // Yoda ears
+        ctx.fillStyle = '#228B22';
+        ctx.beginPath(); ctx.moveTo(ux - headR, headY - headR*0.3); ctx.lineTo(ux - headR - 6*sc, headY - headR*0.1); ctx.lineTo(ux - headR, headY + headR*0.1); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(ux + headR, headY - headR*0.3); ctx.lineTo(ux + headR + 6*sc, headY - headR*0.1); ctx.lineTo(ux + headR, headY + headR*0.1); ctx.fill();
+      } else if (n === 'Kylo Ren') {
+        // Kylo mask
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(ux, headY, headR + 1*sc, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 0.8*sc;
+        ctx.beginPath(); ctx.moveTo(ux - headR, headY); ctx.lineTo(ux + headR, headY); ctx.stroke();
+      } else if (n === 'Death Trooper') {
+        // Death trooper helmet
+        ctx.fillStyle = '#0a0a0a';
+        ctx.beginPath(); ctx.arc(ux, headY, headR + 1*sc, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#0f0';
+        ctx.beginPath(); ctx.arc(ux - headR*0.3, headY - headR*0.1, 1.2*sc, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ux + headR*0.3, headY - headR*0.1, 1.2*sc, 0, Math.PI*2); ctx.fill();
+      } else if (n === 'Shadow Trooper') {
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(ux, headY, headR + 1*sc, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#4ea8de';
+        ctx.globalAlpha *= 0.3;
+        ctx.beginPath(); ctx.arc(ux, headY, headR + 3*sc, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha /= 0.3;
+      } else if (n === 'Ahsoka Tano') {
+        // Montrals/lekku
+        ctx.fillStyle = '#ff7f50';
+        ctx.beginPath(); ctx.moveTo(ux - headR*0.5, headY - headR); ctx.lineTo(ux - headR*0.2, headY - headR - 6*sc); ctx.lineTo(ux + headR*0.1, headY - headR); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(ux + headR*0.5, headY - headR); ctx.lineTo(ux + headR*0.2, headY - headR - 6*sc); ctx.lineTo(ux - headR*0.1, headY - headR); ctx.fill();
+        // Head tails
+        ctx.fillStyle = '#4169E1';
+        ctx.beginPath(); ctx.moveTo(ux - headR*0.7, headY + headR*0.5); ctx.lineTo(ux - headR*0.9, headY + headR + 8*sc); ctx.lineTo(ux - headR*0.4, headY + headR*0.5); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(ux + headR*0.7, headY + headR*0.5); ctx.lineTo(ux + headR*0.9, headY + headR + 8*sc); ctx.lineTo(ux + headR*0.4, headY + headR*0.5); ctx.fill();
+      } else if (n === 'Wookiee') {
+        // Furry head
+        ctx.fillStyle = '#8B4513';
+        for (let i = -2; i <= 2; i++) {
+          ctx.beginPath(); ctx.moveTo(ux + i*2*sc, headY - headR); ctx.lineTo(ux + i*3*sc, headY - headR - 4*sc); ctx.lineTo(ux + (i+1)*2*sc, headY - headR); ctx.fill();
+        }
+      } else if (n === 'Darth Maul') {
+        // Zabrak horns
+        ctx.fillStyle = '#111';
+        for (let i = -2; i <= 2; i++) {
+          ctx.beginPath(); ctx.moveTo(ux + i*2*sc, headY - headR); ctx.lineTo(ux + i*1.5*sc, headY - headR - 5*sc); ctx.lineTo(ux + (i+1)*2*sc, headY - headR); ctx.fill();
+        }
+        // Red face markings
+        ctx.strokeStyle = '#111'; ctx.lineWidth = 0.8*sc;
+        ctx.beginPath(); ctx.moveTo(ux - headR*0.5, headY); ctx.lineTo(ux + headR*0.5, headY); ctx.stroke();
+      } else if (n === 'Nightsister' || n === 'Mother Talzin') {
+        ctx.fillStyle = '#301934';
+        ctx.beginPath(); ctx.arc(ux, headY, headR + 2*sc, Math.PI, 0); ctx.fill();
+      } else if (n === 'Sith Sorcerer') {
+        ctx.fillStyle = '#1a0000';
+        ctx.beginPath(); ctx.arc(ux, headY, headR + 2*sc, Math.PI, 0); ctx.fill();
+        ctx.fillRect(ux - headR - 2*sc, headY - 1*sc, headR*2 + 4*sc, headR*0.7);
+      } else if (n === 'Luke Skywalker') {
+        // Simple hair
+        ctx.fillStyle = '#c8a860';
+        ctx.beginPath(); ctx.arc(ux, headY - 1*sc, headR + 0.5*sc, Math.PI, 0); ctx.fill();
+      } else if (n === 'Cad Bane') {
+        // Wide hat
+        ctx.fillStyle = '#222';
+        ctx.beginPath(); ctx.ellipse(ux, headY - headR*0.5, headR + 4*sc, 2.5*sc, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillRect(ux - headR*0.7, headY - headR - 3*sc, headR*1.4, 4*sc);
+      } else if (n === 'Praetorian Guard') {
+        ctx.fillStyle = '#8B0000';
+        ctx.beginPath(); ctx.arc(ux, headY, headR + 1*sc, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#111';
+        ctx.fillRect(ux - headR*0.5, headY - headR*0.2, headR, headR*0.3);
+      } else if (n === 'Droideka') {
+        // Droid head - dome
+        ctx.fillStyle = '#888';
+        ctx.beginPath(); ctx.arc(ux, headY, headR + 1*sc, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = '#ff4500';
+        ctx.beginPath(); ctx.arc(ux, headY, 2*sc, 0, Math.PI*2); ctx.fill();
+      } else if (n === 'IG-11') {
+        // Droid head
+        ctx.fillStyle = '#708090';
+        ctx.beginPath(); ctx.arc(ux, headY, headR, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#ff4500';
+        ctx.beginPath(); ctx.arc(ux, headY, 2.5*sc, 0, Math.PI*2); ctx.fill();
+      } else if (n === 'Gamorrean Guard') {
+        // Pig snout
+        ctx.fillStyle = '#4a6a3a';
+        ctx.beginPath(); ctx.arc(ux + dir*headR*0.4, headY + headR*0.2, 2*sc, 0, Math.PI*2); ctx.fill();
+      } else if (n === 'Krayt Dragon') {
+        // Horns
+        ctx.fillStyle = '#daa520';
+        ctx.beginPath(); ctx.moveTo(ux - headR*0.6, headY - headR); ctx.lineTo(ux - headR*0.3, headY - headR - 6*sc); ctx.lineTo(ux, headY - headR); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(ux + headR*0.6, headY - headR); ctx.lineTo(ux + headR*0.3, headY - headR - 6*sc); ctx.lineTo(ux, headY - headR); ctx.fill();
+      } else if (n === 'Hondo Ohnaka') {
+        // Weequay head ridges
+        ctx.fillStyle = '#8a6a2a';
+        ctx.beginPath(); ctx.arc(ux, headY - 1*sc, headR + 1*sc, Math.PI, 0); ctx.fill();
+      } else if (n === 'Chirrut Imwe') {
+        // Bald / simple
+      } else if (n === 'Bacta Medic') {
+        // White medic cap
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(ux, headY - 1*sc, headR + 1*sc, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = '#00e5ff';
+        ctx.fillRect(ux - 1*sc, headY - headR - 1*sc, 2*sc, 4*sc);
+        ctx.fillRect(ux - 2*sc, headY - headR + 0.5*sc, 4*sc, 1.5*sc);
+      }
+
+      // Mouth
+      ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
+      if (n === 'Darth Maul' || n === 'Krayt Dragon' || n === 'Rancor' || n === 'Gamorrean Guard' || n === 'Wookiee') {
+        ctx.beginPath();
+        ctx.moveTo(ux + dir*headR*0.1, headY + headR*0.4);
+        ctx.lineTo(ux + dir*headR*0.6, headY + headR*0.2);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(ux + dir*headR*0.2, headY + headR*0.35, 1.5*sc, 0, Math.PI);
+        ctx.stroke();
+      }
+    }
+  }
+
+  render() {
+    ctx.save();
+    // Dark space/desert background
+    ctx.fillStyle = '#1a1a0a';
+    ctx.fillRect(0, 0, this.W, this.H);
+    ctx.scale(this.zoom, this.zoom);
+    ctx.translate(-this.camX + this.shakeX, -this.camY + this.shakeY);
+
+    // Desert terrain (cached)
+    if (!this.grassCache) {
+      this.grassCache = document.createElement('canvas');
+      this.grassCache.width = this.W;
+      this.grassCache.height = this.H;
+      const gc = this.grassCache.getContext('2d');
+      // Sandy desert
+      gc.fillStyle = '#3a2a1a';
+      gc.fillRect(0, 0, this.W, this.H);
+      gc.fillStyle = '#4a3a2a';
+      for (let x = 0; x < this.W; x += 40) {
+        for (let y = 0; y < this.H; y += 40) {
+          const ox = ((x * 7 + y * 13) % 20) - 10;
+          gc.fillRect(x + ox, y, 20, 20);
+        }
+      }
+      // Stars in upper area
+      gc.fillStyle = '#fff';
+      for (const star of this.stars) {
+        gc.globalAlpha = 0.2 + star.b * 0.5;
+        gc.fillRect(star.x * this.W, star.y * this.H * 0.3, star.s, star.s);
+      }
+      gc.globalAlpha = 1;
+    }
+    ctx.drawImage(this.grassCache, 0, 0);
+
+    // Dividing line
+    if (this.phase === 'place') {
+      ctx.strokeStyle = 'rgba(255,232,31,0.2)';
+      ctx.setLineDash([10, 10]);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(this.W / 2, 0);
+      ctx.lineTo(this.W / 2, this.H);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.font = 'bold 24px sans-serif';
+      ctx.globalAlpha = 0.15;
+      ctx.fillStyle = '#4ea8de';
+      ctx.textAlign = 'center';
+      ctx.fillText('REBELS', this.W * 0.25, this.H / 2);
+      ctx.fillStyle = '#e94560';
+      ctx.fillText('EMPIRE', this.W * 0.75, this.H / 2);
+      ctx.globalAlpha = 1;
+
+      ctx.fillStyle = this.placingTeam === 'blue' ? 'rgba(78,168,222,0.05)' : 'rgba(233,69,96,0.05)';
+      if (this.placingTeam === 'blue') ctx.fillRect(0, 0, this.W / 2, this.H);
+      else ctx.fillRect(this.W / 2, 0, this.W / 2, this.H);
+    }
+
+    // Projectile trails - laser bolts!
+    for (const p of this.projectiles) {
+      if (p.trail.length > 1) {
+        ctx.strokeStyle = p.team === 'blue' ? 'rgba(0,191,255,0.5)' : 'rgba(255,0,0,0.5)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(p.trail[0].x, p.trail[0].y);
+        for (let i = 1; i < p.trail.length; i++) ctx.lineTo(p.trail[i].x, p.trail[i].y);
+        ctx.stroke();
+      }
+      // Laser bolt color
+      ctx.fillStyle = p.team === 'blue' ? '#00bfff' : '#ff0000';
+      ctx.shadowColor = p.team === 'blue' ? '#00bfff' : '#ff0000';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    // Particles
+    for (const p of this.particles) {
+      ctx.globalAlpha = Math.min(1, p.life / 15);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+
+    // Units
+    for (const u of this.units) {
+      if (!u.alive && u.deathTimer <= 0) continue;
+
+      const alpha = u.alive ? 1 : u.deathTimer / 60;
+      ctx.globalAlpha = alpha;
+
+      const s = u.def.size;
+      const flyOffset = u.def.flying ? 40 + Math.sin(Date.now() * 0.003) * 5 : 0;
+      const wobbleX = u.alive && this.phase === 'battle' ? Math.sin(u.wobble * 3) * 2 : 0;
+      const wobbleY = u.alive && this.phase === 'battle' ? Math.abs(Math.sin(u.wobble * 6)) * 2
+        : u.alive ? Math.sin(Date.now() * 0.003 + u.x * 0.1) * 1.5 : 0;
+      const hitShakeX = u.hitShake > 0 ? (Math.random() - 0.5) * u.hitShake * 2 : 0;
+      const hitShakeY = u.hitShake > 0 ? (Math.random() - 0.5) * u.hitShake * 2 : 0;
+      const ux = u.x + wobbleX + hitShakeX;
+      const uy = u.y - wobbleY - flyOffset + hitShakeY;
+
+      const spawnScale = u.spawnScale !== undefined ? u.spawnScale : 1;
+      if (spawnScale < 1) {
+        const t = spawnScale;
+        const sc = t < 0.5 ? t * 2.5 : 1 + Math.sin((t - 0.5) * Math.PI) * 0.3;
+        ctx.save();
+        ctx.translate(ux, uy);
+        ctx.scale(sc, sc);
+        ctx.translate(-ux, -uy);
+      }
+
+      if (u.def.flying && u.alive) {
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath();
+        ctx.ellipse(u.x, u.y + s * 0.7, s * 1.2, s * 0.3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.setLineDash([3,3]);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(u.x, u.y);
+        ctx.lineTo(u.x, uy + s);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      if (u === this.controlledUnit && u.alive) {
+        ctx.strokeStyle = '#ffe81f';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(u.x, u.y, s + 8 + Math.sin(Date.now() * 0.005) * 2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = 'rgba(255,232,31,0.15)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(u.x, u.y, u.def.range, 0, Math.PI * 2);
+        ctx.stroke();
+        if (u.atkCooldown > 0) {
+          const cd = u.atkCooldown / u.def.atkSpeed;
+          ctx.fillStyle = 'rgba(255,255,255,0.6)';
+          ctx.font = 'bold 10px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('COOLDOWN', u.x, u.y + s + 20);
+          ctx.fillStyle = 'rgba(0,0,0,0.5)';
+          ctx.fillRect(u.x - 15, u.y + s + 23, 30, 4);
+          ctx.fillStyle = '#ffe81f';
+          ctx.fillRect(u.x - 15, u.y + s + 23, 30 * (1 - cd), 4);
+        }
+      }
+
+      this.drawUnitBody(u, ux, uy, s);
+
+      if (u.attackFlash > 0) {
+        ctx.globalAlpha = u.attackFlash * 0.6;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(ux, uy, s * 1.1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = alpha;
+      }
+
+      if (spawnScale < 1) {
+        ctx.restore();
+      }
+
+      if (u.alive && u.hp < u.maxHp) {
+        const barW = s * 2;
+        const barH = 3;
+        const barX = ux - barW / 2;
+        const barY = uy - s * 1.8;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(barX, barY, barW, barH);
+        ctx.fillStyle = u.hp / u.maxHp > 0.5 ? '#2ecc71' : u.hp / u.maxHp > 0.25 ? '#f39c12' : '#e74c3c';
+        ctx.fillRect(barX, barY, barW * (u.hp / u.maxHp), barH);
+      }
+
+      if (this.phase === 'place') {
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(u.def.name, u.x, u.y + s + 12);
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    if (this.phase === 'battle') {
+      const blueCount = this.units.filter(u => u.team === 'blue' && u.alive).length;
+      const redCount = this.units.filter(u => u.team === 'red' && u.alive).length;
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#4ea8de';
+      ctx.fillText(`Rebels: ${blueCount}`, 12, 30);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#e94560';
+      ctx.fillText(`Empire: ${redCount}`, this.W - 12, 30);
+
+      for (const u of this.units) {
+        if (!u.alive || !this.abilitiesEnabled) continue;
+        const s = u.def.size;
+        if (!u.abilityUsed) {
+          const progress = Math.min(1, u.abilityTimer / 2400);
+          const barW = s * 2;
+          const barY = u.y + s + 6;
+          ctx.fillStyle = 'rgba(0,0,0,0.5)';
+          ctx.fillRect(u.x - barW/2, barY, barW, 3);
+          ctx.fillStyle = progress >= 1 ? '#ffe81f' : '#7b68ee';
+          ctx.fillRect(u.x - barW/2, barY, barW * progress, 3);
+        } else if (u.abilityActive > 0) {
+          ctx.strokeStyle = 'rgba(255,232,31,0.5)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(u.x, u.y, s + 4 + Math.sin(Date.now() * 0.01) * 2, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        if (u.invincible) {
+          ctx.strokeStyle = 'rgba(255,232,31,0.7)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(u.x, u.y, s + 6, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+
+      if (this.abilityPopups) {
+        for (let i = this.abilityPopups.length - 1; i >= 0; i--) {
+          const p = this.abilityPopups[i];
+          p.y -= 0.5;
+          p.life--;
+          if (p.life <= 0) { this.abilityPopups.splice(i, 1); continue; }
+          ctx.globalAlpha = Math.min(1, p.life / 30);
+          ctx.fillStyle = p.color;
+          ctx.font = 'bold 14px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(p.text, p.x, p.y);
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+
+    ctx.restore();
+
+    if (this.zoom !== 1) {
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(this.W - 90, 30, 80, 24);
+      ctx.fillStyle = '#fff';
+      ctx.font = '13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Zoom: ${this.zoom.toFixed(1)}x`, this.W - 50, 47);
+    }
+  }
+
+  loop() {
+    const panSpeed = 5 / this.zoom;
+    if (!this.controlledUnit || !this.controlledUnit.alive) {
+      if (this.keys['arrowup']) this.camY -= panSpeed;
+      if (this.keys['arrowdown']) this.camY += panSpeed;
+      if (this.keys['arrowleft']) this.camX -= panSpeed;
+      if (this.keys['arrowright']) this.camX += panSpeed;
+    }
+    this.update();
+    this.render();
+    requestAnimationFrame(() => this.loop());
+  }
+}
+
+const game = new Game();
+</script>
+</body>
+</html>
