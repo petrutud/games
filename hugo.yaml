@@ -62,6 +62,17 @@ params:
     enable: true
     title: "Games"
     items:
+      - title: "Battle of Ages"
+        content: "Fight through 100 ages of history! Spawn units to destroy the enemy base, from Primordial amoebas to Omega Colossus. Each age has 3 unique units."
+        image: "/images/games/battle-of-ages.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Strategy"
+        featured:
+          name: Play Game
+          link: /games/battle-of-ages/
+
       - title: "Stick War Legacy"
         content: "Command your stick army! Train miners, swordsmen, archers, spearmen, and giants. Gather gold, build your forces, and destroy the enemy statue."
         image: "/images/games/stick-war-legacy.svg"

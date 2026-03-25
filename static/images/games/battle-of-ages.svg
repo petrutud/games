@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1a3a"/>
+      <stop offset="100%" stop-color="#2d5a1e"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3d7a2e"/>
+      <stop offset="100%" stop-color="#c2a050"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="400" height="300" fill="url(#sky)"/>
+  <rect y="220" width="400" height="80" fill="url(#ground)"/>
+  <!-- Left base (blue) -->
+  <rect x="20" y="150" width="50" height="70" fill="#2962FF" rx="3"/>
+  <polygon points="15,150 45,120 75,150" fill="#5C8AFF"/>
+  <rect x="35" y="200" width="16" height="20" fill="#111"/>
+  <!-- Right base (red) -->
+  <rect x="330" y="150" width="50" height="70" fill="#D32F2F" rx="3"/>
+  <polygon points="325,150 355,120 385,150" fill="#FF5252"/>
+  <rect x="349" y="200" width="16" height="20" fill="#111"/>
+  <!-- Blue units -->
+  <circle cx="110" cy="200" r="10" fill="#1E88E5"/>
+  <circle cx="110" cy="188" r="6" fill="#42A5F5"/>
+  <circle cx="140" cy="200" r="8" fill="#1E88E5"/>
+  <circle cx="140" cy="190" r="5" fill="#42A5F5"/>
+  <circle cx="160" cy="200" r="12" fill="#1565C0"/>
+  <circle cx="160" cy="185" r="7" fill="#1E88E5"/>
+  <!-- Red units -->
+  <circle cx="280" cy="200" r="10" fill="#E53935"/>
+  <circle cx="280" cy="188" r="6" fill="#EF5350"/>
+  <circle cx="260" cy="200" r="8" fill="#E53935"/>
+  <circle cx="260" cy="190" r="5" fill="#EF5350"/>
+  <circle cx="240" cy="200" r="12" fill="#C62828"/>
+  <circle cx="240" cy="185" r="7" fill="#E53935"/>
+  <!-- Projectiles -->
+  <circle cx="175" cy="192" r="4" fill="#66bbff"/>
+  <circle cx="225" cy="195" r="4" fill="#ff6666"/>
+  <!-- Title -->
+  <text x="200" y="50" text-anchor="middle" font-family="Arial,sans-serif" font-size="28" font-weight="bold" fill="#FFD700">Battle of Ages</text>
+  <text x="200" y="75" text-anchor="middle" font-family="Arial,sans-serif" font-size="14" fill="#aaa">100 Ages of Warfare</text>
+  <!-- Crossed swords icon -->
+  <text x="200" y="110" text-anchor="middle" font-size="36">⚔️</text>
+</svg>

@@ -15,7 +15,8 @@
       "Bash(xdg-open /home/petru/code/games/static/games/clashendo/index.html)",
       "Bash(xdg-open /home/petru/code/games/static/games/inch/index.html)",
       "Bash(xdg-open /home/petru/code/games/static/games/stick-war-legacy/index.html)",
-      "Bash(xdg-open /home/petru/code/games/static/games/star-wars-battel/index.html)"
+      "Bash(xdg-open /home/petru/code/games/static/games/star-wars-battel/index.html)",
+      "Bash(xdg-open /home/petru/code/games/static/games/battle-of-ages/index.html)"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",
