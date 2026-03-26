@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Multiplayer Arena (Local)</title>
+<style>body{margin:0;background:#0f1014;color:#e5ecff;font-family:system-ui}#ui{padding:10px}canvas{display:block;margin:0 auto;background:#171a24}</style></head>
+<body><div id="ui"><b>Multiplayer Arena (Local 2P)</b> · P1 WASD · P2 Arrows · first to 5 tags</div><canvas id="c" width="760" height="460"></canvas>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d'),k={}; let a={x:80,y:230,s:3,sc:0},b={x:680,y:230,s:3,sc:0};
+onkeydown=e=>k[e.key.toLowerCase()]=1; onkeyup=e=>k[e.key.toLowerCase()]=0;
+function tick(){a.x+=(k.d-k.a)*a.s; a.y+=(k.s-k.w)*a.s; b.x+=((k.arrowright?1:0)-(k.arrowleft?1:0))*b.s; b.y+=((k.arrowdown?1:0)-(k.arrowup?1:0))*b.s;
+  for(const p of [a,b]){p.x=Math.max(8,Math.min(c.width-8,p.x));p.y=Math.max(8,Math.min(c.height-8,p.y));}
+  if((a.x-b.x)**2+(a.y-b.y)**2<300){a.sc++;b.sc++;a.x=80;a.y=230;b.x=680;b.y=230;} draw(); requestAnimationFrame(tick);}
+function draw(){x.fillStyle='#171a24';x.fillRect(0,0,c.width,c.height);x.fillStyle='#58a6ff';x.beginPath();x.arc(a.x,a.y,10,0,7);x.fill();
+  x.fillStyle='#ff7b93';x.beginPath();x.arc(b.x,b.y,10,0,7);x.fill();x.fillStyle='#fff';x.fillText('P1 '+a.sc,10,20);x.fillText('P2 '+b.sc,70,20);}
+tick();
+</script></body></html>

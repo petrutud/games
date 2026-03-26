@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Colony Survival</title>
+<style>body{margin:0;background:#0f1218;color:#e8edf7;font-family:system-ui}#ui{padding:10px;display:flex;gap:16px;flex-wrap:wrap}button{padding:6px 10px}</style></head>
+<body><div id="ui"><b>Colony Survival</b><span id="stats"></span><button id="food">Build Farm</button><button id="beds">Build Shelter</button><button id="guard">Build Guard Post</button></div>
+<script>
+let state={pop:12,food:40,shelter:8,def:2,morale:70,day:1}; const stats=document.getElementById('stats');
+food.onclick=()=>{state.food+=8;state.morale-=1}; beds.onclick=()=>{state.shelter+=2;state.food-=4}; guard.onclick=()=>{state.def+=1;state.food-=3};
+function tick(){state.day++; state.food-=Math.ceil(state.pop*0.7);
+  if(state.food<0){state.pop=Math.max(0,state.pop-1);state.morale-=5;state.food=0;}
+  if(state.shelter<state.pop)state.morale-=2; else state.morale+=1;
+  if(Math.random()<0.25){const raid=Math.max(0,3-state.def);state.pop=Math.max(0,state.pop-raid);state.morale-=raid*2;}
+  if(state.morale>80&&Math.random()<0.4)state.pop++;
+  state.morale=Math.max(0,Math.min(100,state.morale));
+  stats.textContent=`Day ${state.day} | Pop ${state.pop} | Food ${state.food} | Shelter ${state.shelter} | Defense ${state.def} | Morale ${state.morale}`;
+} tick(); setInterval(tick,1200);
+</script></body></html>

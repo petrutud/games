@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Detective Logic</title>
+<style>body{margin:0;background:#141218;color:#efe8ff;font-family:system-ui}#app{padding:16px;max-width:760px;margin:auto}button{margin:5px;padding:8px 10px}</style></head>
+<body><div id="app"><h3>Detective Logic</h3><p>Find contradiction: suspect says they were in Library at 21:00.</p><div id="facts"></div><p id="result"></p></div>
+<script>
+const clues=[
+  {t:'Camera log: Library empty at 21:00',ok:false},
+  {t:'Bus ticket used at 20:20',ok:true},
+  {t:'Cafe receipt at 19:45',ok:true},
+  {t:'Phone GPS ping near station 21:03',ok:false}
+];
+const f=document.getElementById('facts'),r=document.getElementById('result');
+clues.forEach((c,i)=>{const b=document.createElement('button');b.textContent='Present clue '+(i+1);b.onclick=()=>{r.textContent=c.ok?'Useful but not contradiction.':'Contradiction found! Statement breaks timeline.';};f.appendChild(b);});
+</script></body></html>

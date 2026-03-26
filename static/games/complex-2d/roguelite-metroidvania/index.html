@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roguelite Metroidvania</title>
+  <style>
+    body { margin: 0; background:#0f1117; color:#dbe4ff; font-family: system-ui; }
+    #ui { padding:10px; display:flex; gap:18px; flex-wrap:wrap; }
+    canvas { display:block; margin:0 auto; border:1px solid #2b3350; background:#121525; }
+  </style>
+</head>
+<body>
+  <div id="ui"><b>Roguelite Metroidvania</b><span>WASD move</span><span>R regenerate rooms</span><span id="rooms"></span></div>
+  <canvas id="c" width="900" height="520"></canvas>
+  <script>
+    const c = document.getElementById('c'), x = c.getContext('2d');
+    let p = {x:80,y:80,s:4}, keys={}, rooms=[];
+    const gen = ()=>{ rooms=[]; for(let i=0;i<18;i++){ let w=90+Math.random()*140,h=70+Math.random()*120;
+      rooms.push({x:30+Math.random()*760,y:40+Math.random()*410,w,h,b:Math.random()<.2}); } };
+    gen();
+    onkeydown=e=>{ keys[e.key.toLowerCase()]=1; if(e.key.toLowerCase()==='r') gen(); };
+    onkeyup=e=>keys[e.key.toLowerCase()]=0;
+    function tick(){
+      const vx=(keys.d-keys.a)*p.s, vy=(keys.s-keys.w)*p.s;
+      p.x=Math.max(0,Math.min(c.width,p.x+vx)); p.y=Math.max(0,Math.min(c.height,p.y+vy));
+      x.fillStyle='#121525'; x.fillRect(0,0,c.width,c.height);
+      for(const r of rooms){ x.fillStyle=r.b?'#3f275a':'#25304a'; x.fillRect(r.x,r.y,r.w,r.h);
+        x.strokeStyle='#516089'; x.strokeRect(r.x,r.y,r.w,r.h); }
+      x.fillStyle='#73c0ff'; x.beginPath(); x.arc(p.x,p.y,8,0,7); x.fill();
+      document.getElementById('rooms').textContent='Rooms: '+rooms.length+' (some are boss rooms)';
+      requestAnimationFrame(tick);
+    } tick();
+  </script>
+</body>
+</html>

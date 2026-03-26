@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Grand Strategy Lite</title>
+<style>body{margin:0;background:#0b1020;color:#dce6ff;font-family:system-ui}#ui{padding:10px}canvas{display:block;margin:0 auto;background:#15203a;border:1px solid #334a7b}</style></head>
+<body><div id="ui"><b>Grand Strategy Lite</b> · Click adjacent red province to invade</div><canvas id="c" width="800" height="500"></canvas>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d'); const ps=[]; for(let i=0;i<18;i++) ps.push({x:60+(i%6)*120,y:70+((i/6)|0)*120,owner:i===0?'blue':'red',pow:5+Math.random()*8|0});
+c.onclick=e=>{const r=c.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top; let t=ps.find(p=>mx>p.x&&mx<p.x+90&&my>p.y&&my<p.y+70); if(!t||t.owner!=='red')return;
+ const ally=ps.find(p=>p.owner==='blue'&&Math.abs(p.x-t.x)<=120&&Math.abs(p.y-t.y)<=120); if(!ally)return; if(ally.pow>=t.pow){t.owner='blue';ally.pow--; } else ally.pow=Math.max(1,ally.pow-2); draw();};
+setInterval(()=>{for(const p of ps)p.pow=Math.min(20,p.pow+1);draw();},1400);
+function draw(){x.fillStyle='#15203a';x.fillRect(0,0,c.width,c.height); for(const p of ps){x.fillStyle=p.owner==='blue'?'#5ea6ff':'#e56a7d';x.fillRect(p.x,p.y,90,70);x.fillStyle='#08121f';x.fillText('P'+p.pow,p.x+34,p.y+40);} }
+draw();
+</script></body></html>

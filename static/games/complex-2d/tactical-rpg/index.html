@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tactical RPG</title>
+<style>body{margin:0;background:#101014;color:#eee;font-family:system-ui}#ui{padding:10px}canvas{display:block;margin:0 auto;background:#171a22;border:1px solid #36415d}</style></head>
+<body><div id="ui"><b>Tactical RPG</b> · Click blue unit then tile to move · End turn: <kbd>E</kbd></div><canvas id="c" width="720" height="480"></canvas>
+<script>
+const c=document.getElementById('c'),g=c.getContext('2d'),T=48,W=12,H=9;let sel=null,turn='player';
+const P=[{x:1,y:1,hp:10},{x:2,y:2,hp:10}],E=[{x:9,y:5,hp:10},{x:8,y:6,hp:10}];
+onkeydown=e=>{if(e.key.toLowerCase()==='e'){turn=turn==='player'?'enemy':'player';if(turn==='enemy'){for(const u of E){const t=P[0];u.x+=Math.sign(t.x-u.x);u.y+=Math.sign(t.y-u.y);}turn='player';}}};
+c.onclick=e=>{if(turn!=='player')return;const r=c.getBoundingClientRect(),tx=Math.floor((e.clientX-r.left)/T),ty=Math.floor((e.clientY-r.top)/T);
+  const u=P.find(v=>v.x===tx&&v.y===ty); if(u){sel=u;return;} if(sel&&Math.abs(sel.x-tx)+Math.abs(sel.y-ty)<=3){sel.x=tx;sel.y=ty;sel=null;}};
+function draw(){g.fillStyle='#171a22';g.fillRect(0,0,c.width,c.height);for(let y=0;y<H;y++)for(let x=0;x<W;x++){g.strokeStyle='#2b3245';g.strokeRect(x*T,y*T,T,T);}
+for(const u of P){g.fillStyle='#58a6ff';g.fillRect(u.x*T+8,u.y*T+8,32,32);}for(const u of E){g.fillStyle='#ff6b8b';g.fillRect(u.x*T+8,u.y*T+8,32,32);}
+if(sel){g.strokeStyle='#fff';g.lineWidth=2;g.strokeRect(sel.x*T+4,sel.y*T+4,40,40);}requestAnimationFrame(draw);}draw();
+</script></body></html>

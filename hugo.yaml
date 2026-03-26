@@ -73,6 +73,27 @@ params:
           name: Play Game
           link: /games/battle-of-ages/
 
+      - title: "Boss Flip"
+        content: "You are the boss! A canvas-based action game with multiple phases, abilities, and epic boss battles."
+        image: "/images/games/boss-game.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Action"
+        featured:
+          name: Play Game
+          link: /games/boss-game/
+
+      - title: "Complex 2D Starters"
+        content: "Twelve HTML prototypes for advanced 2D concepts — metroidvania, tactical RPG, factory automation, bullet hell, city builder, and more. Each folder is a playable starter."
+        image: "/images/games/complex-2d.svg"
+        badges:
+          - "HTML5"
+          - "Prototypes"
+        featured:
+          name: Open hub
+          link: /games/complex-2d/
+
       - title: "Stick War Legacy"
         content: "Command your stick army! Train miners, swordsmen, archers, spearmen, and giants. Gather gold, build your forces, and destroy the enemy statue."
         image: "/images/games/stick-war-legacy.svg"
@@ -214,17 +235,6 @@ params:
         featured:
           name: Play Game
           link: /games/strike-force-heroes/
-
-      - title: "Boss Flip"
-        content: "You are the boss! A canvas-based action game with multiple phases, abilities, and epic boss battles."
-        image: "/images/games/boss-game.svg"
-        badges:
-          - "HTML5"
-          - "Canvas"
-          - "Action"
-        featured:
-          name: Play Game
-          link: /games/boss-game/
 
       - title: "Chess"
         content: "A fully-featured chess game with move validation, castling, en passant, and check/checkmate detection."

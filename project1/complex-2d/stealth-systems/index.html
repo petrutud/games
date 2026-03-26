@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Stealth Systems</title>
+<style>body{margin:0;background:#0b0f14;color:#dfe8f4;font-family:system-ui}#ui{padding:10px}canvas{display:block;margin:0 auto;background:#101923}</style></head>
+<body><div id="ui"><b>Stealth Systems</b> · Reach green exit · Avoid red guard cone</div><canvas id="c" width="780" height="460"></canvas>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');let p={x:40,y:410,r:8},g={x:380,y:220,a:0,r:10},k={};const exit={x:730,y:20,w:35,h:35};
+onkeydown=e=>k[e.key.toLowerCase()]=1; onkeyup=e=>k[e.key.toLowerCase()]=0;
+function canSee(){const dx=p.x-g.x,dy=p.y-g.y,da=Math.atan2(dy,dx),d=Math.hypot(dx,dy),f=Math.abs(Math.atan2(Math.sin(da-g.a),Math.cos(da-g.a))); return d<220&&f<0.45;}
+function tick(){p.x+=((k.d||k.arrowright)-(k.a||k.arrowleft))*3; p.y+=((k.s||k.arrowdown)-(k.w||k.arrowup))*3; p.x=Math.max(8,Math.min(c.width-8,p.x)); p.y=Math.max(8,Math.min(c.height-8,p.y));
+  g.a+=0.02; if(canSee()){p.x=40;p.y=410;} if(p.x>exit.x&&p.x<exit.x+exit.w&&p.y>exit.y&&p.y<exit.y+exit.h){alert('Stealth clear'); p.x=40;p.y=410;} draw(); requestAnimationFrame(tick);}
+function draw(){x.fillStyle='#101923';x.fillRect(0,0,c.width,c.height); x.fillStyle='#2fbf71';x.fillRect(exit.x,exit.y,exit.w,exit.h);
+  x.fillStyle='rgba(255,80,110,.18)'; x.beginPath(); x.moveTo(g.x,g.y); x.arc(g.x,g.y,220,g.a-.45,g.a+.45); x.closePath(); x.fill();
+  x.fillStyle='#ff5f8a';x.beginPath();x.arc(g.x,g.y,g.r,0,7);x.fill(); x.fillStyle='#7cd3ff';x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill();}
+tick();
+</script></body></html>

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Factory Automation</title>
+<style>body{margin:0;background:#0d1117;color:#d3dae6;font-family:system-ui}#ui{padding:10px}canvas{display:block;margin:0 auto;background:#111827;border:1px solid #2d3b55}</style></head>
+<body><div id="ui"><b>Factory Automation</b> · Left click places conveyor → · Right click rotates type · ores auto-spawn</div><canvas id="c" width="900" height="480"></canvas>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d'),S=30,W=30,H=16,grid=Array(W*H).fill(0),ores=[];
+const idx=(x,y)=>y*W+x; setInterval(()=>ores.push({x:0,y:8,t:0}),800);
+c.oncontextmenu=e=>e.preventDefault();
+c.onmousedown=e=>{const r=c.getBoundingClientRect(),gx=Math.floor((e.clientX-r.left)/S),gy=Math.floor((e.clientY-r.top)/S),i=idx(gx,gy);
+  if(gx<0||gy<0||gx>=W||gy>=H)return; if(e.button===0)grid[i]=1; if(e.button===2)grid[i]=(grid[i]+1)%5;};
+function step(){for(const o of ores){const i=idx(o.x,o.y),b=grid[i];if(b===1)o.x++; if(b===2)o.y++; if(b===3)o.x--; if(b===4)o.y--; o.t++;} for(let i=ores.length-1;i>=0;i--) if(ores[i].x>=W||ores[i].x<0||ores[i].y<0||ores[i].y>=H) ores.splice(i,1);}
+function draw(){step();x.fillStyle='#111827';x.fillRect(0,0,c.width,c.height);
+for(let y=0;y<H;y++)for(let xx=0;xx<W;xx++){x.strokeStyle='#1f2b3f';x.strokeRect(xx*S,y*S,S,S); const b=grid[idx(xx,y)]; if(b){x.fillStyle='#2a3a56';x.fillRect(xx*S+2,y*S+2,S-4,S-4); x.fillStyle='#7db7ff'; x.fillText('>v<^'[b-1],xx*S+11,y*S+20);}}
+for(const o of ores){x.fillStyle='#ffcf6a';x.beginPath();x.arc(o.x*S+15,o.y*S+15,6,0,7);x.fill();}
+requestAnimationFrame(draw);}draw();
+</script></body></html>

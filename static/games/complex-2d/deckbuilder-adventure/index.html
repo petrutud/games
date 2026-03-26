@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Deckbuilder Adventure</title>
+<style>body{margin:0;background:#120f16;color:#f0eaff;font-family:system-ui}#ui{padding:10px}button{margin:4px;padding:8px 10px}</style></head>
+<body><div id="ui"><b>Deckbuilder Adventure</b><div id="s"></div><div id="hand"></div></div>
+<script>
+let hp=50,ehp=70,energy=3,deck=['Strike','Strike','Strike','Block','Block','Burn','Draw'],hand=[];
+const s=document.getElementById('s'),h=document.getElementById('hand');
+function draw(n=5){while(n--&&deck.length)hand.push(deck.splice(Math.random()*deck.length|0,1)[0]);}
+function endTurn(){energy=3; hp-=Math.max(0,8-(hand.filter(c=>c==='Block').length*3)); hand=[]; draw(); render();}
+function play(i){if(i<0||i>=hand.length)return; const c=hand[i]; if(energy<=0)return; energy--;
+  if(c==='Strike') ehp-=8; if(c==='Burn') ehp-=12; if(c==='Block') hp=Math.min(50,hp+2); if(c==='Draw') draw(2);
+  hand.splice(i,1); if(ehp<=0){alert('Victory');ehp=70;deck.push('Strike');} render();}
+function render(){s.textContent=`HP ${hp} | Enemy ${ehp} | Energy ${energy}`; h.innerHTML='';
+  hand.forEach((c,i)=>{const b=document.createElement('button');b.textContent=c;b.onclick=()=>play(i);h.appendChild(b);});
+  const e=document.createElement('button');e.textContent='End Turn';e.onclick=endTurn;h.appendChild(e);}
+draw();render();
+</script></body></html>

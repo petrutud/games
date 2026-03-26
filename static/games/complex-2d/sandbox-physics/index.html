@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sandbox Physics</title>
+<style>body{margin:0;background:#0c0c10;color:#ddd;font-family:system-ui}#ui{padding:10px}canvas{display:block;margin:0 auto;background:#111}</style></head>
+<body><div id="ui"><b>Sandbox Physics (falling sand)</b> · Drag mouse to paint particles</div><canvas id="c" width="720" height="480"></canvas>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d'),S=4,W=c.width/S,H=c.height/S,g=Array(W*H).fill(0);let down=0;
+const id=(a,b)=>b*W+a; c.onmousedown=()=>down=1; c.onmouseup=()=>down=0; c.onmousemove=e=>{if(!down)return;const r=c.getBoundingClientRect(),mx=((e.clientX-r.left)/S|0),my=((e.clientY-r.top)/S|0);for(let yy=-2;yy<=2;yy++)for(let xx=-2;xx<=2;xx++){const X=mx+xx,Y=my+yy;if(X>=0&&Y>=0&&X<W&&Y<H)g[id(X,Y)]=1;}};
+function step(){for(let y=H-2;y>=0;y--)for(let x0=0;x0<W;x0++){const i=id(x0,y);if(!g[i])continue;let b=id(x0,y+1);if(!g[b]){g[b]=1;g[i]=0;continue;}const d=Math.random()<.5?-1:1,nx=x0+d;if(nx>0&&nx<W-1&&!g[id(nx,y+1)]){g[id(nx,y+1)]=1;g[i]=0;}}}
+function draw(){step();x.fillStyle='#111';x.fillRect(0,0,c.width,c.height);for(let y=0;y<H;y++)for(let x0=0;x0<W;x0++)if(g[id(x0,y)]){x.fillStyle='#f5c96f';x.fillRect(x0*S,y*S,S,S);}requestAnimationFrame(draw);}draw();
+</script></body></html>

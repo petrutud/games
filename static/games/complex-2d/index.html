@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Complex 2D Game Starters — Petru Tudorica</title>
+  <meta name="theme-color" content="#050508">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #050508;
+      color: #e4e4e7;
+    }
+    .site-nav {
+      background: rgba(5,5,8,0.85);
+      backdrop-filter: blur(10px);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      flex-shrink: 0;
+    }
+    .site-nav a {
+      color: #ccc;
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+    .site-nav a:hover { color: #fff; }
+    .site-nav .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 500;
+      font-size: 16px;
+    }
+    .site-nav .brand img { width: 28px; height: 28px; }
+    .site-nav .nav-links { display: flex; gap: 20px; align-items: center; }
+    .site-nav .nav-links a:hover { color: #a78bfa; }
+    main {
+      flex: 1;
+      width: 100%;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+    .intro h1 {
+      font-size: clamp(1.5rem, 4vw, 2rem);
+      font-weight: 700;
+      margin: 0 0 12px;
+      letter-spacing: -0.02em;
+    }
+    .intro p {
+      margin: 0;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+    .grid {
+      margin-top: 28px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 14px;
+    }
+    .card {
+      position: relative;
+      display: block;
+      padding: 18px 18px 16px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .card:hover {
+      background: rgba(255,255,255,0.07);
+      border-color: rgba(167,139,250,0.35);
+    }
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #fafafa;
+    }
+    .card p {
+      margin: 0;
+      font-size: 13px;
+      color: rgba(255,255,255,0.45);
+      line-height: 1.45;
+    }
+    .card .num {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(167,139,250,0.8);
+    }
+    .site-footer {
+      text-align: center;
+      padding: 16px;
+      color: rgba(255,255,255,0.3);
+      font-size: 12px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      flex-shrink: 0;
+    }
+    .site-footer a { color: rgba(255,255,255,0.5); text-decoration: none; }
+    .site-footer a:hover { color: #fff; }
+  </style>
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="/" class="brand">
+      <img src="/favicon.svg" alt="Home">
+      Petru Tudorica
+    </a>
+    <div class="nav-links">
+      <a href="/#projects">Games</a>
+    </div>
+  </nav>
+  <main>
+    <div class="intro">
+      <h1>Complex 2D Game Starters</h1>
+      <p>Each folder contains an <code style="font-size:0.9em;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;">index.html</code> prototype for one advanced 2D concept. Open them in the browser to explore.</p>
+    </div>
+    <div class="grid">
+      <a class="card" href="./roguelite-metroidvania/index.html"><span class="num">1</span><h2>Roguelite Metroidvania</h2><p>Exploration and progression in a 2D map.</p></a>
+      <a class="card" href="./tactical-rpg/index.html"><span class="num">2</span><h2>Tactical RPG</h2><p>Grid-based turn combat.</p></a>
+      <a class="card" href="./factory-automation/index.html"><span class="num">3</span><h2>Factory Automation</h2><p>Belts, machines, and throughput.</p></a>
+      <a class="card" href="./colony-survival/index.html"><span class="num">4</span><h2>Colony Survival</h2><p>Base building and resource loops.</p></a>
+      <a class="card" href="./deckbuilder-adventure/index.html"><span class="num">5</span><h2>Deckbuilder Adventure</h2><p>Cards and runs.</p></a>
+      <a class="card" href="./sandbox-physics/index.html"><span class="num">6</span><h2>Sandbox Physics</h2><p>Particles and constraints.</p></a>
+      <a class="card" href="./grand-strategy-lite/index.html"><span class="num">7</span><h2>Grand Strategy Lite</h2><p>Map-scale decisions.</p></a>
+      <a class="card" href="./bullet-hell-boss-rush/index.html"><span class="num">8</span><h2>Bullet Hell Boss Rush</h2><p>Patterns and dodging.</p></a>
+      <a class="card" href="./stealth-systems/index.html"><span class="num">9</span><h2>Stealth Systems</h2><p>Vision, cover, and detection.</p></a>
+      <a class="card" href="./city-builder/index.html"><span class="num">10</span><h2>City Builder</h2><p>Zoning and growth.</p></a>
+      <a class="card" href="./multiplayer-arena/index.html"><span class="num">11</span><h2>Multiplayer Arena</h2><p>Local or networked combat shell.</p></a>
+      <a class="card" href="./detective-logic/index.html"><span class="num">12</span><h2>Detective Logic</h2><p>Clues and deduction UI.</p></a>
+    </div>
+  </main>
+  <footer class="site-footer">
+    &copy; 2026 Petru Tudorica &middot; All Rights Reserved
+  </footer>
+</body>
+</html>

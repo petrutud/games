@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bullet Hell Boss Rush</title>
+<style>body{margin:0;background:#09090d;color:#fff;font-family:system-ui}#ui{padding:10px}canvas{display:block;margin:0 auto;background:#11131d}</style></head>
+<body><div id="ui"><b>Bullet Hell Boss Rush</b> · Move: arrows/WASD · Survive</div><canvas id="c" width="800" height="500"></canvas>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');let p={x:400,y:430,r:7,hp:100},b={x:400,y:80,hp:500,t:0},bs=[],k={};
+onkeydown=e=>k[e.key.toLowerCase()]=1; onkeyup=e=>k[e.key.toLowerCase()]=0;
+function spawn(){for(let i=0;i<14;i++){const a=(Math.PI*2/14)*i+b.t*.03;bs.push({x:b.x,y:b.y,vx:Math.cos(a)*2.2,vy:Math.sin(a)*2.2,r:4});}}
+function tick(){b.t++;if(b.t%24===0)spawn(); p.x+=((k.d||k.arrowright)-(k.a||k.arrowleft))*4; p.y+=((k.s||k.arrowdown)-(k.w||k.arrowup))*4;
+  p.x=Math.max(8,Math.min(c.width-8,p.x)); p.y=Math.max(8,Math.min(c.height-8,p.y));
+  for(const o of bs){o.x+=o.vx;o.y+=o.vy;if((o.x-p.x)**2+(o.y-p.y)**2<120)p.hp-=0.4;}
+  bs=bs.filter(o=>o.x>-20&&o.x<c.width+20&&o.y>-20&&o.y<c.height+20); draw(); requestAnimationFrame(tick);}
+function draw(){x.fillStyle='#11131d';x.fillRect(0,0,c.width,c.height); x.fillStyle='#ff5f8a';x.beginPath();x.arc(b.x,b.y,24,0,7);x.fill();
+  x.fillStyle='#8dd0ff';x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill(); x.fillStyle='#ffd0e0'; for(const o of bs){x.beginPath();x.arc(o.x,o.y,o.r,0,7);x.fill();}
+  x.fillStyle='#fff';x.fillText('HP '+Math.max(0,p.hp|0),10,20);}
+tick();
+</script></body></html>
