@@ -16,7 +16,10 @@
       "Bash(xdg-open /home/petru/code/games/static/games/inch/index.html)",
       "Bash(xdg-open /home/petru/code/games/static/games/stick-war-legacy/index.html)",
       "Bash(xdg-open /home/petru/code/games/static/games/star-wars-battel/index.html)",
-      "Bash(xdg-open /home/petru/code/games/static/games/battle-of-ages/index.html)"
+      "Bash(xdg-open /home/petru/code/games/static/games/battle-of-ages/index.html)",
+      "Bash(xdg-open /home/petru/code/games/static/games/red-ball/index.html)",
+      "Bash(wc -l /home/petru/code/games/project1/*.html)",
+      "Bash(git -C /home/petru/code/games log --oneline)"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",

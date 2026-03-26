@@ -441,6 +441,18 @@ params:
           name: Play Game
           link: /games/minecraft/
 
+      - title: "Red Ball"
+        content: "Roll through 1000 levels with boss fights every 20! Gravity portals, electric cubes, moving platforms, 8 enemy types, and a level select to replay any stage."
+        image: "/images/games/red-ball.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Platformer"
+          - "1000 Levels"
+        featured:
+          name: Play Game
+          link: /games/red-ball/
+
       - title: "Minesweeper"
         content: "The classic logic puzzle. Reveal cells, flag mines, and clear the board. Three difficulty levels from easy to expert."
         image: "/images/games/minesweeper.svg"
