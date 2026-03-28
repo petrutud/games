@@ -304,7 +304,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
     <div class="welcome" id="welcome">
       <div class="welcome-icon">P</div>
       <h1>Petru AI</h1>
-      <p>13 models, 6 modes, 12 languages. Click &#9881; to connect a real AI API for unlimited intelligence.</p>
+      <p>13 models, 6 modes, 40 languages. Click &#9881; to connect a real AI API for unlimited intelligence.</p>
       <div class="quick-chains">
         <button class="chain-btn" onclick="askSuggestion('Make my day better')" style="--c:#f59e0b">&#9728; Make my day better</button>
         <button class="chain-btn" onclick="askSuggestion('Tell me a fun fact')" style="--c:#10b981">&#9889; Fun fact</button>
@@ -373,7 +373,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
           {t:'Fala português',d:'Chat in Portuguese',q:'Olá! Fala em português'},
           {t:'한국어',d:'Chat in Korean',q:'Annyeonghaseyo!'},
           {t:'Говори русский',d:'Chat in Russian',q:'Privet!'},
-          {t:'Hello in 18 languages',d:'Around the world',q:'How do you say hello in different languages?'},
+          {t:'Hello in 40 languages',d:'Around the world',q:'How do you say hello in different languages?'},
         ],
         'Fun & Games': [
           {t:'Cheer me up',d:'Motivation & positivity',q:'Make my day better'},
@@ -1108,6 +1108,174 @@ const topics = [
  long:"Merhaba! Ben **Petru AI**. Bugün size nasıl yardımcı olabilirim?\n\nProgramlama, matematik, bilim ve daha fazlasında yardımcı olabilirim!",
  full:"Merhaba! Ben **Petru AI**, akıllı asistanınız.\n\n**Yapabileceklerim:**\n- **Programlama** — Python, JavaScript, HTML/CSS, Java, C++\n- **Matematik** — hesaplamalar, cebir, geometri\n- **Bilim** — fizik, biyoloji, kimya, astronomi\n- **Tarih** — antik medeniyetler, savaşlar, rönesans\n\nBana her şeyi sorabilirsiniz! Türkçe cevap verebilirim."},
 
+// Dutch
+{kw:['hoi:8','goedemorgen:10','goedemiddag:10','goedenavond:10','hoe gaat het:10','dank je:8','dankjewel:10','tot ziens:8','doei:6','dutch:6','nederlands:10'],
+ short:"Hoi! Hoe kan ik je helpen?",
+ long:"Hoi! Ik ben **Petru AI**. Hoe kan ik je vandaag helpen?\n\nIk kan helpen met programmeren, wiskunde, wetenschap en nog veel meer!",
+ full:"Hoi! Ik ben **Petru AI**, je slimme assistent.\n\n**Wat ik kan:**\n- **Programmeren** — Python, JavaScript, HTML/CSS, Java, C++\n- **Wiskunde** — berekeningen, algebra, meetkunde\n- **Wetenschap** — natuurkunde, biologie, scheikunde\n- **Geschiedenis** — oude beschavingen, oorlogen\n\nVraag me alles! Ik kan in het Nederlands antwoorden."},
+
+// Polish
+{kw:['czesc:8','czesć:8','dzien dobry:10','dobry wieczor:8','jak sie masz:8','dziekuje:8','do widzenia:8','polish:6','polski:10','po polsku:10'],
+ short:"Cześć! Jak mogę ci pomóc?",
+ long:"Cześć! Jestem **Petru AI**. Jak mogę ci dzisiaj pomóc?\n\nMogę pomóc z programowaniem, matematyką, nauką i wieloma innymi!",
+ full:"Cześć! Jestem **Petru AI**, twój inteligentny asystent.\n\n**Co potrafię:**\n- **Programowanie** — Python, JavaScript, HTML/CSS, Java, C++\n- **Matematyka** — obliczenia, algebra, geometria\n- **Nauka** — fizyka, biologia, chemia, astronomia\n- **Historia** — starożytne cywilizacje, wojny\n\nPytaj o cokolwiek! Mogę odpowiadać po polsku."},
+
+// Swedish
+{kw:['hej:8','god morgon:10','god kvall:8','hur mar du:8','tack:8','hej da:8','swedish:6','svenska:10','pa svenska:10'],
+ short:"Hej! Hur kan jag hjälpa dig?",
+ long:"Hej! Jag är **Petru AI**. Hur kan jag hjälpa dig idag?\n\nJag kan hjälpa med programmering, matematik, vetenskap och mycket mer!",
+ full:"Hej! Jag är **Petru AI**, din smarta assistent.\n\n**Vad jag kan:**\n- **Programmering** — Python, JavaScript, HTML/CSS\n- **Matematik** — beräkningar, algebra, geometri\n- **Vetenskap** — fysik, biologi, kemi\n\nFråga mig vad som helst! Jag kan svara på svenska."},
+
+// Norwegian
+{kw:['hei:6','god morgen:10','god kveld:8','hvordan har du det:10','takk:8','ha det:6','norwegian:6','norsk:10','pa norsk:10'],
+ short:"Hei! Hvordan kan jeg hjelpe deg?",
+ long:"Hei! Jeg er **Petru AI**. Hvordan kan jeg hjelpe deg i dag?",
+ full:"Hei! Jeg er **Petru AI**, din smarte assistent.\n\nSpør meg om hva som helst! Jeg kan svare på norsk."},
+
+// Danish
+{kw:['hej:6','godmorgen:10','godaften:8','hvordan gar det:10','tak:8','farvel:8','danish:6','dansk:10','pa dansk:10'],
+ short:"Hej! Hvordan kan jeg hjælpe dig?",
+ long:"Hej! Jeg er **Petru AI**. Hvordan kan jeg hjælpe dig i dag?",
+ full:"Hej! Jeg er **Petru AI**, din smarte assistent.\n\nSpørg mig om hvad som helst! Jeg kan svare på dansk."},
+
+// Finnish
+{kw:['hei:6','moi:6','huomenta:8','hyva ilta:8','kiitos:8','nakemiin:8','finnish:6','suomi:10','suomeksi:10'],
+ short:"Hei! Kuinka voin auttaa sinua?",
+ long:"Hei! Olen **Petru AI**. Kuinka voin auttaa sinua tänään?",
+ full:"Hei! Olen **Petru AI**, fiksu avustajasi.\n\nKysy minulta mitä tahansa! Voin vastata suomeksi."},
+
+// Greek
+{kw:['geia:8','geia sou:10','kalimera:10','kalispera:8','kalinyhta:8','efharisto:8','yasou:8','greek:6','ellinika:10'],
+ short:"Γεια σου! Πώς μπορώ να σε βοηθήσω;",
+ long:"Γεια σου! Είμαι ο **Petru AI**. Πώς μπορώ να σε βοηθήσω σήμερα;",
+ full:"Γεια σου! Είμαι ο **Petru AI**, ο έξυπνος βοηθός σου.\n\nΡώτα με ό,τι θέλεις! Μπορώ να απαντήσω στα ελληνικά."},
+
+// Czech
+{kw:['ahoj:8','dobry den:10','dobry vecer:8','dekuji:8','na shledanou:8','czech:6','cesky:10','cestina:10'],
+ short:"Ahoj! Jak ti mohu pomoci?",
+ long:"Ahoj! Jsem **Petru AI**. Jak ti mohu dnes pomoci?",
+ full:"Ahoj! Jsem **Petru AI**, tvůj chytrý asistent.\n\nPtej se mě na cokoliv! Mohu odpovídat česky."},
+
+// Hungarian
+{kw:['szia:8','jo napot:10','jo estet:8','koszonom:8','viszlat:8','hungarian:6','magyar:10','magyarul:10'],
+ short:"Szia! Hogyan segíthetek?",
+ long:"Szia! **Petru AI** vagyok. Hogyan segíthetek ma?",
+ full:"Szia! **Petru AI** vagyok, az okos asszisztensed.\n\nKérdezz bármit! Magyarul is tudok válaszolni."},
+
+// Bulgarian
+{kw:['zdravei:8','zdraveite:8','dober den:10','blagodarya:8','dovizhdane:8','bulgarian:6','balgarski:10'],
+ short:"Здравей! Как мога да ти помогна?",
+ long:"Здравей! Аз съм **Petru AI**. Как мога да ти помогна днес?",
+ full:"Здравей! Аз съм **Petru AI**, твоят умен асистент.\n\nПитай ме каквото искаш! Мога да отговоря на български."},
+
+// Croatian
+{kw:['bok:8','dobar dan:10','dobro jutro:10','hvala:8','dovidenja:8','croatian:6','hrvatski:10'],
+ short:"Bok! Kako ti mogu pomoći?",
+ long:"Bok! Ja sam **Petru AI**. Kako ti mogu danas pomoći?",
+ full:"Bok! Ja sam **Petru AI**, tvoj pametni asistent.\n\nPitaj me bilo što! Mogu odgovoriti na hrvatskom."},
+
+// Serbian
+{kw:['zdravo:8','dobar dan:10','hvala:8','dovidjenja:8','serbian:6','srpski:10'],
+ short:"Здраво! Како могу да ти помогнем?",
+ long:"Здраво! Ја сам **Petru AI**. Како могу да ти помогнем данас?",
+ full:"Здраво! Ја сам **Petru AI**, твој паметни асистент.\n\nПитај ме шта год желиш! Могу да одговорим на српском."},
+
+// Slovak
+{kw:['ahoj:8','dobry den:10','dakujem:8','dovidenia:8','slovak:6','slovensky:10','slovencina:10'],
+ short:"Ahoj! Ako ti môžem pomôcť?",
+ long:"Ahoj! Som **Petru AI**. Ako ti môžem dnes pomôcť?",
+ full:"Ahoj! Som **Petru AI**, tvoj šikovný asistent.\n\nPýtaj sa ma na čokoľvek! Môžem odpovedať po slovensky."},
+
+// Ukrainian
+{kw:['pryvit:8','dobryi den:10','dyakuyu:8','do pobachennya:8','ukrainian:6','ukrainska:10','po ukrainski:10'],
+ short:"Привіт! Як я можу допомогти?",
+ long:"Привіт! Я **Petru AI**. Як я можу допомогти тобі сьогодні?",
+ full:"Привіт! Я **Petru AI**, твій розумний помічник.\n\nПитай мене що завгодно! Я можу відповідати українською."},
+
+// Thai
+{kw:['sawasdee:8','sawatdee:8','khob khun:8','la gorn:6','thai:6','phasa thai:10'],
+ short:"สวัสดี! ฉันช่วยอะไรได้บ้าง?",
+ long:"สวัสดี! ผมคือ **Petru AI** ผมช่วยอะไรได้บ้างวันนี้?",
+ full:"สวัสดี! ผมคือ **Petru AI** ผู้ช่วยอัจฉริยะของคุณ\n\nถามผมได้เลย! ผมตอบเป็นภาษาไทยได้"},
+
+// Vietnamese
+{kw:['xin chao:10','cam on:8','tam biet:6','vietnamese:6','tieng viet:10'],
+ short:"Xin chào! Tôi có thể giúp gì cho bạn?",
+ long:"Xin chào! Tôi là **Petru AI**. Tôi có thể giúp gì cho bạn hôm nay?",
+ full:"Xin chào! Tôi là **Petru AI**, trợ lý thông minh của bạn.\n\nHãy hỏi tôi bất cứ điều gì! Tôi có thể trả lời bằng tiếng Việt."},
+
+// Indonesian / Malay
+{kw:['selamat pagi:10','selamat siang:10','selamat malam:10','terima kasih:10','sampai jumpa:8','indonesian:6','bahasa:8','bahasa indonesia:10','malay:6'],
+ short:"Selamat! Apa yang bisa saya bantu?",
+ long:"Selamat! Saya **Petru AI**. Apa yang bisa saya bantu hari ini?",
+ full:"Selamat! Saya **Petru AI**, asisten cerdas Anda.\n\nTanyakan apa saja! Saya bisa menjawab dalam Bahasa Indonesia."},
+
+// Swahili
+{kw:['jambo:8','habari:8','asante:8','kwaheri:6','swahili:8','kiswahili:10'],
+ short:"Jambo! Ninaweza kukusaidia vipi?",
+ long:"Jambo! Mimi ni **Petru AI**. Ninaweza kukusaidia vipi leo?",
+ full:"Jambo! Mimi ni **Petru AI**, msaidizi wako mwerevu.\n\nUliza chochote! Ninaweza kujibu kwa Kiswahili."},
+
+// Filipino / Tagalog
+{kw:['kumusta:8','magandang umaga:10','salamat:8','paalam:6','filipino:8','tagalog:10'],
+ short:"Kumusta! Paano kita matutulungan?",
+ long:"Kumusta! Ako si **Petru AI**. Paano kita matutulungan ngayon?",
+ full:"Kumusta! Ako si **Petru AI**, ang iyong matalinong assistant.\n\nMagtanong ka ng kahit ano! Makakasagot ako sa Filipino."},
+
+// Hebrew
+{kw:['shalom:8','toda:8','lehitraot:6','hebrew:6','ivrit:10'],
+ short:"שלום! איך אני יכול לעזור?",
+ long:"שלום! אני **Petru AI**. איך אני יכול לעזור לך היום?",
+ full:"שלום! אני **Petru AI**, העוזר החכם שלך.\n\nשאל אותי כל דבר! אני יכול לענות בעברית."},
+
+// Persian / Farsi
+{kw:['salam:8','mersi:6','khodafez:6','persian:6','farsi:10'],
+ short:"سلام! چطور می‌توانم کمکتان کنم؟",
+ long:"سلام! من **Petru AI** هستم. چطور می‌توانم امروز کمکتان کنم؟",
+ full:"سلام! من **Petru AI** هستم، دستیار هوشمند شما.\n\nهر چیزی بپرسید! می‌توانم به فارسی پاسخ دهم."},
+
+// Urdu
+{kw:['assalam:8','shukriya:6','khuda hafiz:8','urdu:10'],
+ short:"سلام! میں آپ کی کیسے مدد کر سکتا ہوں؟",
+ long:"سلام! میں **Petru AI** ہوں۔ آج میں آپ کی کیسے مدد کر سکتا ہوں؟",
+ full:"سلام! میں **Petru AI** ہوں، آپ کا ذہین معاون۔\n\nکچھ بھی پوچھیے! میں اردو میں جواب دے سکتا ہوں۔"},
+
+// Bengali
+{kw:['namaskar:6','dhonnobad:8','bangla:10','bengali:8'],
+ short:"নমস্কার! আমি কীভাবে সাহায্য করতে পারি?",
+ long:"নমস্কার! আমি **Petru AI**। আজ আমি কীভাবে সাহায্য করতে পারি?",
+ full:"নমস্কার! আমি **Petru AI**, আপনার স্মার্ট সহকারী।\n\nযেকোনো কিছু জিজ্ঞাসা করুন! আমি বাংলায় উত্তর দিতে পারি।"},
+
+// Tamil
+{kw:['vanakkam:8','nandri:8','tamil:10'],
+ short:"வணக்கம்! நான் எப்படி உதவ முடியும்?",
+ long:"வணக்கம்! நான் **Petru AI**. இன்று நான் எப்படி உதவ முடியும்?",
+ full:"வணக்கம்! நான் **Petru AI**, உங்கள் புத்திசாலி உதவியாளர்.\n\nஎதையும் கேளுங்கள்! நான் தமிழில் பதிலளிக்க முடியும்."},
+
+// Catalan
+{kw:['hola:6','bon dia:10','bona tarda:10','bona nit:8','gracies:8','adeu:6','catalan:8','catala:10'],
+ short:"Hola! Com puc ajudar-te?",
+ long:"Hola! Sóc **Petru AI**. Com puc ajudar-te avui?",
+ full:"Hola! Sóc **Petru AI**, el teu assistent intel·ligent.\n\nPregunta'm el que vulguis! Puc respondre en català."},
+
+// Latvian
+{kw:['sveiki:8','labdien:10','paldies:8','uz redzesanos:8','latvian:6','latviesu:10'],
+ short:"Sveiki! Kā es varu jums palīdzēt?",
+ long:"Sveiki! Es esmu **Petru AI**. Kā es varu jums šodien palīdzēt?",
+ full:"Sveiki! Es esmu **Petru AI**, jūsu gudrais palīgs.\n\nJautājiet jebko! Es varu atbildēt latviski."},
+
+// Lithuanian
+{kw:['labas:8','laba diena:10','aciu:8','viso gero:8','lithuanian:6','lietuviu:10'],
+ short:"Labas! Kaip galiu padėti?",
+ long:"Labas! Aš esu **Petru AI**. Kaip galiu jums šiandien padėti?",
+ full:"Labas! Aš esu **Petru AI**, jūsų protingas asistentas.\n\nKlauskit bet ko! Galiu atsakyti lietuviškai."},
+
+// Estonian
+{kw:['tere:8','head aega:8','tanan:8','estonian:6','eesti:10'],
+ short:"Tere! Kuidas saan aidata?",
+ long:"Tere! Olen **Petru AI**. Kuidas saan teid täna aidata?",
+ full:"Tere! Olen **Petru AI**, teie tark assistent.\n\nKüsige mida iganes! Saan vastata eesti keeles."},
+
 // ══════════════════════════════════════════════════════
 //  MAKE YOUR DAY BETTER — motivation, compliments, fun
 // ══════════════════════════════════════════════════════
@@ -1530,73 +1698,154 @@ function tryFollowUp(input) {
   return null;
 }
 
-// Smart response builder for unknown questions
+// Smart response builder — actually tries to answer instead of deflecting
 function buildSmartResponse(input) {
   const lower = input.toLowerCase();
   const words = lower.split(/\s+/);
 
-  // Detect question type
-  const isWhat = /^what\b/i.test(lower);
-  const isHow = /^how\b/i.test(lower);
-  const isWhy = /^why\b/i.test(lower);
-  const isWho = /^who\b/i.test(lower);
-  const isWhen = /^when\b/i.test(lower);
-  const isWhere = /^where\b/i.test(lower);
-  const isCan = /^(can|could|would|should|do|does|is|are|will)\b/i.test(lower);
-  const isRequest = /^(write|create|make|build|generate|show|give|tell|explain|teach|help)\b/i.test(lower);
-
-  // Extract key subjects from the input
-  const stopWords = new Set(['a','an','the','is','are','was','were','be','been','being','have','has','had','do','does','did','will','would','could','should','can','may','might','shall','to','of','in','for','on','with','at','by','from','about','as','into','through','during','before','after','above','below','between','under','again','further','then','once','here','there','when','where','why','how','all','each','every','both','few','more','most','other','some','such','no','not','only','own','same','so','than','too','very','just','because','but','and','or','if','while','what','which','who','whom','this','that','these','those','i','me','my','we','our','you','your','he','she','it','they','them','their','its','much','many','also','please','want','need','like','know','think','tell','something','anything','everything','nothing']);
+  const stopWords = new Set(['a','an','the','is','are','was','were','be','been','being','have','has','had','do','does','did','will','would','could','should','can','may','might','shall','to','of','in','for','on','with','at','by','from','about','as','into','through','during','before','after','above','below','between','under','again','further','then','once','here','there','when','where','why','how','all','each','every','both','few','more','most','other','some','such','no','not','only','own','same','so','than','too','very','just','because','but','and','or','if','while','what','which','who','whom','this','that','these','those','i','me','my','we','our','you','your','he','she','it','they','them','their','its','much','many','also','please','want','need','like','know','think','tell','something','anything','everything','nothing','about','make']);
   const keyWords = words.filter(w => !stopWords.has(w) && w.length > 2);
+  const subject = keyWords.join(' ');
 
-  // Try to find MULTIPLE partial matches and combine info
+  // Try partial topic matches with lower threshold
   const partialMatches = [];
   for (const t of topics) {
     const s = scoreTopic(input, t);
     if (s >= 3) partialMatches.push({topic:t, score:s});
   }
   partialMatches.sort((a,b) => b.score - a.score);
-
-  // If we have some partial matches, use the best one
   if (partialMatches.length > 0 && partialMatches[0].score >= 4) {
     lastTopicMatched = partialMatches[0].topic;
     return getTopicResponse(partialMatches[0].topic);
   }
 
-  // Build a contextual response based on question type
-  if (isWhat || isHow || isWhy || isWho || isWhen || isWhere) {
-    const subject = keyWords.join(' ');
-    if (subject.length > 0) {
-      const qType = isWhat ? "what" : isHow ? "how" : isWhy ? "why" : isWho ? "who" : isWhen ? "when" : "where";
-      return `That's a great **${qType}** question about **${subject}**!\n\nI have deep knowledge in many areas. Here's what I can tell you:\n\n` +
-        `While I don't have a specific pre-built answer for "${subject}", I can help if you ask about:\n\n` +
-        `- **Programming** — any language, algorithm, or concept\n` +
-        `- **Science** — physics, biology, chemistry, space, quantum\n` +
-        `- **History** — ancient civilizations, wars, famous people\n` +
-        `- **Math** — calculations, formulas, equations\n` +
-        `- **Languages** — I speak 12 languages\n` +
-        `- **Sports, music, movies, food (Romanian cuisine!), health, animals, geography**\n\n` +
-        `Try rephrasing or asking about a related topic!`;
-    }
+  // ── Built-in knowledge for common questions ──
+  const KB = {
+    // People
+    'einstein':"**Albert Einstein** (1879–1955) was a German-born physicist who developed the theory of relativity (E=mc²). He won the Nobel Prize in 1921 for explaining the photoelectric effect. He's considered one of the greatest scientists ever.",
+    'newton':"**Isaac Newton** (1643–1727) was an English physicist and mathematician. He formulated the laws of motion and universal gravitation, invented calculus, and split white light into a spectrum with a prism.",
+    'tesla':"**Nikola Tesla** (1856–1943) was a Serbian-American inventor and engineer. He designed the alternating-current (AC) electrical system, the Tesla coil, and contributed to radio, X-rays, and remote control technology.",
+    'da vinci|leonardo':"**Leonardo da Vinci** (1452–1519) was an Italian Renaissance polymath — painter, sculptor, architect, engineer, and scientist. Famous works: the Mona Lisa and The Last Supper. He also designed flying machines centuries before flight.",
+    'shakespeare':"**William Shakespeare** (1564–1616) was an English playwright, widely regarded as the greatest writer in the English language. He wrote 37 plays (Hamlet, Romeo and Juliet, Macbeth) and 154 sonnets.",
+    'cleopatra':"**Cleopatra VII** (69–30 BC) was the last active ruler of Ptolemaic Egypt. Known for her intelligence, she spoke 9 languages and had political alliances with Julius Caesar and Mark Antony.",
+    'napoleon':"**Napoleon Bonaparte** (1769–1821) was a French military leader who became Emperor of France. He conquered much of Europe, reformed French law (Napoleonic Code), and was finally defeated at Waterloo in 1815.",
+    'elon musk':"**Elon Musk** (born 1971) is a businessman and entrepreneur. He's the CEO of Tesla (electric cars), SpaceX (rockets), and owner of X (Twitter). He's also involved in Neuralink (brain-computer interfaces) and The Boring Company.",
+    'steve jobs':"**Steve Jobs** (1955–2011) was co-founder of Apple. He revolutionized personal computing (Mac), music (iPod/iTunes), phones (iPhone), and tablets (iPad). Known for his focus on design and user experience.",
+    // Countries & Geography
+    'capital of|what is the capital':"Here are some world capitals:\n\n| Country | Capital |\n|---------|--------|\n| USA | Washington D.C. |\n| UK | London |\n| France | Paris |\n| Germany | Berlin |\n| Japan | Tokyo |\n| China | Beijing |\n| Romania | Bucharest |\n| Italy | Rome |\n| Spain | Madrid |\n| Brazil | Brasília |\n| India | New Delhi |\n| Australia | Canberra |\n| Canada | Ottawa |\n| Russia | Moscow |\n| South Korea | Seoul |\n\nAsk me about a specific country!",
+    'population of|how many people':"Some world populations (approximate 2024):\n\n| Country | Population |\n|---------|----------|\n| China | 1.4 billion |\n| India | 1.4 billion |\n| USA | 335 million |\n| Indonesia | 278 million |\n| Brazil | 216 million |\n| Romania | 19 million |\n\n**World total:** ~8.1 billion people",
+    'biggest country|largest country':"**Largest countries by area:**\n\n1. **Russia** — 17.1 million km²\n2. **Canada** — 10.0 million km²\n3. **USA** — 9.8 million km²\n4. **China** — 9.6 million km²\n5. **Brazil** — 8.5 million km²\n\n**Largest by population:** India (~1.4 billion), China (~1.4 billion), USA (~335 million)",
+    // Science
+    'how does.*work|what happens when':"That's a great question! Here's a general explanation:\n\nMost things in nature work through **cause and effect** — energy transforms from one form to another, following the laws of physics.\n\n**Key principles:**\n- **Energy** can't be created or destroyed, only transformed\n- **Forces** (gravity, electromagnetic, nuclear) drive all interactions\n- **Matter** is made of atoms, which are made of protons, neutrons, and electrons\n\nCan you tell me specifically what you want to know how it works?",
+    'speed of light':"The **speed of light** is approximately **299,792,458 m/s** (about 300,000 km/s or 186,000 miles/s).\n\n- Light travels from the Sun to Earth in ~8 minutes 20 seconds\n- Nothing with mass can reach or exceed this speed (Einstein's relativity)\n- In a vacuum, it's the universal speed limit\n- Light from the nearest star (Proxima Centauri) takes ~4.24 years to reach us",
+    'meaning of life':"The **meaning of life** has been debated for millennia:\n\n- **Philosophy:** Existentialists say you create your own meaning (Sartre, Camus)\n- **Religion:** To serve God/a higher purpose and achieve spiritual fulfillment\n- **Science:** There is no inherent meaning — life is a result of evolution\n- **Douglas Adams:** The answer is **42** (from *The Hitchhiker's Guide to the Galaxy*)\n- **Aristotle:** Happiness (*eudaimonia*) through virtue\n- **Buddhism:** End suffering through enlightenment\n\nWhat gives YOUR life meaning? That's the real answer.",
+    'water|h2o':"**Water (H₂O):**\n\n- Made of 2 hydrogen atoms + 1 oxygen atom\n- Covers ~71% of Earth's surface\n- Exists in 3 states: solid (ice), liquid (water), gas (steam)\n- Boils at 100°C, freezes at 0°C (at sea level)\n- The human body is ~60% water\n- Essential for all known forms of life",
+    // Math / Logic
+    'prime number|prime numbers':"**Prime numbers** are numbers greater than 1 that can only be divided by 1 and themselves.\n\n**First 20 primes:** 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71\n\n**Facts:**\n- 2 is the only even prime number\n- There are infinitely many primes (proven by Euclid)\n- The largest known prime has over 24 million digits\n- Primes are crucial for encryption (RSA) and internet security",
+    'pi |value of pi|what is pi':"**Pi (π)** = 3.14159265358979...\n\n- It's the ratio of a circle's circumference to its diameter\n- It's **irrational** — its decimal digits never end and never repeat\n- Known to over **100 trillion digits** (as of 2024)\n- Used in geometry, trigonometry, physics, engineering\n- **Fun:** March 14 (3/14) is celebrated as Pi Day!",
+    // Tech
+    'what is ai|artificial intelligence':"**Artificial Intelligence (AI)** is technology that enables computers to simulate human intelligence.\n\n**Types:**\n- **Narrow AI** — does one task well (Siri, ChatGPT, image recognition)\n- **General AI (AGI)** — human-level intelligence (doesn't exist yet)\n- **Super AI** — surpasses human intelligence (theoretical)\n\n**How it works:** Machine learning, neural networks, deep learning — computers learn patterns from massive amounts of data.\n\n**Examples:** ChatGPT, Google Search, self-driving cars, face recognition, recommendation systems (Netflix, YouTube)",
+    'what is blockchain|crypto|bitcoin':"**Blockchain** is a decentralized digital ledger that records transactions across many computers.\n\n**Bitcoin** (created 2009 by Satoshi Nakamoto) was the first cryptocurrency.\n\n**Key concepts:**\n- **Decentralized** — no single authority controls it\n- **Immutable** — once recorded, data can't be changed\n- **Mining** — computers solve complex problems to validate transactions\n- **Crypto** — digital currencies (Bitcoin, Ethereum, etc.)",
+    'what is internet|how internet works':"**The Internet** is a global network of connected computers.\n\n**How it works:**\n1. Your device sends a request (e.g., visiting google.com)\n2. **DNS** converts the domain name to an IP address\n3. The request travels through **routers** and **cables** (including undersea cables)\n4. The server receives the request and sends back data\n5. Your browser renders the webpage\n\n**Key protocols:** HTTP/HTTPS (web), TCP/IP (data transfer), DNS (name resolution), SSL/TLS (encryption)",
+  };
+
+  // Check knowledge base
+  for (const [pattern, answer] of Object.entries(KB)) {
+    const regex = new RegExp(pattern, 'i');
+    if (regex.test(lower)) return answer;
   }
 
-  if (isRequest) {
-    return `I'd love to help with that!\n\nI can:\n- **Write code** in Python, JS, HTML, Java, C++, Rust, Go, SQL, Bash, and more\n- **Explain** any concept step by step\n- **Generate** full programs with download buttons\n- **Solve** math problems and conversions\n- **Answer** questions in 12 languages\n\nCould you be a bit more specific about what you need?`;
+  // ── Generate a real answer for simple factual questions ──
+  // "What is X" — try to give a useful definition-style answer
+  if (/^what (is|are) /i.test(lower) && subject.length > 0) {
+    return `**${subject.charAt(0).toUpperCase() + subject.slice(1)}** — that's an interesting topic!\n\nBased on what I know, here's a brief overview:\n\n` +
+      `The concept of "${subject}" relates to a broad area of knowledge. Here are some ways I can help:\n\n` +
+      `- If it's a **word/term** — try: *"Define ${subject}"*\n` +
+      `- If it's about **science** — try: *"Explain ${subject}"*\n` +
+      `- If it's a **person** — try: *"Who is ${subject}"*\n` +
+      `- If it's a **place** — try: *"Tell me about ${subject}"*\n\n` +
+      `💡 **Tip:** Connect a real AI API (click ⚙️) for instant, detailed answers about anything!`;
   }
 
-  if (isCan) {
-    return `Great question! Here's what I **can** do:\n\n- **Code:** Write programs in 15+ languages\n- **Math:** Calculate, solve equations, convert units\n- **Explain:** Science, history, technology, philosophy\n- **Create:** HTML pages, CSS animations, React components\n- **Fun:** Jokes, riddles, quizzes, fun facts, motivation\n- **Languages:** Chat in English, Spanish, French, German, Italian, Romanian, Japanese, Chinese, Korean, Portuguese, Russian, Hindi, Arabic, Turkish\n\nWhat would you like me to help with?`;
+  // "Who is X" — people questions
+  if (/^who (is|was|are) /i.test(lower) && subject.length > 0) {
+    return `You're asking about **${subject}** — great question!\n\nI have built-in knowledge about many famous people. If I don't have a specific answer, try:\n\n` +
+      `- **Scientists:** Einstein, Newton, Tesla, Darwin, Hawking\n` +
+      `- **Leaders:** Napoleon, Cleopatra, Caesar, Churchill\n` +
+      `- **Artists:** Da Vinci, Shakespeare, Mozart, Picasso\n` +
+      `- **Tech:** Elon Musk, Steve Jobs, Bill Gates\n\n` +
+      `💡 **Tip:** Connect a real AI API (click ⚙️) and I can tell you about anyone!`;
   }
 
-  // Last resort — still be helpful
-  return `I hear you! While I'm still learning, here's what I'm great at:\n\n` +
-    `**Just ask me:**\n` +
-    `- *"What is [anything]?"* — I have 60+ definitions built in\n` +
-    `- *"Convert 100 km to miles"* — unit conversions\n` +
-    `- *"What is 15% of 200?"* — math word problems\n` +
-    `- *"Tell me more"* — I'll expand on my last answer\n` +
-    `- Any question in **Spanish, French, German, Italian, Romanian, Japanese, Chinese** and more\n\n` +
-    `**Or try the quick buttons** at the top of a new chat for instant topics!`;
+  // "How to X" — instructional questions
+  if (/^how (to|do|can|should)/i.test(lower) && subject.length > 0) {
+    return `You want to know **how to ${subject}** — let me help!\n\n` +
+      `**General steps:**\n` +
+      `1. Start by understanding the basics of ${subject}\n` +
+      `2. Break it down into smaller, manageable steps\n` +
+      `3. Practice or apply what you learn\n` +
+      `4. Ask for help when you get stuck\n\n` +
+      `I can give **specific** help with:\n` +
+      `- **Coding** — *"How to make a website"*, *"How to learn Python"*\n` +
+      `- **Cooking** — *"How to make sarmale"*, *"How to make pasta"*\n` +
+      `- **Math** — *"How to solve equations"*, *"How to calculate percentages"*\n\n` +
+      `💡 **Tip:** Connect a real AI API (click ⚙️) for step-by-step guides on anything!`;
+  }
+
+  // "Why" questions
+  if (/^why /i.test(lower) && subject.length > 0) {
+    return `**Why ${subject}?** — That's a thoughtful question!\n\n` +
+      `Most "why" questions have both **scientific** and **philosophical** answers. Understanding the "why" behind things is the foundation of all knowledge.\n\n` +
+      `I can explain **why** for many topics:\n` +
+      `- **Science** — why the sky is blue, why we dream, why seasons change\n` +
+      `- **History** — why empires fell, why wars started\n` +
+      `- **Technology** — why computers work, why the internet exists\n\n` +
+      `💡 **Tip:** Connect a real AI API (click ⚙️) for deep, detailed explanations!`;
+  }
+
+  // Greetings and conversational
+  if (/^(hey|hi|hello|sup|yo|wassup|what'?s up|good morning|good afternoon|good evening)\b/i.test(lower)) {
+    const greetings = [
+      "Hey there! 👋 What can I help you with today?",
+      "Hello! I'm Petru AI — ask me anything!",
+      "Hi! Ready to help with code, science, math, cooking, languages, or anything else!",
+      "Hey! What's on your mind? I speak 40 languages and know a lot about many topics!",
+    ];
+    return greetings[Math.floor(Math.random()*greetings.length)];
+  }
+
+  // Thank you
+  if (/^(thanks|thank you|thx|ty|cheers)\b/i.test(lower)) {
+    return "You're welcome! 😊 Let me know if you need anything else!";
+  }
+
+  // Goodbye
+  if (/^(bye|goodbye|see you|gtg|gotta go|later)\b/i.test(lower)) {
+    return "Goodbye! It was great chatting with you. Come back anytime! 👋";
+  }
+
+  // Yes/No/Ok responses
+  if (/^(yes|yeah|yep|sure|ok|okay|yup|nah|no|nope)\b/i.test(lower) && words.length < 4) {
+    return "Got it! What would you like to talk about next? I can help with coding, science, math, cooking, languages, history, and much more!";
+  }
+
+  // Short/unclear input — don't deflect, be helpful
+  if (keyWords.length === 0 || input.length < 3) {
+    return "I'm here and ready! Ask me anything — a question, a coding task, a recipe, a fun fact, or just say hello in any of 40 languages!";
+  }
+
+  // Final fallback — still try to engage with the actual topic
+  return `**${subject.charAt(0).toUpperCase() + subject.slice(1)}** — interesting topic!\n\n` +
+    `I'll do my best to help. Here's what I can tell you:\n\n` +
+    `While this specific topic isn't in my built-in knowledge base, I have deep expertise in:\n\n` +
+    `- **Programming** — Python, JavaScript, HTML, and 15+ languages\n` +
+    `- **Science** — physics, chemistry, biology, space, quantum mechanics\n` +
+    `- **Math** — calculations, algebra, statistics, conversions\n` +
+    `- **Cooking** — 15+ recipes including sarmale, mici, pasta, sushi, steak\n` +
+    `- **History** — Egypt, Rome, World Wars, Renaissance\n` +
+    `- **Languages** — chat in 40 languages\n` +
+    `- **Fun** — jokes, riddles, chess, fun facts, motivation\n\n` +
+    `💡 **For unlimited knowledge**, click ⚙️ and connect a free AI API (Groq is free!). Then I can answer **anything** — just like ChatGPT!`;
 }
 
 function getResponse(input){
@@ -1651,8 +1900,8 @@ function getResponse(input){
       "- **\"Tell me more\"** — expand on last answer\n" +
       "- **Code** in 15+ languages with download\n" +
       "- **Science, history, math, sports, music, animals, space, food & Romanian cuisine**\n" +
-      "- **12 languages** — Spanish, French, German, Italian, Romanian, Japanese, Chinese, and more\n\n" +
-      "Just ask!";
+      "- **40 languages** — Spanish, French, German, Italian, Romanian, Dutch, Polish, Swedish, Norwegian, Greek, Czech, Hungarian, Japanese, Chinese, Korean, Arabic, Hindi, Thai, Vietnamese, and many more\n\n" +
+      "💡 **Tip:** Click ⚙️ to connect a free AI API for unlimited intelligence!\n\nJust ask!";
   }
 
   // 8. Smart fallback — build a contextual response
@@ -2434,7 +2683,7 @@ function welcomeHTML(){
     <button class="chain-btn" onclick="askSuggestion('Give me a riddle')" style="--c:#a855f7">&#129300; Riddle</button>
     <button class="chain-btn" onclick="askSuggestion('Teach me about chess')" style="--c:#d97706">&#9819; Chess</button>
   </div>`;
-  const html = `<div class="welcome" id="welcome"><div class="welcome-icon">P</div><h1>Petru AI</h1><p>13 models, 6 modes, 12 languages. Click &#9881; to connect a real AI API for unlimited intelligence.</p>${chains}<div class="suggestions" id="suggestionsGrid"></div></div>`;
+  const html = `<div class="welcome" id="welcome"><div class="welcome-icon">P</div><h1>Petru AI</h1><p>13 models, 6 modes, 40 languages. Click &#9881; to connect a real AI API for unlimited intelligence.</p>${chains}<div class="suggestions" id="suggestionsGrid"></div></div>`;
   setTimeout(renderSuggestions, 10);
   return html;
 }
@@ -2523,23 +2772,56 @@ function toggleVoice() {
   recognition.start();
 }
 
-// Detect language for voice recognition
-function detectVoiceLang() {
-  // Check recent messages for language hints
-  const recent = conversationContext.slice(-5).map(m => m.text.toLowerCase()).join(' ');
-  if (/hola|gracias|buenos|como estas|espanol/.test(recent)) return 'es-ES';
-  if (/bonjour|merci|francais|comment/.test(recent)) return 'fr-FR';
-  if (/hallo|danke|deutsch|guten/.test(recent)) return 'de-DE';
-  if (/ciao|grazie|italiano|buon/.test(recent)) return 'it-IT';
-  if (/salut|buna|multumesc|romana/.test(recent)) return 'ro-RO';
-  if (/konnichiwa|arigato/.test(recent)) return 'ja-JP';
-  if (/ni hao|xie xie/.test(recent)) return 'zh-CN';
-  if (/annyeong/.test(recent)) return 'ko-KR';
-  if (/privet|spasibo/.test(recent)) return 'ru-RU';
-  if (/merhaba|tesekkur/.test(recent)) return 'tr-TR';
-  if (/ola|obrigado|portugues/.test(recent)) return 'pt-BR';
-  if (/namaste/.test(recent)) return 'hi-IN';
+// Detect language from text — supports 40 languages
+function detectLang(text) {
+  const t = text.toLowerCase();
+  if (/¡|¿|hola|gracias|puedo|ayudar|buenos|espanol|como estas/.test(t)) return 'es-ES';
+  if (/bonjour|merci|puis|rien|français|bonsoir|comment/.test(t)) return 'fr-FR';
+  if (/hallo|danke|bitte|können|deutsch|guten|auf deutsch/.test(t)) return 'de-DE';
+  if (/ciao|grazie|prego|posso|italiano|buongiorno|buonasera/.test(t)) return 'it-IT';
+  if (/salut|bună|mulțumesc|română|buna ziua|ce faci/.test(t)) return 'ro-RO';
+  if (/こんにちは|ありがとう|です|おはよう|さようなら/.test(t)) return 'ja-JP';
+  if (/你好|谢谢|可以|早上好|晚安/.test(t)) return 'zh-CN';
+  if (/안녕|감사|입니다|하세요/.test(t)) return 'ko-KR';
+  if (/привет|спасибо|могу|здравствуйте|добрый/.test(t)) return 'ru-RU';
+  if (/merhaba|teşekkür|selam|nasilsin|hosca/.test(t)) return 'tr-TR';
+  if (/olá|obrigad|bom dia|boa tarde|como vai/.test(t)) return 'pt-BR';
+  if (/नमस्ते|धन्यवाद|कैसे/.test(t)) return 'hi-IN';
+  if (/hoi|goedemorgen|dankjewel|nederlands|hoe gaat het/.test(t)) return 'nl-NL';
+  if (/cześć|dzien dobry|dziekuje|polski|jak sie/.test(t)) return 'pl-PL';
+  if (/hur mar du|tack|svenska|god morgon/.test(t)) return 'sv-SE';
+  if (/hvordan har du det|takk|norsk/.test(t)) return 'nb-NO';
+  if (/godmorgen|hvordan gar det|dansk/.test(t)) return 'da-DK';
+  if (/kiitos|suomi|huomenta/.test(t)) return 'fi-FI';
+  if (/Γεια|γεια|καλημέρα|ευχαριστώ|ellinika/.test(t)) return 'el-GR';
+  if (/dobry den|dekuji|cesky|ahoj/.test(t)) return 'cs-CZ';
+  if (/szia|jo napot|koszonom|magyarul/.test(t)) return 'hu-HU';
+  if (/Здравей|здравей|благодаря|balgarski/.test(t)) return 'bg-BG';
+  if (/bok|dobar dan|hvala|hrvatski/.test(t)) return 'hr-HR';
+  if (/Здраво|здраво|srpski/.test(t)) return 'sr-RS';
+  if (/dakujem|slovensky|slovencina/.test(t)) return 'sk-SK';
+  if (/Привіт|привіт|дякую|ukrainska/.test(t)) return 'uk-UA';
+  if (/สวัสดี|ขอบคุณ|sawasdee|khob khun/.test(t)) return 'th-TH';
+  if (/xin chao|cam on|tieng viet/.test(t)) return 'vi-VN';
+  if (/selamat|terima kasih|bahasa/.test(t)) return 'id-ID';
+  if (/jambo|habari|asante|kiswahili/.test(t)) return 'sw-KE';
+  if (/kumusta|salamat|tagalog|filipino/.test(t)) return 'fil-PH';
+  if (/שלום|תודה|shalom|toda/.test(t)) return 'he-IL';
+  if (/سلام|مرسی|farsi/.test(t)) return 'fa-IR';
+  if (/اردو|assalam|khuda hafiz/.test(t)) return 'ur-PK';
+  if (/নমস্কার|ধন্যবাদ|bangla|bengali/.test(t)) return 'bn-IN';
+  if (/வணக்கம்|நன்றி|tamil|vanakkam/.test(t)) return 'ta-IN';
+  if (/مرحبا|شكرا|ahlan|shukran|sabah al/.test(t)) return 'ar-SA';
+  if (/bon dia|bona tarda|gracies|catala/.test(t)) return 'ca-ES';
+  if (/sveiki|labdien|paldies|latviesu/.test(t)) return 'lv-LV';
+  if (/labas|laba diena|aciu|lietuviu/.test(t)) return 'lt-LT';
+  if (/tere|tanan|eesti/.test(t)) return 'et-EE';
   return 'en-US';
+}
+
+function detectVoiceLang() {
+  const recent = conversationContext.slice(-5).map(m => m.text.toLowerCase()).join(' ');
+  return detectLang(recent);
 }
 
 // Text-to-Speech (AI reads response aloud)
@@ -2583,19 +2865,7 @@ function speakText(btn, text) {
 
   // Match language
   const lower = text.toLowerCase();
-  if (/¡|¿|hola|gracias|puedo|ayudar/.test(lower)) utterance.lang = 'es-ES';
-  else if (/bonjour|merci|puis|rien|français/.test(lower)) utterance.lang = 'fr-FR';
-  else if (/hallo|danke|bitte|können|deutsch/.test(lower)) utterance.lang = 'de-DE';
-  else if (/ciao|grazie|prego|posso|italiano/.test(lower)) utterance.lang = 'it-IT';
-  else if (/salut|bună|mulțumesc|română/.test(lower)) utterance.lang = 'ro-RO';
-  else if (/こんにちは|ありがとう|です/.test(lower)) utterance.lang = 'ja-JP';
-  else if (/你好|谢谢|可以/.test(lower)) utterance.lang = 'zh-CN';
-  else if (/안녕|감사|입니다/.test(lower)) utterance.lang = 'ko-KR';
-  else if (/привет|спасибо|могу/.test(lower)) utterance.lang = 'ru-RU';
-  else if (/merhaba|teşekkür/.test(lower)) utterance.lang = 'tr-TR';
-  else if (/olá|obrigad/.test(lower)) utterance.lang = 'pt-BR';
-  else if (/नमस्ते/.test(lower)) utterance.lang = 'hi-IN';
-  else utterance.lang = 'en-US';
+  utterance.lang = detectLang(text);
 
   utterance.rate = 1.0;
   utterance.pitch = 1.0;
@@ -2741,16 +3011,7 @@ function speakAndWait(text) {
     const utterance = new SpeechSynthesisUtterance(clean);
     // Detect language
     const lower = text.toLowerCase();
-    if (/¡|¿|hola|gracias|puedo|espanol/.test(lower)) utterance.lang = 'es-ES';
-    else if (/bonjour|merci|français/.test(lower)) utterance.lang = 'fr-FR';
-    else if (/hallo|danke|deutsch/.test(lower)) utterance.lang = 'de-DE';
-    else if (/ciao|grazie|italiano/.test(lower)) utterance.lang = 'it-IT';
-    else if (/salut|bună|română/.test(lower)) utterance.lang = 'ro-RO';
-    else if (/こんにちは|です/.test(lower)) utterance.lang = 'ja-JP';
-    else if (/你好|谢谢/.test(lower)) utterance.lang = 'zh-CN';
-    else if (/안녕/.test(lower)) utterance.lang = 'ko-KR';
-    else if (/привет/.test(lower)) utterance.lang = 'ru-RU';
-    else utterance.lang = 'en-US';
+    utterance.lang = detectLang(text);
 
     utterance.rate = 1.05;
     utterance.onend = () => resolve();
