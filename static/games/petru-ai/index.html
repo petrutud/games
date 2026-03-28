@@ -89,6 +89,16 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 .imggen-anim .palette{animation:paletteBounce 1s ease-in-out infinite;font-size:18px}
 @keyframes paletteBounce{0%,100%{transform:rotate(0)}50%{transform:rotate(15deg) scale(1.1)}}
 
+/* Video gen */
+.gen-video{border-radius:12px;border:1px solid var(--border);margin:12px 0;overflow:hidden;background:var(--code-bg)}
+.gen-video canvas,.gen-video video{display:block;width:100%;max-width:512px;border-radius:12px 12px 0 0}
+.gen-video-label{padding:8px 14px;font-size:11px;color:var(--text-dim);background:var(--surface2);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.gen-video-progress{width:100%;height:4px;background:var(--surface3);border-radius:2px;overflow:hidden;margin:0 14px 8px}
+.gen-video-progress-bar{height:100%;background:linear-gradient(90deg,var(--accent),#ec4899);border-radius:2px;transition:width .3s;width:0%}
+.vidgen-anim{display:flex;align-items:center;gap:10px;color:#ec4899;font-size:13px;font-weight:500}
+.vidgen-anim .clapper{animation:clapperBounce 1s ease-in-out infinite;font-size:18px;display:inline-block}
+@keyframes clapperBounce{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.15) rotate(-10deg)}}
+
 /* Chat */
 .chat-container{flex:1;overflow-y:auto;padding:0;scroll-behavior:smooth}
 .chat-container::-webkit-scrollbar{width:6px}
@@ -199,6 +209,50 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 @keyframes voice-active{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.3)}50%{box-shadow:0 0 0 6px rgba(239,68,68,0)}}
 .input-footer{text-align:center;margin-top:8px;font-size:12px;color:var(--text-dim)}
 
+/* Settings modal */
+.settings-overlay{position:fixed;inset:0;background:#000a;z-index:200;display:none;align-items:center;justify-content:center}
+.settings-overlay.show{display:flex}
+.settings-modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;width:440px;max-width:90vw;max-height:85vh;overflow-y:auto;box-shadow:0 24px 64px #000a;animation:dropIn .2s ease}
+.settings-modal h2{font-size:18px;margin-bottom:18px;display:flex;align-items:center;gap:10px}
+.settings-modal label{display:block;font-size:12px;font-weight:600;color:var(--text-dim);margin-bottom:6px;margin-top:16px;text-transform:uppercase;letter-spacing:.5px}
+.settings-modal input,.settings-modal select{width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;transition:border-color .2s}
+.settings-modal input:focus,.settings-modal select:focus{border-color:var(--accent)}
+.settings-modal .hint{font-size:11px;color:var(--text-dim);margin-top:4px;line-height:1.5}
+.settings-modal .hint a{color:var(--accent);text-decoration:none}
+.settings-modal .hint a:hover{text-decoration:underline}
+.settings-btns{display:flex;gap:10px;margin-top:22px}
+.settings-btns button{flex:1;padding:10px;border-radius:10px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-save{background:var(--accent);border:none;color:#fff}
+.btn-save:hover{opacity:.85}
+.btn-cancel{background:var(--surface2);border:1px solid var(--border);color:var(--text)}
+.btn-cancel:hover{background:var(--surface3)}
+.api-status{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:6px;margin-top:10px}
+.api-status.connected{color:#10b981;background:#10b98115}
+.api-status.disconnected{color:var(--text-dim);background:var(--surface2)}
+.settings-gear{background:none;border:1px solid var(--border);color:var(--text-dim);width:36px;height:36px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;font-size:16px;flex-shrink:0}
+.settings-gear:hover{background:var(--surface3);color:var(--text);border-color:var(--accent)}
+
+/* Chess board */
+.chess-wrap{margin:12px 0;user-select:none}
+.chess-info{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px 10px 0 0;font-size:12px;color:var(--text-dim)}
+.chess-info .turn-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px;vertical-align:middle}
+.chess-board{display:grid;grid-template-columns:repeat(8,1fr);width:100%;max-width:400px;aspect-ratio:1;border:2px solid var(--border);border-radius:0 0 10px 10px;overflow:hidden}
+.chess-sq{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:min(5vw,40px);cursor:pointer;transition:background .15s;position:relative}
+.chess-sq.light{background:#e8dcc8}
+.chess-sq.dark{background:#b58863}
+.chess-sq.selected{background:#7b61ff!important;box-shadow:inset 0 0 0 3px #6c5ce7}
+.chess-sq.legal-move::after{content:'';position:absolute;width:30%;height:30%;border-radius:50%;background:rgba(0,0,0,0.2)}
+.chess-sq.legal-capture{box-shadow:inset 0 0 0 3px rgba(239,68,68,0.6)}
+.chess-sq.last-from{background:#cdd26a!important}
+.chess-sq.last-to{background:#aaa23a!important}
+.chess-sq:hover{filter:brightness(1.1)}
+.chess-btns{display:flex;gap:6px;margin-top:8px}
+.chess-btns button{padding:6px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;transition:all .2s}
+.chess-btns button:hover{background:var(--surface3);border-color:var(--accent)}
+.chess-status{padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:6px;font-size:13px;color:var(--text);text-align:center}
+.chess-status.check{color:#ef4444;border-color:#ef444440}
+.chess-status.mate{color:#f59e0b;font-weight:700;border-color:#f59e0b40}
+
 .sidebar-overlay{position:fixed;inset:0;background:#000a;z-index:90;display:none}
 .sidebar-overlay.show{display:block}
 @media(max-width:768px){
@@ -228,12 +282,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
     <div class="header-left">
       <button class="sidebar-toggle" onclick="toggleSidebar()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
       <div class="header-title" id="headerTitle">New Chat</div>
+      <button class="settings-gear" onclick="openSettings()" title="AI Settings">&#9881;</button>
     </div>
     <div class="model-select-wrap">
       <button class="mode-btn" id="modeSearch" onclick="toggleMode('search')" title="Search Online"><span class="mode-icon">&#127760;</span><span class="mode-lbl">Search</span></button>
       <button class="mode-btn" id="modeThink" onclick="toggleMode('thinking')" title="Extended Thinking"><span class="mode-icon">&#129504;</span><span class="mode-lbl">Think</span></button>
       <button class="mode-btn" id="modeDeep" onclick="toggleMode('deepseek')" title="DeepSeek Research"><span class="mode-icon">&#128269;</span><span class="mode-lbl">Deep</span></button>
       <button class="mode-btn" id="modeImage" onclick="toggleMode('image')" title="Create Image"><span class="mode-icon">&#127912;</span><span class="mode-lbl">Image</span></button>
+      <button class="mode-btn" id="modeVideo" onclick="toggleMode('video')" title="Create Video"><span class="mode-icon">&#127916;</span><span class="mode-lbl">Video</span></button>
+      <button class="mode-btn" id="modeChess" onclick="toggleMode('chess')" title="Play Chess"><span class="mode-icon">&#9819;</span><span class="mode-lbl">Chess</span></button>
       <button class="mode-btn" id="modeVoice" onclick="toggleMode('voice')" title="Voice Chat"><span class="mode-icon">&#127908;</span><span class="mode-lbl">Voice</span></button>
       <button class="model-btn" id="modelBtn" onclick="toggleModelDropdown(event)">
         <span class="model-dot" id="modelDot"></span>
@@ -247,7 +304,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
     <div class="welcome" id="welcome">
       <div class="welcome-icon">P</div>
       <h1>Petru AI</h1>
-      <p>13 models, 4 modes, 12 languages. Pick a model and start chatting.</p>
+      <p>13 models, 6 modes, 12 languages. Click &#9881; to connect a real AI API for unlimited intelligence.</p>
       <div class="quick-chains">
         <button class="chain-btn" onclick="askSuggestion('Make my day better')" style="--c:#f59e0b">&#9728; Make my day better</button>
         <button class="chain-btn" onclick="askSuggestion('Tell me a fun fact')" style="--c:#10b981">&#9889; Fun fact</button>
@@ -334,11 +391,25 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
           {t:'Basketball GOAT',d:'Jordan vs LeBron',q:'Tell me about basketball and the NBA'},
           {t:'Olympic records',d:'Bolt, Phelps',q:'Tell me about the Olympic Games'},
         ],
+        'Cooking': [
+          {t:'Sarmale',d:'Romanian cabbage rolls',q:'How to make sarmale'},
+          {t:'Mici / Mititei',d:'Romanian grilled sausages',q:'How to make mici'},
+          {t:'Ciorbă de burtă',d:'Romanian tripe soup',q:'How to make ciorba de burta'},
+          {t:'Mămăligă',d:'Romanian polenta',q:'How to make mamaliga'},
+          {t:'Cozonac',d:'Romanian sweet bread',q:'How to make cozonac'},
+          {t:'Papanași',d:'Cheese doughnuts + jam',q:'How to make papanasi'},
+          {t:'Pizza recipe',d:'Homemade from scratch',q:'How to make pizza from scratch'},
+          {t:'Pancakes',d:'Perfect fluffy recipe',q:'How to make pancakes'},
+          {t:'Pasta carbonara',d:'Creamy Italian classic',q:'How to make pasta carbonara'},
+          {t:'Sushi rolls',d:'DIY Japanese rolls',q:'How to make sushi at home'},
+          {t:'Burger perfect',d:'Juicy smash burger',q:'How to make the perfect burger'},
+          {t:'Chocolate cake',d:'Rich & moist recipe',q:'How to make chocolate cake'},
+          {t:'Steak tips',d:'Perfect medium-rare',q:'How to cook the perfect steak'},
+          {t:'Romanian cuisine',d:'Full food guide',q:'Tell me about Romanian cuisine'},
+        ],
         'Lifestyle': [
           {t:'Sleep better',d:'Tips for insomnia',q:'How can I sleep better?'},
           {t:'Workout plan',d:'Beginner exercises',q:'Give me a beginner workout plan'},
-          {t:'Pizza recipe',d:'Homemade from scratch',q:'How to make pizza from scratch'},
-          {t:'Pancakes',d:'Perfect fluffy recipe',q:'How to make pancakes'},
           {t:'Nutrition guide',d:'Vitamins & macros',q:'Tell me about nutrition and vitamins'},
           {t:'Hobby ideas',d:'Fun things to try',q:'Suggest some fun hobbies'},
           {t:'Why we dream',d:'Sleep science',q:'Why do we dream?'},
@@ -406,21 +477,24 @@ function toggleMode(mode) {
   // If turning off voice mode, stop continuous listening
   if (activeMode === 'voice' && mode === 'voice') stopVoiceChatMode();
   activeMode = activeMode === mode ? '' : mode;
-  ['modeSearch','modeThink','modeDeep','modeImage','modeVoice'].forEach(id => {
+  ['modeSearch','modeThink','modeDeep','modeImage','modeVideo','modeChess','modeVoice'].forEach(id => {
     document.getElementById(id).classList.remove('active-mode');
   });
   if (activeMode === 'search') document.getElementById('modeSearch').classList.add('active-mode');
   if (activeMode === 'thinking') document.getElementById('modeThink').classList.add('active-mode');
   if (activeMode === 'deepseek') document.getElementById('modeDeep').classList.add('active-mode');
   if (activeMode === 'image') document.getElementById('modeImage').classList.add('active-mode');
+  if (activeMode === 'video') document.getElementById('modeVideo').classList.add('active-mode');
+  if (activeMode === 'chess') document.getElementById('modeChess').classList.add('active-mode');
   if (activeMode === 'voice') { document.getElementById('modeVoice').classList.add('active-mode'); startVoiceChatMode(); }
   updateFooter();
 }
 
 function updateFooter() {
-  const modeNames = {thinking:'Extended Thinking',deepseek:'DeepSeek',search:'Search',image:'Image Gen',voice:'Voice Chat'};
+  const modeNames = {thinking:'Extended Thinking',deepseek:'DeepSeek',search:'Search',image:'Image Gen',video:'Video Gen',chess:'Chess',voice:'Voice Chat'};
   const modeLabel = activeMode ? ` + ${modeNames[activeMode]||activeMode}` : '';
-  document.getElementById('inputFooter').textContent = `Petru AI — ${currentModel.name}${modeLabel}`;
+  const aiLabel = isAIConnected() ? ' \u26A1 AI Connected' : '';
+  document.getElementById('inputFooter').textContent = `Petru AI — ${currentModel.name}${modeLabel}${aiLabel}`;
 }
 
 function renderModelDropdown() {
@@ -794,9 +868,9 @@ const topics = [
 //  FOOD & COOKING
 // ══════════════════════════════════════════════════════
 {kw:['recipe:6','cook:5','cooking:5','food:4','how to make:6','bake:4','meal:3','dish:3','ingredient:4'],
- short:"I know recipes! Ask about a specific dish.",
- long:"**I can help with cooking!** Ask me about:\n- Pasta, pizza, steak, pancakes, cookies\n- Healthy meals, quick dinners\n- Baking tips\n- Cuisine types (Italian, Mexican, Japanese, etc.)\n\nWhat would you like to cook?",
- full:"**Cooking Guide:**\n\n**Quick meals:**\n- **Pasta aglio e olio** — garlic, olive oil, chili flakes, pasta (15 min)\n- **Stir fry** — any veggies + soy sauce + rice (20 min)\n- **Omelette** — eggs, cheese, veggies (10 min)\n- **Tacos** — ground meat, spices, toppings (20 min)\n\n**Essential techniques:**\n- **Sauté** — high heat, small amount of oil, toss frequently\n- **Roast** — oven, 200°C, for meats & veggies\n- **Boil → Simmer** — bring to boil then reduce heat\n- **Season** — salt during cooking, not just at the end\n\n**Kitchen tips:**\n- Sharp knives are safer than dull ones\n- Let meat rest after cooking (5-10 min)\n- Taste as you go\n- Salt pasta water until it \"tastes like the sea\"\n- Room temperature eggs bake better\n\nAsk me for a specific recipe!"},
+ short:"I know recipes! Ask about a specific dish — from sarmale to sushi!",
+ long:"**I can help with cooking!** Ask me about:\n- **Romanian:** Sarmale, mici, ciorbă, mămăligă, cozonac, papanași\n- **International:** Pasta, pizza, steak, pancakes, sushi, tacos\n- Healthy meals, quick dinners, baking tips\n- Cuisine types (Romanian, Italian, Mexican, Japanese, etc.)\n\nWhat would you like to cook?",
+ full:"**Cooking Guide:**\n\n**Romanian classics:**\n- **Sarmale** — stuffed cabbage rolls, slow-cooked (3-4 hours)\n- **Mici** — grilled skinless sausages with mustard (10 min)\n- **Ciorbă de perișoare** — meatball sour soup (45 min)\n- **Mămăligă cu brânză** — polenta with cheese & sour cream (30 min)\n- **Papanași** — fried cheese doughnuts with jam (20 min)\n\n**Quick international meals:**\n- **Pasta aglio e olio** — garlic, olive oil, chili flakes, pasta (15 min)\n- **Stir fry** — any veggies + soy sauce + rice (20 min)\n- **Omelette** — eggs, cheese, veggies (10 min)\n- **Tacos** — ground meat, spices, toppings (20 min)\n\n**Essential techniques:**\n- **Sauté** — high heat, small amount of oil, toss frequently\n- **Roast** — oven, 200°C, for meats & veggies\n- **Boil → Simmer** — bring to boil then reduce heat\n- **Season** — salt during cooking, not just at the end\n\n**Kitchen tips:**\n- Sharp knives are safer than dull ones\n- Let meat rest after cooking (5-10 min)\n- Taste as you go\n- Salt pasta water until it \"tastes like the sea\"\n- Room temperature eggs bake better\n\nAsk me for a specific recipe! Try: *sarmale, mici, cozonac, ciorbă*"},
 
 {kw:['pancake:8','pancakes:8','how to make pancakes:10'],
  short:"Mix flour, egg, milk, sugar, baking powder. Cook on medium heat.",
@@ -807,6 +881,76 @@ const topics = [
  short:"Pizza: dough (flour, yeast, water, salt, oil), sauce, mozzarella, toppings, bake at max heat.",
  long:"**Pizza Recipe:**\n1. **Dough:** 500g flour, 7g yeast, 325ml warm water, 1 tsp salt, 2 tbsp olive oil. Knead 10 min, rise 1 hour.\n2. **Sauce:** Crushed tomatoes, garlic, basil, salt, olive oil\n3. **Assembly:** Stretch dough, add sauce, mozzarella, toppings\n4. **Bake:** Highest oven temp (250°C+), 10-12 min",
  full:"**Homemade Pizza:**\n\n**Dough:**\n- 500g flour, 7g instant yeast, 325ml warm water\n- 1 tsp salt, 2 tbsp olive oil, 1 tsp sugar\n- Mix, knead 10 min until smooth, cover, rise 1 hour\n\n**Sauce:**\n- 400g crushed tomatoes, 2 cloves garlic (minced)\n- 1 tbsp olive oil, 1 tsp dried basil/oregano, salt to taste\n- Simmer 15 min (or use raw for Neapolitan style)\n\n**Assembly:**\n1. Preheat oven to MAX (250°C / 480°F) with baking sheet inside\n2. Stretch dough on floured surface (don't use rolling pin!)\n3. Add thin layer of sauce\n4. Top with fresh mozzarella\n5. Add toppings: pepperoni, mushrooms, olives, peppers, onions, basil\n6. Bake 10-12 min until crust is golden and cheese bubbles\n\n**Pro tips:**\n- Less is more with toppings (overloading = soggy)\n- Fresh mozzarella > shredded\n- A pizza stone gives the best crust\n- For crispy base: preheat pan/stone\n\nMakes 2 large pizzas."},
+
+{kw:['sarmale:10','sarma:8','cabbage roll:10','cabbage rolls:10','stuffed cabbage:10','romanian food:8','romanian recipe:8','romanian dish:8'],
+ short:"Sarmale — Romanian stuffed cabbage rolls with minced meat, rice & spices, slow-cooked in sauerkraut!",
+ long:"**Sarmale (Romanian Cabbage Rolls):**\n\n**Filling:** minced pork (or pork+beef), rice, sautéed onion, salt, pepper, thyme, dill\n**Wrap:** fermented/sour cabbage leaves (varză murată)\n**Cook:** layer in a pot with sauerkraut, tomato sauce, smoked pork (ciolan), bay leaves. Slow-cook 3-4 hours.\n\n**Serve with:** smălțuială, polenta (mămăligă), sour cream (smântână), hot peppers.",
+ full:"**Sarmale — Traditional Romanian Cabbage Rolls**\n\nThe most beloved Romanian dish, served at Christmas, Easter, weddings, and every family gathering!\n\n**Ingredients (40-50 sarmale):**\n- 1 kg minced pork (or 500g pork + 500g beef)\n- 200g rice (unwashed)\n- 2 large onions, finely diced\n- 2 heads of fermented cabbage (varză murată)\n- 300g sauerkraut (for layering)\n- 200ml tomato sauce or paste\n- 1 smoked pork knuckle (ciolan afumat) or smoked ribs\n- 3 bay leaves, 1 tsp thyme, 1 tsp black pepper\n- Fresh dill, salt to taste\n- 2 tbsp oil or lard (untură)\n\n**Steps:**\n1. **Onion:** Sauté diced onion in oil until golden\n2. **Filling:** Mix meat, rice, cooled onion, salt, pepper, thyme, dill\n3. **Cabbage:** Carefully separate leaves, remove thick veins, cut large leaves in half\n4. **Roll:** Place 1 tbsp filling on each leaf, tuck sides in, roll tight\n5. **Layer pot:** Shredded sauerkraut on bottom → sarmale packed tightly → more sauerkraut → smoked meat → tomato sauce → bay leaves\n6. **Cook:** Add water to cover. Bring to boil, then LOW heat for 3-4 hours (or oven at 160°C for 4-5 hours)\n7. **Rest:** Even better the next day!\n\n**Serving:** With mămăligă (polenta), smântână (sour cream), and hot peppers (ardei iute)\n\n**Tips:**\n- The best sarmale use fermented cabbage (not fresh!)\n- Small, tight rolls cook better\n- Smoked meat gives the authentic flavor\n- Cook them the day before — they taste better reheated\n- Grandma's secret: a little bors (fermented wheat bran) in the pot"},
+
+{kw:['mici:10','mititei:10','romanian grill:8','romanian bbq:8','romanian sausage:8'],
+ short:"Mici (mititei) — Romanian grilled skinless sausages made with beef, garlic & spices!",
+ long:"**Mici (Mititei) — Romanian Grilled Sausages:**\n\n**Ingredients:** ground beef (or beef+pork), garlic, baking soda, black pepper, thyme, cumin, paprika, beef broth\n**Shape:** small cylinders (~8cm long)\n**Grill:** on charcoal BBQ until charred outside, juicy inside\n\n**Serve with:** mustard (muștar), bread, cold beer! A Romanian summer essential.",
+ full:"**Mici (Mititei) — Romania's Favorite BBQ**\n\nNo Romanian summer is complete without mici on the grill!\n\n**Ingredients (30 mici):**\n- 1 kg ground beef (fatty cut)\n- 500g ground pork\n- 6-8 cloves garlic, crushed\n- 1 tsp baking soda\n- 1 tsp black pepper\n- 1 tsp thyme\n- 1 tsp cumin (chimion)\n- 1 tsp paprika\n- 100ml beef broth or mineral water\n- Salt to taste\n\n**Steps:**\n1. Mix all meats and spices thoroughly\n2. Add baking soda dissolved in broth — this makes them fluffy!\n3. Rest in fridge for at least 4 hours (overnight is best)\n4. Shape into cylinders ~8cm long, 2cm thick\n5. Grill on charcoal BBQ on high heat, turning frequently\n6. Done when charred outside, juicy inside (~10-12 min)\n\n**Serve with:** muștar (mustard), fresh bread, cold beer, and French fries or salată de murături (pickles)\n\n**Tips:**\n- The baking soda is the secret — it makes them puff up on the grill\n- Must rest overnight for the best flavor\n- Charcoal grill is essential — not the same on a pan\n- Romanians typically eat 5-10 per person!"},
+
+{kw:['mamaliga:10','mămăligă:10','polenta:6','romanian polenta:10','mamaliguta:8'],
+ short:"Mămăligă — Romanian polenta made from cornmeal, the traditional side dish for sarmale!",
+ long:"**Mămăligă (Romanian Polenta):**\n\n**Ingredients:** cornmeal (mălai), water, salt, butter\n**Cook:** Boil water with salt, add cornmeal slowly while stirring constantly, cook 20-30 min\n**Serve:** flip onto a wooden board, cut with a string/thread\n\n**Great with:** sarmale + sour cream, tocăniță, brânză (cheese), eggs.",
+ full:"**Mămăligă — Traditional Romanian Polenta**\n\n**Ingredients:**\n- 300g fine cornmeal (mălai)\n- 1L water\n- 1 tsp salt\n- 1 tbsp butter or lard\n\n**Steps:**\n1. Bring water with salt to a boil in a cast-iron pot\n2. Slowly pour cornmeal in a stream while stirring with a wooden spoon\n3. Stir constantly for 20-30 minutes (must not have lumps!)\n4. When it pulls away from the sides of the pot, it's done\n5. Turn upside down onto a wooden board\n6. Traditionally cut with a thread or string (not a knife!)\n\n**Ways to serve:**\n- With **sarmale + smântână** (sour cream)\n- With **brânză** (cheese) and smântână — \"mămăligă cu brânză\"\n- With **tocăniță** (meat stew) and a fried egg\n- Fried in slices the next day (mămăligă prăjită)\n- With **jumări** (pork cracklings)\n\n**Tips:**\n- Use fine cornmeal for creamy, coarse for rustic\n- Stir in one direction only!\n- The longer you cook it, the better it gets"},
+
+{kw:['ciorba:8','ciorbă:8','romanian soup:8','ciorba de burta:10','tripe soup:8','ciorba de perisoare:10','ciorba de legume:8'],
+ short:"Ciorbă — traditional Romanian sour soup! Try ciorbă de burtă, de perișoare, or de legume.",
+ long:"**Ciorbă — Romanian Sour Soups:**\n\n- **Ciorbă de burtă** — tripe soup with sour cream & garlic (hangover cure!)\n- **Ciorbă de perișoare** — meatball soup with lovage & sour cream\n- **Ciorbă de legume** — vegetable soup soured with borș/lemon\n- **Ciorbă de fasole** — bean soup with smoked meat\n- **Ciorbă rădăuțeană** — chicken soup with sour cream & garlic\n\nAll soured with **borș** (fermented wheat bran) or lemon.",
+ full:"**Ciorbă — Traditional Romanian Sour Soups**\n\n**What makes it \"ciorbă\"?** The sour element! Romanian soups are soured with **borș** (fermented wheat bran liquid), lemon juice, or sauerkraut juice.\n\n**Most popular ciorbe:**\n\n**1. Ciorbă de burtă (Tripe Soup)**\n- Boiled beef tripe in bone broth\n- Soured with borș, enriched with egg yolk + sour cream\n- Served with: garlic sauce, vinegar, hot peppers\n- Known as the best hangover cure!\n\n**2. Ciorbă de perișoare (Meatball Soup)**\n- Small pork meatballs with rice\n- Tomato-based broth with vegetables\n- Fresh lovage (leuștean) on top\n- Soured with borș\n\n**3. Ciorbă rădăuțeană**\n- Chicken soup thickened with sour cream\n- Heavy garlic flavor\n- From Rădăuți, Bucovina region\n\n**4. Ciorbă de fasole (Bean Soup)**\n- Smoked pork + beans + vegetables\n- Often served in a bread bowl (\"în pâine\")\n\n**5. Ciorbă de legume (Vegetable Soup)**\n- Seasonal vegetables, soured with borș\n- Light and refreshing\n\n**Essential tip:** Always add borș at the END, after removing from heat, to keep the sour flavor fresh!"},
+
+{kw:['cozonac:10','romanian bread:8','romanian cake:6','romanian christmas:8','romanian easter:8','romanian pastry:8','papanasi:8','papanași:8','romanian dessert:8'],
+ short:"Cozonac — Romanian sweet bread with walnuts & cocoa, a Christmas & Easter must-have!",
+ long:"**Romanian Desserts:**\n\n- **Cozonac** — sweet bread with walnut/cocoa filling (Christmas & Easter)\n- **Papanași** — fried cheese doughnuts with sour cream & jam\n- **Clătite** — thin crepes with jam, Nutella, or cheese\n- **Prăjitură cu mere** — apple cake\n- **Saraigle** — walnut rolled pastry with syrup\n- **Colivă** — boiled wheat with sugar & walnuts (memorial dish)",
+ full:"**Romanian Desserts & Baked Goods**\n\n**Cozonac (Sweet Bread):**\n- Flour, eggs (lots!), sugar, butter, milk, yeast\n- Filling: ground walnuts + cocoa + sugar + rum essence\n- Knead dough for 30+ min (must be elastic!)\n- Rise 2 hours, fill, roll, rise again, bake at 170°C for 45 min\n- Tip: the secret is LOTS of kneading and patience with the rise\n\n**Papanași (Cheese Doughnuts):**\n- Fresh cow cheese (brânză de vaci) + flour + eggs + semolina\n- Shape into doughnuts with a small ball on top\n- Deep fry until golden\n- Serve with: sour cream (smântână) + blueberry/forest fruit jam\n- The #1 Romanian restaurant dessert!\n\n**Clătite (Crepes):**\n- Thin pancakes filled with:\n  - Gem de prune (plum jam)\n  - Nutella\n  - Brânză dulce (sweet cheese) + raisins\n  - Baked \"clătite la cuptor\" with cheese filling\n\n**Prăjitură cu mere (Apple Cake):**\n- Simple sponge cake layered with grated apples, cinnamon, sugar\n- Every Romanian grandma's specialty!\n\n**Colivă:**\n- Boiled wheat berries + sugar + ground walnuts + cocoa + rum\n- Decorated with powdered sugar crosses\n- Traditional memorial/funeral dish"},
+
+{kw:['romanian:5','romania:5','romanian cuisine:10','romanian traditional:8','mancare romaneasca:10','bucatarie romaneasca:10','traditii romanesti:8'],
+ short:"Romanian cuisine is rich — sarmale, mici, ciorbă, mămăligă, cozonac, and so much more!",
+ long:"**Romanian Cuisine Highlights:**\n\n**Main dishes:** Sarmale, mici, tocăniță, ciorbă de burtă, ciorbă de perișoare\n**Sides:** Mămăligă, salată de vinete (eggplant salad), zacuscă\n**Desserts:** Cozonac, papanași, clătite, prăjitură cu mere\n**Drinks:** Țuică (plum brandy), pălincă, vin (wine from Dealu Mare, Recaș)\n\nAsk me about any Romanian dish!",
+ full:"**Romanian Cuisine — A Complete Guide**\n\n**Soups (Ciorbe):**\n- Ciorbă de burtă, de perișoare, rădăuțeană, de fasole, de legume\n\n**Main Dishes:**\n- **Sarmale** — stuffed cabbage rolls (the national dish)\n- **Mici/Mititei** — grilled skinless sausages\n- **Tocăniță** — meat stew with onion sauce\n- **Pomana porcului** — fresh pork feast (at pig slaughter)\n- **Drob de miel** — lamb haggis (Easter)\n- **Jumări** — pork cracklings\n- **Tochitura** — pork stew with mămăligă, egg & cheese\n\n**Sides & Salads:**\n- **Mămăligă** — cornmeal polenta\n- **Salată de vinete** — smoky eggplant salad\n- **Zacuscă** — roasted vegetable spread\n- **Salată de boeuf** — Russian salad, Romanian style\n- **Murături** — pickled vegetables\n\n**Desserts:**\n- Cozonac, papanași, clătite, colivă, prăjitură cu mere, saraigle\n\n**Drinks:**\n- **Țuică / Pălincă** — plum brandy (40-60% alcohol!)\n- **Wine** — Fetească Neagră, Tămâioasă, Busuioacă de Bohotin\n\n**Food culture:**\n- Sunday lunch with family is sacred\n- Christmas = sarmale + cozonac + ciorbă\n- Easter = drob de miel + pască + ouă roșii\n- Summer = mici la grătar + beer\n- Always too much food — \"Mai ia o dată!\" (Take some more!)"},
+
+{kw:['carbonara:10','pasta carbonara:10','spaghetti carbonara:10'],
+ short:"Carbonara — spaghetti with eggs, pecorino, guanciale & black pepper. No cream!",
+ long:"**Pasta Carbonara (authentic Italian):**\n\n**Ingredients:** spaghetti, guanciale (or pancetta), egg yolks + 1 whole egg, pecorino Romano, black pepper\n**Steps:** Cook pasta, fry guanciale until crispy, mix eggs + cheese + pepper, toss hot pasta with guanciale off heat, add egg mixture, toss fast.\n\n**Rule #1:** NEVER add cream. Real carbonara has no cream!",
+ full:"**Authentic Pasta Carbonara**\n\n**Ingredients (2 servings):**\n- 200g spaghetti (or rigatoni)\n- 150g guanciale (cured pork cheek) — or pancetta\n- 3 egg yolks + 1 whole egg\n- 80g Pecorino Romano, finely grated\n- Fresh black pepper (lots!)\n- Salt for pasta water only\n\n**Steps:**\n1. Boil pasta in well-salted water until al dente\n2. Cut guanciale into strips, fry in a cold pan on medium heat — let the fat render out slowly until crispy (5-7 min)\n3. In a bowl, mix egg yolks + whole egg + most of the pecorino + generous pepper\n4. When pasta is done, save 1 cup pasta water, drain the rest\n5. **OFF THE HEAT:** Add pasta to the guanciale pan\n6. Pour egg mixture over, toss FAST — the residual heat cooks the eggs into a creamy sauce\n7. Add splashes of pasta water if too thick\n8. Top with remaining pecorino and pepper\n\n**Critical rules:**\n- NO cream — ever! The creaminess comes from eggs + cheese + pasta water\n- Take pan OFF heat before adding eggs — or you get scrambled eggs\n- Use pecorino, NOT parmesan (or mix both)\n- Guanciale > pancetta > bacon (in order of authenticity)"},
+
+{kw:['sushi:8','sushi roll:10','maki:8','how to make sushi:10','japanese food:6','sashimi:6'],
+ short:"Sushi — vinegared rice + fresh fish + nori. Master the rice and you master sushi!",
+ long:"**Sushi at Home:**\n\n**Sushi rice:** short-grain rice + rice vinegar + sugar + salt\n**For maki rolls:** nori sheets, rice, fillings (salmon, tuna, avocado, cucumber)\n**Tools:** bamboo rolling mat, sharp knife\n\n**Key:** The rice is everything — season it properly and let it cool to room temperature.",
+ full:"**How to Make Sushi at Home**\n\n**Sushi Rice (most important!):**\n- 2 cups short-grain Japanese rice\n- 2 cups water\n- 3 tbsp rice vinegar + 1 tbsp sugar + 1 tsp salt (mix together)\n- Wash rice 4-5 times until water runs clear\n- Cook in rice cooker or pot (bring to boil, low heat 15 min, rest 10 min)\n- Fold in vinegar mixture while rice is hot, fan to cool\n\n**Maki Rolls:**\n1. Place nori (shiny side down) on bamboo mat\n2. Spread thin layer of rice, leave 2cm at the top\n3. Add fillings in a line: salmon/tuna + avocado + cucumber\n4. Roll tightly using the mat, wet the top edge to seal\n5. Cut with a wet, sharp knife into 6-8 pieces\n\n**Popular fillings:**\n- **Salmon** (sake) — the most popular\n- **Tuna** (maguro) — classic\n- **Shrimp** (ebi) — cooked\n- **Avocado + cream cheese** — California roll\n- **Cucumber** (kappa maki) — vegetarian\n\n**Serve with:** soy sauce, wasabi, pickled ginger (gari)\n\n**Tips:**\n- Wet your hands when handling rice\n- Don't overfill rolls\n- Use the freshest fish possible (sushi-grade)\n- Sharp knife = clean cuts"},
+
+{kw:['burger:8','hamburger:8','smash burger:10','cheeseburger:8','how to make burger:10'],
+ short:"Smash burger — thin, crispy-edged patties with melted cheese. The best homemade burger!",
+ long:"**Smash Burger Recipe:**\n\n**Meat:** ground beef (80/20 fat ratio), loosely shaped into balls\n**Technique:** smash the ball flat on a screaming-hot skillet, season with salt & pepper\n**Build:** toasted bun, patty + melted cheese, pickles, onion, sauce\n\nThe key is HIGH heat and don't touch it until it's crusted!",
+ full:"**The Perfect Smash Burger**\n\n**Ingredients (4 burgers):**\n- 400g ground beef (80/20 lean-to-fat ratio)\n- Salt & pepper\n- 4 slices American cheese (or cheddar)\n- 4 brioche buns, toasted\n- Butter for buns\n\n**Toppings:** pickles, sliced onion, lettuce, tomato\n**Sauce:** mayo + ketchup + mustard + pickle juice (mix together)\n\n**Steps:**\n1. Divide meat into 4 balls (~100g each) — DON'T season yet\n2. Heat a cast-iron skillet on HIGH until smoking\n3. Place ball on skillet, SMASH flat with a sturdy spatula (press hard!)\n4. Season with salt & pepper immediately\n5. Cook 2-3 min — don't touch! Let the crust form\n6. Flip, add cheese on top, cook 1 more minute\n7. Toast buttered buns on the same pan\n8. Build: bottom bun → sauce → patty → pickles → onion → lettuce → top bun\n\n**Secrets:**\n- 80/20 fat ratio — leaner = dry burger\n- Smash ONCE, hard, within 30 seconds of placing on heat\n- Don't press down after smashing (squeezes out juices)\n- Cast iron > grill for smash burgers\n- Season the meat on the pan, not before (keeps it loose)\n- Double stack for extra indulgence!"},
+
+{kw:['steak:8','how to cook steak:10','medium rare:8','ribeye:6','fillet:5','sirloin:5'],
+ short:"Perfect steak — room temp, screaming hot pan, sear 3-4 min per side, rest 5 min. Done!",
+ long:"**How to Cook the Perfect Steak:**\n\n1. Take steak out of fridge 30 min before cooking\n2. Pat dry, season generously with salt & pepper\n3. Screaming hot cast-iron pan + oil with high smoke point\n4. Sear 3-4 min per side (for medium-rare)\n5. Add butter, garlic, thyme — baste for 1 min\n6. **REST 5 minutes** before cutting!\n\n**Internal temps:** Rare 50°C, Medium-Rare 55°C, Medium 60°C, Well-Done 70°C",
+ full:"**The Perfect Steak Guide**\n\n**Choosing your cut:**\n| Cut | Flavor | Tenderness | Best For |\n|-----|--------|------------|----------|\n| Ribeye | Rich, marbled | Very tender | Pan sear |\n| Filet mignon | Mild, buttery | Most tender | Pan sear |\n| NY Strip | Beefy, balanced | Tender | Pan or grill |\n| T-Bone | Best of both | Mixed | Grill |\n| Sirloin | Lean, beefy | Moderate | Grill |\n\n**Steps:**\n1. **Prep:** Remove from fridge 30-45 min before cooking\n2. **Dry:** Pat completely dry with paper towels (wet = no crust)\n3. **Season:** Generous salt + pepper (or just salt)\n4. **Heat:** Cast-iron pan on HIGH heat until smoking, add high smoke-point oil\n5. **Sear:** Place steak, DON'T MOVE for 3-4 min\n6. **Flip:** Once, cook another 3-4 min\n7. **Baste:** Add 2 tbsp butter + 2 crushed garlic cloves + thyme sprig, tilt pan and spoon melted butter over steak for 1 min\n8. **Rest:** Remove to cutting board, rest 5 min minimum\n\n**Doneness (internal temp):**\n- Rare: 48-52°C (cool red center)\n- Medium-Rare: 54-57°C (warm red center) ← **RECOMMENDED**\n- Medium: 60-63°C (pink center)\n- Medium-Well: 65-68°C (slight pink)\n- Well-Done: 71°C+ (gray throughout)\n\n**Pro tips:**\n- A meat thermometer is your best friend\n- The steak continues cooking while resting (+3-5°C)\n- Butter basting = restaurant-quality flavor\n- Let it rest or all the juices run out when you cut"},
+
+{kw:['chocolate cake:10','cake recipe:8','how to make cake:8','birthday cake:8','brownie:6'],
+ short:"Chocolate cake — rich, moist, and easy to make! Cocoa, butter, eggs, flour, sugar.",
+ long:"**Easy Chocolate Cake:**\n\n**Dry:** 200g flour, 200g sugar, 75g cocoa, 1 tsp baking soda, 1 tsp baking powder, salt\n**Wet:** 2 eggs, 240ml milk, 120ml oil, 2 tsp vanilla, 240ml hot coffee (or water)\n**Mix, pour into 2 pans, bake 175°C for 30-35 min.**\n\n**Frosting:** 200g butter + 400g powdered sugar + 100g cocoa + milk + vanilla.",
+ full:"**Best Chocolate Cake Recipe**\n\n**Ingredients:**\n- 200g all-purpose flour\n- 200g sugar\n- 75g unsweetened cocoa powder\n- 1 tsp baking soda, 1 tsp baking powder\n- 1 tsp salt\n- 2 large eggs\n- 240ml whole milk\n- 120ml vegetable oil\n- 2 tsp vanilla extract\n- 240ml hot coffee (makes it extra rich — or use hot water)\n\n**Chocolate Frosting:**\n- 200g softened butter\n- 400g powdered sugar\n- 100g cocoa powder\n- 60ml milk\n- 2 tsp vanilla\n\n**Steps:**\n1. Preheat oven to 175°C. Grease two 9-inch round pans\n2. Mix all dry ingredients in a large bowl\n3. Add eggs, milk, oil, vanilla — beat 2 minutes\n4. Stir in hot coffee (batter will be thin — that's OK!)\n5. Divide between pans, bake 30-35 min (toothpick test)\n6. Cool completely before frosting\n7. **Frosting:** Beat butter until fluffy, add sugar + cocoa gradually, add milk + vanilla until smooth\n8. Frost between layers, then top and sides\n\n**Tips:**\n- Hot coffee enhances chocolate flavor (you won't taste coffee)\n- Don't overmix the batter\n- Cool COMPLETELY before frosting or it melts off\n- Add a pinch of espresso powder for even deeper chocolate flavor"},
+
+{kw:['tacos:8','taco:8','mexican food:8','burrito:6','quesadilla:6','guacamole:8'],
+ short:"Tacos — seasoned meat, fresh toppings, warm tortillas. Mexican perfection!",
+ long:"**Easy Tacos:**\n\n**Meat:** ground beef + cumin, paprika, chili powder, garlic, onion, salt\n**Build:** warm tortillas + meat + lettuce + cheese + salsa + sour cream + lime\n**Guacamole:** mash avocado + lime juice + salt + cilantro + diced onion + jalapeño\n\nCorn tortillas for authentic, flour for soft tacos.",
+ full:"**Tacos & Mexican Favorites**\n\n**Taco Seasoning (homemade):**\n- 1 tbsp chili powder, 1 tsp cumin, 1 tsp paprika\n- ½ tsp garlic powder, ½ tsp onion powder\n- ½ tsp oregano, ¼ tsp cayenne\n- Salt & pepper to taste\n\n**Beef Tacos:**\n1. Brown 500g ground beef, drain fat\n2. Add seasoning + 80ml water, simmer 5 min\n3. Warm tortillas (corn = authentic, flour = soft)\n4. Build: meat → lettuce → cheese → salsa → sour cream → lime squeeze\n\n**Guacamole:**\n- 3 ripe avocados, mashed\n- 1 lime, juiced\n- ½ red onion, finely diced\n- 1 jalapeño, minced (seeds out for mild)\n- Fresh cilantro, chopped\n- Salt to taste\n- *Optional: diced tomato*\n\n**Quick Quesadilla:** Tortilla + cheese + leftover taco meat, fold, pan-fry both sides until crispy.\n\n**Burrito:** Large flour tortilla + rice + beans + meat + cheese + salsa + sour cream, wrap tight.\n\n**Tips:**\n- Double-stack corn tortillas (they break easily)\n- Warm tortillas in a dry hot pan, not microwave\n- Lime on everything!"},
+
+{kw:['curry:8','indian food:8','chicken curry:10','tikka masala:10','butter chicken:10','naan:6'],
+ short:"Butter chicken — creamy tomato curry with tender chicken. The king of Indian food!",
+ long:"**Easy Butter Chicken:**\n\n**Marinate:** chicken thighs in yogurt + garam masala + turmeric + chili (1 hour)\n**Sauce:** butter + onion + garlic + ginger + tomato passata + cream + garam masala + fenugreek\n**Cook:** grill/fry chicken, simmer in sauce 20 min\n\n**Serve with:** basmati rice or naan bread.",
+ full:"**Butter Chicken (Murgh Makhani)**\n\n**Marinade (1 hour min):**\n- 600g chicken thighs, cubed\n- 150g yogurt\n- 1 tbsp garam masala, 1 tsp turmeric, 1 tsp chili powder\n- 2 cloves garlic, crushed + 1 tbsp ginger, grated\n- Salt, lemon juice\n\n**Sauce:**\n- 2 tbsp butter + 1 tbsp oil\n- 1 large onion, finely diced\n- 3 cloves garlic + 1 tbsp ginger\n- 400g tomato passata (or canned tomatoes, blended)\n- 1 tbsp garam masala, 1 tsp cumin, 1 tsp paprika\n- 1 tsp dried fenugreek leaves (kasoori methi) — the secret ingredient!\n- 120ml heavy cream\n- 1 tbsp sugar, salt to taste\n\n**Steps:**\n1. Marinate chicken for at least 1 hour (overnight = best)\n2. Cook chicken in hot pan until charred (don't fully cook through)\n3. In same pan: melt butter, cook onion until soft\n4. Add garlic + ginger, cook 1 min\n5. Add spices, cook 30 sec\n6. Add tomato passata, simmer 15 min\n7. Add cream, sugar, fenugreek, stir\n8. Add chicken pieces, simmer 10 min until cooked through\n9. Finish with a knob of butter\n\n**Serve with:** basmati rice, naan bread, or both!\n\n**Tip:** Fenugreek leaves are what makes it taste like a restaurant. Don't skip them!"},
+
+{kw:['fried rice:8','chinese food:8','stir fry:8','wok:6','noodles:6','ramen:8'],
+ short:"Fried rice — day-old rice + soy sauce + eggs + veggies, stir-fried on high heat!",
+ long:"**Easy Fried Rice:**\n\n**Must use:** day-old cold rice (fresh rice = mushy)\n**Ingredients:** rice, 2 eggs, soy sauce, sesame oil, garlic, green onion, vegetables\n**Technique:** HIGH heat wok, cook eggs first, then rice, add soy sauce at the end\n\nThe secret is high heat and not overcrowding the wok!",
+ full:"**Perfect Fried Rice**\n\n**Ingredients (2 servings):**\n- 3 cups day-old cooked rice (cold from fridge!)\n- 2 eggs, beaten\n- 3 tbsp soy sauce\n- 1 tbsp sesame oil\n- 2 tbsp vegetable oil\n- 3 cloves garlic, minced\n- 1 cup mixed vegetables (peas, corn, diced carrot)\n- 3 green onions, sliced\n- *Optional: diced chicken, shrimp, or tofu*\n\n**Steps:**\n1. Heat wok/large pan on HIGH with vegetable oil\n2. Add beaten eggs, scramble quickly, remove and set aside\n3. Add more oil if needed, cook garlic 30 seconds\n4. Add vegetables (and protein if using), cook 2-3 min\n5. Add cold rice — press it flat against the wok, let it sear\n6. Add soy sauce and sesame oil, toss everything\n7. Add scrambled eggs back, toss with green onions\n\n**Why day-old rice?**\nFresh rice has too much moisture → steams instead of frying → mushy result. Day-old rice from the fridge is dry and fries perfectly!\n\n**Variations:**\n- **Kimchi fried rice** — add kimchi + gochujang\n- **Pineapple fried rice** — Thai style with curry powder\n- **Garlic fried rice** — extra garlic, simple and delicious"},
 
 // ══════════════════════════════════════════════════════
 //  HEALTH & FITNESS
@@ -1431,7 +1575,7 @@ function buildSmartResponse(input) {
         `- **History** — ancient civilizations, wars, famous people\n` +
         `- **Math** — calculations, formulas, equations\n` +
         `- **Languages** — I speak 12 languages\n` +
-        `- **Sports, music, movies, food, health, animals, geography**\n\n` +
+        `- **Sports, music, movies, food (Romanian cuisine!), health, animals, geography**\n\n` +
         `Try rephrasing or asking about a related topic!`;
     }
   }
@@ -1506,7 +1650,7 @@ function getResponse(input){
       "- **\"What is 20% of 350?\"** — math word problems\n" +
       "- **\"Tell me more\"** — expand on last answer\n" +
       "- **Code** in 15+ languages with download\n" +
-      "- **Science, history, math, sports, music, animals, space, food**\n" +
+      "- **Science, history, math, sports, music, animals, space, food & Romanian cuisine**\n" +
       "- **12 languages** — Spanish, French, German, Italian, Romanian, Japanese, Chinese, and more\n\n" +
       "Just ask!";
   }
@@ -1737,6 +1881,357 @@ function generateImage(prompt) {
   return canvas;
 }
 
+// ── Video generation (animated canvas → webm) ──
+function generateVideo(prompt) {
+  return new Promise(resolve => {
+    const lower = prompt.toLowerCase();
+    const canvas = document.createElement('canvas');
+    canvas.width = 512; canvas.height = 512;
+    canvas.style.position = 'fixed'; canvas.style.left = '-9999px';
+    document.body.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+    const fps = 24, duration = 6, totalFrames = fps * duration;
+    let frame = 0;
+    const startTime = performance.now();
+
+    // Pick theme
+    let theme = 'abstract';
+    if (/sunset|sky|evening|sunrise/.test(lower)) theme = 'sunset';
+    else if (/ocean|sea|water|wave|beach/.test(lower)) theme = 'ocean';
+    else if (/forest|tree|nature|green/.test(lower)) theme = 'forest';
+    else if (/space|galaxy|star|night|planet/.test(lower)) theme = 'space';
+    else if (/mountain/.test(lower)) theme = 'mountain';
+    else if (/rain/.test(lower)) theme = 'rain';
+    else if (/fire|flame|burn/.test(lower)) theme = 'fire';
+    else if (/city|urban|building/.test(lower)) theme = 'city';
+    else if (/cook|food|recipe|sarmale|mici|pizza|cake|burger|steak|pasta|sushi|taco|curry|pancake|soup|ciorba|mamaliga|cozonac|kitchen|chef|fry|bake|grill|boil/.test(lower)) theme = 'cooking';
+
+    // Pre-generate stable random values for particles
+    const seed = Array.from({length:150}, ()=>Math.random());
+    const particles = [];
+    for (let i = 0; i < 150; i++) {
+      particles.push({x:seed[i]*512, y:((seed[(i+50)%150])*512), s:seed[(i+30)%150]*3+1, speed:seed[(i+70)%150]*2+0.5, hue:seed[(i+10)%150]*360, phase:seed[(i+90)%150]*Math.PI*2});
+    }
+
+    // Stable random for city windows etc
+    function stableRand(i) { return seed[i % 150]; }
+
+    // Start recording
+    const stream = canvas.captureStream(0); // 0 = manual frame push
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+    const recorder = new MediaRecorder(stream, {mimeType, videoBitsPerSecond: 2500000});
+    const chunks = [];
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = () => {
+      document.body.removeChild(canvas);
+      const blob = new Blob(chunks, {type: mimeType});
+      const url = URL.createObjectURL(blob);
+      resolve({url, blob, mimeType});
+    };
+    recorder.start();
+
+    function drawFrame() {
+      const t = frame / totalFrames; // 0..1
+      const time = frame / fps; // seconds
+      ctx.clearRect(0, 0, 512, 512);
+
+      if (theme === 'sunset') {
+        const grad = ctx.createLinearGradient(0, 0, 0, 512);
+        grad.addColorStop(0, `hsl(${280-t*40},60%,${15+t*10}%)`);
+        grad.addColorStop(0.4, `hsl(${20+t*15},${80-t*20}%,${50-t*15}%)`);
+        grad.addColorStop(0.7, '#ff6b35'); grad.addColorStop(1, '#1a0a2e');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, 512, 512);
+        const sunY = 180 + t * 150;
+        ctx.beginPath(); ctx.arc(256, sunY, 60, 0, Math.PI*2);
+        const sg = ctx.createRadialGradient(256, sunY, 0, 256, sunY, 60);
+        sg.addColorStop(0,'#fff700'); sg.addColorStop(0.6,'#ff8c00'); sg.addColorStop(1,'rgba(255,69,0,0.5)');
+        ctx.fillStyle = sg; ctx.fill();
+        for (let i = 0; i < 5; i++) {
+          const cx = ((80+i*110+time*20)%600)-40;
+          ctx.beginPath(); ctx.ellipse(cx,80+i*25,70,18,0,0,Math.PI*2);
+          ctx.fillStyle=`rgba(255,${150+i*20},${100+i*15},${0.25-t*0.1})`; ctx.fill();
+        }
+        ctx.fillStyle='#1a0a2e'; ctx.fillRect(0,380,512,132);
+        for (let y=385;y<512;y+=8) {
+          ctx.beginPath();
+          for (let x=0;x<=512;x+=4) {
+            const wy=y+Math.sin(x/20+time*3)*3;
+            x===0?ctx.moveTo(x,wy):ctx.lineTo(x,wy);
+          }
+          ctx.strokeStyle=`rgba(255,${160},0,${0.15-(y-385)/800})`; ctx.lineWidth=1.5; ctx.stroke();
+        }
+      } else if (theme === 'ocean') {
+        const grad = ctx.createLinearGradient(0,0,0,512);
+        grad.addColorStop(0,'#87ceeb'); grad.addColorStop(0.35,'#4facfe'); grad.addColorStop(1,'#003d5b');
+        ctx.fillStyle=grad; ctx.fillRect(0,0,512,512);
+        ctx.beginPath(); ctx.arc(400,80,45,0,Math.PI*2); ctx.fillStyle='#ffe066'; ctx.fill();
+        for (let layer=0;layer<6;layer++) {
+          const baseY=220+layer*50;
+          ctx.beginPath(); ctx.moveTo(0,baseY);
+          for (let x=0;x<=512;x+=5) {
+            const wy=baseY+Math.sin(x/40+time*2+layer*0.8)*(12+layer*4)+Math.sin(x/80-time)*6;
+            ctx.lineTo(x,wy);
+          }
+          ctx.lineTo(512,512); ctx.lineTo(0,512);
+          ctx.fillStyle=`rgba(0,${60+layer*25},${120+layer*20},0.35)`; ctx.fill();
+        }
+      } else if (theme === 'space') {
+        ctx.fillStyle='#0a0a1a'; ctx.fillRect(0,0,512,512);
+        for (let i=0;i<120;i++) {
+          const p=particles[i];
+          const blink=0.3+0.7*Math.abs(Math.sin(time*(1+i%3)+p.phase));
+          ctx.beginPath(); ctx.arc(p.x,p.y,p.s*0.8,0,Math.PI*2);
+          ctx.fillStyle=`rgba(255,255,255,${blink})`; ctx.fill();
+        }
+        for (let i=0;i<3;i++) {
+          const nx=256+Math.cos(time*0.3+i*2.1)*100;
+          const ny=256+Math.sin(time*0.2+i*2.1)*80;
+          const ng=ctx.createRadialGradient(nx,ny,0,nx,ny,120);
+          ng.addColorStop(0,`hsla(${(time*30+i*120)%360},80%,60%,0.25)`); ng.addColorStop(1,'transparent');
+          ctx.fillStyle=ng; ctx.fillRect(0,0,512,512);
+        }
+        const px=256+Math.cos(time*0.5)*160, py=256+Math.sin(time*0.5)*100;
+        ctx.beginPath(); ctx.arc(px,py,25,0,Math.PI*2);
+        const pg2=ctx.createRadialGradient(px-5,py-5,2,px,py,25);
+        pg2.addColorStop(0,'#a78bfa'); pg2.addColorStop(1,'#4c1d95');
+        ctx.fillStyle=pg2; ctx.fill();
+        ctx.beginPath(); ctx.ellipse(px,py,38,8,0.3,0,Math.PI*2);
+        ctx.strokeStyle='rgba(167,139,250,0.4)'; ctx.lineWidth=2; ctx.stroke();
+      } else if (theme === 'forest') {
+        const grad=ctx.createLinearGradient(0,0,0,512);
+        grad.addColorStop(0,'#0f2027'); grad.addColorStop(0.5,'#1a4a2e'); grad.addColorStop(1,'#0d1f0d');
+        ctx.fillStyle=grad; ctx.fillRect(0,0,512,512);
+        ctx.fillStyle='#0a1a08'; ctx.fillRect(0,370,512,142);
+        for (let i=0;i<9;i++) {
+          const bx=20+i*60, sway=Math.sin(time*1.5+i)*5, h=100+(i%3)*40;
+          ctx.fillStyle='#2d1a0e'; ctx.fillRect(bx-5,370-h+50,10,h);
+          ctx.beginPath(); ctx.moveTo(bx-35+sway,370-h+70); ctx.lineTo(bx+sway,370-h-20); ctx.lineTo(bx+35+sway,370-h+70);
+          ctx.fillStyle=`hsl(${130+i*5},${45+i*3}%,${22+i*2}%)`; ctx.fill();
+          ctx.beginPath(); ctx.moveTo(bx-25+sway,370-h+35); ctx.lineTo(bx+sway,370-h-45); ctx.lineTo(bx+25+sway,370-h+35);
+          ctx.fillStyle=`hsl(${135+i*5},${50+i*3}%,${28+i*2}%)`; ctx.fill();
+        }
+        for (let i=0;i<25;i++) {
+          const p=particles[i];
+          const fx=p.x+Math.sin(time*p.speed+p.phase)*30;
+          const fy=100+(p.y%300)+Math.cos(time*p.speed*0.7+p.phase)*20;
+          const glow=0.3+0.7*Math.abs(Math.sin(time*2+p.phase));
+          ctx.beginPath(); ctx.arc(fx,fy,2.5,0,Math.PI*2);
+          ctx.fillStyle=`rgba(180,255,50,${glow})`; ctx.fill();
+          ctx.beginPath(); ctx.arc(fx,fy,8,0,Math.PI*2);
+          ctx.fillStyle=`rgba(180,255,50,${glow*0.15})`; ctx.fill();
+        }
+      } else if (theme === 'mountain') {
+        const skyHue=200+t*30;
+        const grad=ctx.createLinearGradient(0,0,0,512);
+        grad.addColorStop(0,`hsl(${skyHue},60%,${55-t*15}%)`); grad.addColorStop(1,`hsl(${skyHue+20},40%,${35-t*10}%)`);
+        ctx.fillStyle=grad; ctx.fillRect(0,0,512,512);
+        [[0,400,130,180,260,350],[180,340,300,140,420,340],[350,380,440,120,530,380]].forEach(([x1,y1,ppx,ppy,x2,y2],i)=>{
+          ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(ppx,ppy); ctx.lineTo(x2,y2); ctx.lineTo(x2,512); ctx.lineTo(x1,512);
+          ctx.fillStyle=`hsl(220,${15+i*5}%,${25-i*5}%)`; ctx.fill();
+          ctx.beginPath(); ctx.moveTo(ppx-15,ppy+20); ctx.lineTo(ppx,ppy); ctx.lineTo(ppx+15,ppy+20);
+          ctx.fillStyle=`rgba(255,255,255,${0.7-i*0.15})`; ctx.fill();
+        });
+        for (let i=0;i<4;i++) {
+          const cx=((i*150+time*25)%650)-60;
+          ctx.beginPath(); ctx.ellipse(cx,70+i*30,60,16,0,0,Math.PI*2);
+          ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fill();
+          ctx.beginPath(); ctx.ellipse(cx+30,75+i*30,40,12,0,0,Math.PI*2);
+          ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.fill();
+        }
+      } else if (theme === 'rain') {
+        ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,512,512);
+        for (let i=0;i<100;i++) {
+          const p=particles[i];
+          const rx=(p.x+time*30)%512;
+          const ry=(p.y*3+time*200*p.speed)%600-60;
+          ctx.beginPath(); ctx.moveTo(rx,ry); ctx.lineTo(rx-0.5,ry+10+p.s*3);
+          ctx.strokeStyle=`rgba(150,180,255,${0.3+p.s/6})`; ctx.lineWidth=1; ctx.stroke();
+        }
+        for (let i=0;i<5;i++) {
+          const px2=50+i*100+Math.sin(time+i)*10;
+          ctx.beginPath(); ctx.ellipse(px2,470,35+Math.sin(time*2+i)*5,6,0,0,Math.PI*2);
+          ctx.fillStyle='rgba(100,140,200,0.15)'; ctx.fill();
+        }
+        if (Math.sin(time*7)>0.97) { ctx.fillStyle='rgba(200,210,255,0.1)'; ctx.fillRect(0,0,512,512); }
+      } else if (theme === 'fire') {
+        ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,512,512);
+        for (let i=0;i<60;i++) {
+          const p=particles[i];
+          const fx=200+(p.x%112)+Math.sin(time*3+p.phase)*20;
+          const fy=500-((time*80*p.speed+p.y*2)%400);
+          const life=fy/500, size=(p.s+2)*(1.5-life);
+          ctx.beginPath(); ctx.arc(fx,fy,Math.max(0,size),0,Math.PI*2);
+          const h=life>0.6?50:life>0.3?30:10;
+          ctx.fillStyle=`hsla(${h},100%,${50+life*30}%,${0.6*Math.max(0,life)})`; ctx.fill();
+        }
+        for (let i=60;i<80;i++) {
+          const p=particles[i];
+          const ex=220+(p.x%72)+Math.sin(time*2+p.phase)*40;
+          const ey=480-((time*40*p.speed+p.y*2)%500);
+          ctx.beginPath(); ctx.arc(ex,ey,1.5,0,Math.PI*2);
+          ctx.fillStyle=`rgba(255,${150+stableRand(i)*100},0,${0.7*Math.max(0,ey/480)})`; ctx.fill();
+        }
+      } else if (theme === 'city') {
+        ctx.fillStyle='#0a0a1e'; ctx.fillRect(0,0,512,512);
+        for (let i=0;i<40;i++) {
+          ctx.beginPath(); ctx.arc(particles[i].x,particles[i].y%200,1,0,Math.PI*2);
+          ctx.fillStyle=`rgba(255,255,255,${0.3+0.5*Math.abs(Math.sin(time+particles[i].phase))})`; ctx.fill();
+        }
+        const bldgs=[{x:20,w:45,h:220},{x:70,w:35,h:280},{x:115,w:50,h:200},{x:175,w:40,h:320},{x:225,w:55,h:260},{x:290,w:35,h:300},{x:335,w:50,h:240},{x:395,w:40,h:290},{x:445,w:50,h:210}];
+        bldgs.forEach((b,i)=>{
+          ctx.fillStyle=`hsl(230,20%,${10+i%3*3}%)`; ctx.fillRect(b.x,512-b.h,b.w,b.h);
+          for (let wy=512-b.h+15;wy<500;wy+=18) {
+            for (let wx=b.x+6;wx<b.x+b.w-6;wx+=12) {
+              const lit=Math.sin(time*0.5+wx*0.1+wy*0.1+i)>-0.3;
+              ctx.fillStyle=lit?`rgba(255,220,${100+i*15},${0.5+stableRand(wx+wy)*0.3})`:'rgba(20,20,40,0.8)';
+              ctx.fillRect(wx,wy,6,8);
+            }
+          }
+        });
+        ctx.fillStyle='#1a1a25'; ctx.fillRect(0,490,512,22);
+        for (let i=0;i<4;i++) {
+          const cx=((i*150+time*60)%600)-40;
+          ctx.beginPath(); ctx.arc(cx,497,3,0,Math.PI*2);
+          ctx.fillStyle=i%2===0?'rgba(255,50,50,0.8)':'rgba(255,255,200,0.8)'; ctx.fill();
+        }
+      } else if (theme === 'cooking') {
+        // Cooking scene — steaming pot on stove
+        // Kitchen wall
+        const wallGrad=ctx.createLinearGradient(0,0,0,512);
+        wallGrad.addColorStop(0,'#2a1f14'); wallGrad.addColorStop(0.6,'#3d2b1a'); wallGrad.addColorStop(1,'#1a1210');
+        ctx.fillStyle=wallGrad; ctx.fillRect(0,0,512,512);
+        // Tile pattern on wall
+        for (let ty=20;ty<240;ty+=40) {
+          for (let tx=20;tx<512;tx+=50) {
+            ctx.fillStyle=((ty+tx)/50)%2<1?'#3a2a1c':'#342618';
+            ctx.fillRect(tx,ty,48,38);
+            ctx.strokeStyle='#4a3828'; ctx.lineWidth=1; ctx.strokeRect(tx,ty,48,38);
+          }
+        }
+        // Countertop
+        const counterGrad=ctx.createLinearGradient(0,280,0,320);
+        counterGrad.addColorStop(0,'#5a4a3a'); counterGrad.addColorStop(0.5,'#6b5a48'); counterGrad.addColorStop(1,'#4a3a2a');
+        ctx.fillStyle=counterGrad; ctx.fillRect(0,280,512,40);
+        // Stove surface
+        ctx.fillStyle='#1a1a1a'; ctx.fillRect(100,310,312,180);
+        ctx.strokeStyle='#333'; ctx.lineWidth=2; ctx.strokeRect(100,310,312,180);
+        // Burner glow
+        const burnerGlow=ctx.createRadialGradient(256,400,10,256,400,70);
+        burnerGlow.addColorStop(0,`rgba(255,${80+Math.sin(time*6)*30},0,${0.4+Math.sin(time*4)*0.1})`);
+        burnerGlow.addColorStop(0.5,`rgba(255,50,0,${0.15+Math.sin(time*3)*0.05})`);
+        burnerGlow.addColorStop(1,'transparent');
+        ctx.fillStyle=burnerGlow; ctx.fillRect(100,310,312,180);
+        // Burner ring
+        ctx.beginPath(); ctx.arc(256,400,45,0,Math.PI*2);
+        ctx.strokeStyle='#444'; ctx.lineWidth=3; ctx.stroke();
+        ctx.beginPath(); ctx.arc(256,400,35,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(255,${100+Math.sin(time*5)*40},0,0.6)`; ctx.lineWidth=2; ctx.stroke();
+        // Pot body
+        ctx.fillStyle='#555'; ctx.beginPath();
+        ctx.moveTo(180,300); ctx.lineTo(175,395); ctx.quadraticCurveTo(175,410,195,410);
+        ctx.lineTo(317,410); ctx.quadraticCurveTo(337,410,337,395); ctx.lineTo(332,300); ctx.closePath(); ctx.fill();
+        // Pot rim
+        ctx.fillStyle='#666'; ctx.fillRect(170,295,172,12);
+        // Pot handles
+        ctx.fillStyle='#444';
+        ctx.fillRect(155,330,20,10); ctx.fillRect(337,330,20,10);
+        // Pot lid (slightly tilted with steam escaping)
+        const lidBob=Math.sin(time*4)*2;
+        const lidAngle=Math.sin(time*3)*0.03;
+        ctx.save(); ctx.translate(256,292+lidBob); ctx.rotate(lidAngle);
+        ctx.fillStyle='#6a6a6a';
+        ctx.beginPath(); ctx.ellipse(0,0,82,10,0,0,Math.PI*2); ctx.fill();
+        // Lid knob
+        ctx.fillStyle='#333'; ctx.beginPath(); ctx.arc(0,-8,8,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+        // Steam particles rising
+        for (let i=0;i<18;i++) {
+          const p=particles[i];
+          const sx=210+(p.x%92)+Math.sin(time*1.5+p.phase)*15;
+          const sy=260-((time*35*p.speed+p.y)%200);
+          const life=1-((260-sy)/200);
+          const size=3+life*8;
+          ctx.beginPath(); ctx.arc(sx,sy,size,0,Math.PI*2);
+          ctx.fillStyle=`rgba(200,200,210,${0.15*life*Math.abs(Math.sin(time+p.phase))})`; ctx.fill();
+        }
+        // Small bubbles in pot (visible between lid gap)
+        for (let i=0;i<6;i++) {
+          const bx=195+stableRand(i+80)*120;
+          const by=300+Math.sin(time*3+i*1.5)*3;
+          const bsize=1+stableRand(i+90)*2;
+          if (Math.sin(time*2+i)>0) {
+            ctx.beginPath(); ctx.arc(bx,by,bsize,0,Math.PI*2);
+            ctx.fillStyle='rgba(255,200,150,0.3)'; ctx.fill();
+          }
+        }
+        // Spoon leaning on pot
+        ctx.save(); ctx.translate(340,290); ctx.rotate(0.25);
+        ctx.fillStyle='#8B7355'; ctx.fillRect(-3,-80,6,90);
+        ctx.beginPath(); ctx.ellipse(0,-80,10,14,0,0,Math.PI*2);
+        ctx.fillStyle='#8B7355'; ctx.fill();
+        ctx.restore();
+        // Ingredients on counter
+        // Onion
+        ctx.beginPath(); ctx.arc(80,275,15,Math.PI,0);
+        ctx.fillStyle='#c4a35a'; ctx.fill();
+        ctx.beginPath(); ctx.arc(80,275,15,0,Math.PI);
+        ctx.fillStyle='#b8963f'; ctx.fill();
+        // Garlic
+        ctx.beginPath(); ctx.arc(430,272,10,0,Math.PI*2);
+        ctx.fillStyle='#e8e0d0'; ctx.fill();
+        ctx.beginPath(); ctx.arc(430,268,4,0,Math.PI*2);
+        ctx.fillStyle='#d4cbb8'; ctx.fill();
+        // Pepper grinder
+        ctx.fillStyle='#2a2a2a'; ctx.fillRect(455,248,14,30);
+        ctx.fillStyle='#4a3020'; ctx.fillRect(455,255,14,18);
+        ctx.beginPath(); ctx.arc(462,248,7,Math.PI,0); ctx.fillStyle='#333'; ctx.fill();
+        // Warm ambient glow from stove
+        const ambGlow=ctx.createRadialGradient(256,380,20,256,380,200);
+        ambGlow.addColorStop(0,`rgba(255,120,30,${0.06+Math.sin(time*2)*0.02})`);
+        ambGlow.addColorStop(1,'transparent');
+        ctx.fillStyle=ambGlow; ctx.fillRect(0,250,512,262);
+      } else {
+        // Abstract
+        const grad=ctx.createLinearGradient(0,0,512,512);
+        grad.addColorStop(0,`hsl(${(time*20)%360},60%,15%)`);
+        grad.addColorStop(1,`hsl(${(time*20+180)%360},60%,10%)`);
+        ctx.fillStyle=grad; ctx.fillRect(0,0,512,512);
+        for (let i=0;i<20;i++) {
+          const p=particles[i];
+          const ax=256+Math.cos(time*p.speed+p.phase)*(80+i*8);
+          const ay=256+Math.sin(time*p.speed*0.7+p.phase)*(80+i*8);
+          ctx.beginPath(); ctx.arc(ax,ay,8+p.s*4,0,Math.PI*2);
+          ctx.fillStyle=`hsla(${(p.hue+time*40)%360},70%,60%,0.25)`; ctx.fill();
+        }
+        const pulse=40+Math.sin(time*2)*15;
+        ctx.beginPath(); ctx.arc(256,256,pulse,0,Math.PI*2);
+        const cg=ctx.createRadialGradient(256,256,0,256,256,pulse);
+        cg.addColorStop(0,'#fff'); cg.addColorStop(0.4,`hsl(${(time*50)%360},80%,60%)`); cg.addColorStop(1,'transparent');
+        ctx.fillStyle=cg; ctx.fill();
+      }
+
+      // Watermark
+      ctx.fillStyle='rgba(255,255,255,0.25)';
+      ctx.font='13px Inter, sans-serif';
+      ctx.fillText('Generated by Petru AI',16,500);
+
+      // Request manual frame capture
+      if (stream.getVideoTracks()[0].requestFrame) {
+        stream.getVideoTracks()[0].requestFrame();
+      }
+
+      frame++;
+      if (frame < totalFrames) {
+        // Use setTimeout for real-time pacing (~24fps)
+        setTimeout(drawFrame, 1000 / fps);
+      } else {
+        setTimeout(() => recorder.stop(), 100);
+      }
+    }
+    drawFrame();
+  });
+}
+
 function generateSearchResults(query) {
   const lower = query.toLowerCase();
   const results = [];
@@ -1764,6 +2259,8 @@ async function sendMessage(){
   if(activeMode==='deepseek') delay = Math.max(delay, 2000);
   if(activeMode==='search') delay = Math.max(delay, 1800);
   if(activeMode==='image') delay = Math.max(delay, 2000);
+  if(activeMode==='video') delay = Math.max(delay, 2500);
+  if(activeMode==='chess') delay = Math.max(delay, 500);
   await new Promise(r=>setTimeout(r,delay));
   removeTyping();
 
@@ -1771,7 +2268,7 @@ async function sendMessage(){
   const msg=document.createElement('div');
   msg.className='message ai';
   const mColor = currentModel.color;
-  const modeLabel = activeMode ? ` + ${activeMode==='thinking'?'Think':activeMode==='deepseek'?'Deep':activeMode==='search'?'Search':activeMode==='image'?'Image':''}` : '';
+  const modeLabel = activeMode ? ` + ${activeMode==='thinking'?'Think':activeMode==='deepseek'?'Deep':activeMode==='search'?'Search':activeMode==='image'?'Image':activeMode==='video'?'Video':activeMode==='chess'?'Chess':''}` : '';
   const badge=`<div class="msg-model-badge" style="background:${mColor}20;color:${mColor}">${currentModel.name}${modeLabel}</div>`;
   const contentDiv = document.createElement('div');
   contentDiv.className = 'message-content';
@@ -1817,18 +2314,98 @@ async function sendMessage(){
     chatContainer.scrollTop = chatContainer.scrollHeight;
   }
 
-  // Text response (streamed)
-  let response = getResponse(text);
-  if(activeMode==='image') response = "Here's your generated image! Click **Save PNG** to download it.\n\nTry describing: *sunset, ocean, space, forest, mountains*, or anything else — I'll paint it for you!";
+  // Video generation mode
+  if(activeMode==='video'){
+    // Show progress animation
+    const vidAnim = document.createElement('div');
+    vidAnim.className = 'vidgen-anim';
+    vidAnim.innerHTML = '<span class="clapper">&#127916;</span> Generating video...';
+    contentDiv.appendChild(vidAnim);
+    const progWrap = document.createElement('div');
+    progWrap.className = 'gen-video-progress';
+    const progBar = document.createElement('div');
+    progBar.className = 'gen-video-progress-bar';
+    progWrap.appendChild(progBar);
+    contentDiv.appendChild(progWrap);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    // Animate progress bar
+    let prog = 0;
+    const progInterval = setInterval(() => { prog = Math.min(prog + 2, 95); progBar.style.width = prog + '%'; }, 100);
+    // Generate
+    const {url, blob, mimeType} = await generateVideo(text);
+    clearInterval(progInterval);
+    progBar.style.width = '100%';
+    await new Promise(r => setTimeout(r, 300));
+    vidAnim.remove();
+    progWrap.remove();
+    // Show video player
+    const vidWrap = document.createElement('div');
+    vidWrap.className = 'gen-video';
+    const video = document.createElement('video');
+    video.src = url;
+    video.controls = true;
+    video.autoplay = true;
+    video.loop = true;
+    video.muted = true;
+    video.style.width = '100%';
+    video.style.maxWidth = '512px';
+    vidWrap.appendChild(video);
+    const label = document.createElement('div');
+    label.className = 'gen-video-label';
+    const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+    label.innerHTML = `<span>Video: "${escapeHtml(text.slice(0,50))}" (6s)</span><button class="code-btn" onclick="const a=document.createElement('a');a.href='${url}';a.download='petru-ai-video.${ext}';a.click()">&#x2B73; Save Video</button>`;
+    vidWrap.appendChild(label);
+    contentDiv.appendChild(vidWrap);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
 
-  const fullRaw = response;
+  // Chess mode
+  if(activeMode==='chess'){
+    const chessWrap = document.createElement('div');
+    chessWrap.className = 'chess-wrap';
+    const gameId = 'chess-' + Date.now();
+    chessWrap.id = gameId;
+    contentDiv.appendChild(chessWrap);
+    initChessGame(chessWrap, text);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
+
+  // Text response
   const streamDiv = document.createElement('div');
   streamDiv.className = 'stream-target';
   contentDiv.appendChild(streamDiv);
 
-  // Stream the formatted response
-  const formatted = formatMessage(response);
-  await streamText(streamDiv, formatted, currentModel.speed);
+  let fullRaw = '';
+
+  if (activeMode==='chess') {
+    fullRaw = "Let's play chess! ♟️ You are **White** — click a piece to select it, then click a square to move.\n\nI'll play as Black. Good luck!";
+    await streamText(streamDiv, formatMessage(fullRaw), currentModel.speed);
+  } else if (activeMode==='image') {
+    fullRaw = "Here's your generated image! Click **Save PNG** to download it.\n\nTry describing: *sunset, ocean, space, forest, mountains*, or anything else — I'll paint it for you!";
+    await streamText(streamDiv, formatMessage(fullRaw), currentModel.speed);
+  } else if (activeMode==='video') {
+    fullRaw = "Here's your generated video! It plays automatically and loops. Click **Save Video** to download.\n\nTry describing: *sunset, ocean, space, forest, mountains, rain, fire, city, sarmale, cooking*, or anything else — I'll animate it for you!";
+    await streamText(streamDiv, formatMessage(fullRaw), currentModel.speed);
+  } else if (isAIConnected()) {
+    // Use REAL AI API with streaming
+    const aiResult = await callAIStream(text, streamDiv);
+    if (aiResult) {
+      fullRaw = aiResult;
+      // Save to conversation context
+      conversationContext.push({role:'user', text:text, time:Date.now()});
+      if (conversationContext.length > 20) conversationContext.shift();
+      conversationContext.push({role:'ai', text:fullRaw, time:Date.now()});
+      if (conversationContext.length > 20) conversationContext.shift();
+    } else {
+      // API failed — fall back to local
+      fullRaw = getResponse(text);
+      await streamText(streamDiv, formatMessage(fullRaw), currentModel.speed);
+    }
+  } else {
+    // Offline mode — local knowledge base
+    fullRaw = getResponse(text);
+    await streamText(streamDiv, formatMessage(fullRaw), currentModel.speed);
+  }
 
   // Add listen button
   const speakBtn = document.createElement('button');
@@ -1837,7 +2414,7 @@ async function sendMessage(){
   speakBtn.onclick = function() { speakText(this, fullRaw); };
   contentDiv.appendChild(speakBtn);
 
-  saveCurrentMessage(response,'ai',fullRaw,currentModel.id+(activeMode?'+'+activeMode:''));
+  saveCurrentMessage(fullRaw,'ai',fullRaw,currentModel.id+(activeMode?'+'+activeMode:''));
   chatContainer.scrollTop=chatContainer.scrollHeight;
   sendBtn.disabled=false;userInput.focus();
 }
@@ -1857,7 +2434,7 @@ function welcomeHTML(){
     <button class="chain-btn" onclick="askSuggestion('Give me a riddle')" style="--c:#a855f7">&#129300; Riddle</button>
     <button class="chain-btn" onclick="askSuggestion('Teach me about chess')" style="--c:#d97706">&#9819; Chess</button>
   </div>`;
-  const html = `<div class="welcome" id="welcome"><div class="welcome-icon">P</div><h1>Petru AI</h1><p>13 models, 4 modes, 12 languages. Pick a model and start chatting.</p>${chains}<div class="suggestions" id="suggestionsGrid"></div></div>`;
+  const html = `<div class="welcome" id="welcome"><div class="welcome-icon">P</div><h1>Petru AI</h1><p>13 models, 6 modes, 12 languages. Click &#9881; to connect a real AI API for unlimited intelligence.</p>${chains}<div class="suggestions" id="suggestionsGrid"></div></div>`;
   setTimeout(renderSuggestions, 10);
   return html;
 }
@@ -2180,6 +2757,741 @@ function speakAndWait(text) {
     utterance.onerror = () => resolve();
     speechSynthesis.speak(utterance);
   });
+}
+
+// ═══════════════════════════════════════════════════════
+//  CHESS ENGINE & BOARD
+// ═══════════════════════════════════════════════════════
+
+const CHESS_PIECES = {K:'♔',Q:'♕',R:'♖',B:'♗',N:'♘',P:'♙',k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'};
+
+function initChessGame(container, prompt) {
+  // Game state
+  const game = {
+    board: null,
+    turn: 'w', // w=white, b=black
+    selected: null,
+    legalMoves: [],
+    lastMove: null,
+    castling: {K:true,Q:true,k:true,q:true},
+    enPassant: null,
+    moveHistory: [],
+    gameOver: false,
+  };
+
+  // Init board: standard starting position
+  game.board = [
+    ['r','n','b','q','k','b','n','r'],
+    ['p','p','p','p','p','p','p','p'],
+    [0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],
+    ['P','P','P','P','P','P','P','P'],
+    ['R','N','B','Q','K','B','N','R'],
+  ];
+
+  function isWhite(p){return p && p===p.toUpperCase()}
+  function isBlack(p){return p && p===p.toLowerCase() && p!=='0'}
+  function color(p){if(!p||p===0)return null; return isWhite(p)?'w':'b'}
+  function opponent(c){return c==='w'?'b':'w'}
+  function inBounds(r,c){return r>=0&&r<8&&c>=0&&c<8}
+  function cloneBoard(b){return b.map(r=>[...r])}
+
+  // Generate pseudo-legal moves for a piece (doesn't check for leaving king in check)
+  function pseudoMoves(board, r, c, castling, enPassant) {
+    const piece = board[r][c];
+    if(!piece||piece===0) return [];
+    const col = color(piece);
+    const moves = [];
+    const type = piece.toUpperCase();
+    const dir = col==='w'?-1:1;
+
+    function addIfValid(tr,tc,capture){
+      if(!inBounds(tr,tc))return false;
+      const target = board[tr][tc];
+      if(target===0||target===null){if(!capture){moves.push([tr,tc]);return true;}return false;}
+      if(color(target)!==col){if(capture!==false)moves.push([tr,tc]);}
+      return false;
+    }
+    function addSlide(dr,dc){
+      for(let i=1;i<8;i++){
+        const tr=r+dr*i,tc=c+dc*i;
+        if(!inBounds(tr,tc))break;
+        const t=board[tr][tc];
+        if(t===0){moves.push([tr,tc]);continue;}
+        if(color(t)!==col)moves.push([tr,tc]);
+        break;
+      }
+    }
+
+    if(type==='P'){
+      const startRow=col==='w'?6:1;
+      // Forward
+      if(inBounds(r+dir,c)&&board[r+dir][c]===0){
+        moves.push([r+dir,c]);
+        if(r===startRow&&board[r+dir*2][c]===0)moves.push([r+dir*2,c]);
+      }
+      // Captures
+      for(const dc of [-1,1]){
+        const tr=r+dir,tc=c+dc;
+        if(inBounds(tr,tc)){
+          const t=board[tr][tc];
+          if(t!==0&&color(t)!==col)moves.push([tr,tc]);
+          if(enPassant&&enPassant[0]===tr&&enPassant[1]===tc)moves.push([tr,tc]);
+        }
+      }
+    }
+    else if(type==='N'){
+      for(const[dr,dc]of[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]){
+        const tr=r+dr,tc=c+dc;
+        if(inBounds(tr,tc)){const t=board[tr][tc];if(t===0||color(t)!==col)moves.push([tr,tc]);}
+      }
+    }
+    else if(type==='B'){for(const[dr,dc]of[[-1,-1],[-1,1],[1,-1],[1,1]])addSlide(dr,dc);}
+    else if(type==='R'){for(const[dr,dc]of[[-1,0],[1,0],[0,-1],[0,1]])addSlide(dr,dc);}
+    else if(type==='Q'){for(const[dr,dc]of[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]])addSlide(dr,dc);}
+    else if(type==='K'){
+      for(const[dr,dc]of[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]){
+        const tr=r+dr,tc=c+dc;
+        if(inBounds(tr,tc)){const t=board[tr][tc];if(t===0||color(t)!==col)moves.push([tr,tc]);}
+      }
+      // Castling
+      const row=col==='w'?7:0;
+      if(r===row&&c===4){
+        if(castling[col==='w'?'K':'k']&&board[row][5]===0&&board[row][6]===0&&board[row][7]===(col==='w'?'R':'r')){
+          if(!isSquareAttacked(board,row,4,opponent(col))&&!isSquareAttacked(board,row,5,opponent(col)))
+            moves.push([row,6]);
+        }
+        if(castling[col==='w'?'Q':'q']&&board[row][3]===0&&board[row][2]===0&&board[row][1]===0&&board[row][0]===(col==='w'?'R':'r')){
+          if(!isSquareAttacked(board,row,4,opponent(col))&&!isSquareAttacked(board,row,3,opponent(col)))
+            moves.push([row,2]);
+        }
+      }
+    }
+    return moves;
+  }
+
+  function isSquareAttacked(board, r, c, byColor) {
+    for(let rr=0;rr<8;rr++)for(let cc=0;cc<8;cc++){
+      const p=board[rr][cc];
+      if(p===0||color(p)!==byColor)continue;
+      const mvs=pseudoMovesRaw(board,rr,cc);
+      if(mvs.some(m=>m[0]===r&&m[1]===c))return true;
+    }
+    return false;
+  }
+
+  // Raw pseudo moves without castling (to avoid recursion)
+  function pseudoMovesRaw(board, r, c) {
+    const piece = board[r][c];
+    if(!piece||piece===0) return [];
+    const col = color(piece);
+    const moves = [];
+    const type = piece.toUpperCase();
+    const dir = col==='w'?-1:1;
+    function addSlide(dr,dc){
+      for(let i=1;i<8;i++){
+        const tr=r+dr*i,tc=c+dc*i;
+        if(!inBounds(tr,tc))break;
+        const t=board[tr][tc];
+        if(t===0){moves.push([tr,tc]);continue;}
+        if(color(t)!==col)moves.push([tr,tc]);
+        break;
+      }
+    }
+    if(type==='P'){
+      for(const dc of [-1,1]){const tr=r+dir,tc=c+dc;if(inBounds(tr,tc))moves.push([tr,tc]);}
+    }
+    else if(type==='N'){for(const[dr,dc]of[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]){const tr=r+dr,tc=c+dc;if(inBounds(tr,tc))moves.push([tr,tc]);}}
+    else if(type==='B'){for(const[dr,dc]of[[-1,-1],[-1,1],[1,-1],[1,1]])addSlide(dr,dc);}
+    else if(type==='R'){for(const[dr,dc]of[[-1,0],[1,0],[0,-1],[0,1]])addSlide(dr,dc);}
+    else if(type==='Q'){for(const[dr,dc]of[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]])addSlide(dr,dc);}
+    else if(type==='K'){for(const[dr,dc]of[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]){const tr=r+dr,tc=c+dc;if(inBounds(tr,tc))moves.push([tr,tc]);}}
+    return moves;
+  }
+
+  function findKing(board, col) {
+    const k=col==='w'?'K':'k';
+    for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(board[r][c]===k)return[r,c];
+    return null;
+  }
+
+  function isInCheck(board, col) {
+    const kp=findKing(board,col);
+    return kp && isSquareAttacked(board,kp[0],kp[1],opponent(col));
+  }
+
+  // Legal moves: filter pseudo moves that leave own king in check
+  function legalMoves(board, r, c, castling, enPassant) {
+    const piece = board[r][c];
+    const col = color(piece);
+    const pmoves = pseudoMoves(board, r, c, castling, enPassant);
+    return pmoves.filter(([tr,tc])=>{
+      const b2 = cloneBoard(board);
+      b2[tr][tc] = b2[r][c]; b2[r][c] = 0;
+      // Handle en passant capture
+      if(piece.toUpperCase()==='P' && enPassant && tr===enPassant[0] && tc===enPassant[1]){
+        b2[r][tc] = 0;
+      }
+      // Handle castling rook move
+      if(piece.toUpperCase()==='K' && Math.abs(tc-c)===2){
+        const row=r;
+        if(tc===6){b2[row][5]=b2[row][7];b2[row][7]=0;}
+        if(tc===2){b2[row][3]=b2[row][0];b2[row][0]=0;}
+      }
+      return !isInCheck(b2, col);
+    });
+  }
+
+  function allLegalMoves(board, col, castling, enPassant) {
+    const moves = [];
+    for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+      if(board[r][c]!==0 && color(board[r][c])===col){
+        const lm = legalMoves(board,r,c,castling,enPassant);
+        lm.forEach(([tr,tc])=>moves.push({fr:r,fc:c,tr,tc}));
+      }
+    }
+    return moves;
+  }
+
+  function makeMove(fr,fc,tr,tc) {
+    const piece = game.board[fr][fc];
+    const captured = game.board[tr][tc];
+    const col = color(piece);
+
+    // En passant capture
+    if(piece.toUpperCase()==='P' && game.enPassant && tr===game.enPassant[0] && tc===game.enPassant[1]){
+      game.board[fr][tc] = 0;
+    }
+
+    // Update en passant target
+    game.enPassant = null;
+    if(piece.toUpperCase()==='P' && Math.abs(tr-fr)===2){
+      game.enPassant = [(fr+tr)/2, fc];
+    }
+
+    // Castling rook
+    if(piece.toUpperCase()==='K' && Math.abs(tc-fc)===2){
+      const row=fr;
+      if(tc===6){game.board[row][5]=game.board[row][7];game.board[row][7]=0;}
+      if(tc===2){game.board[row][3]=game.board[row][0];game.board[row][0]=0;}
+    }
+
+    // Update castling rights
+    if(piece==='K'){game.castling.K=false;game.castling.Q=false;}
+    if(piece==='k'){game.castling.k=false;game.castling.q=false;}
+    if(piece==='R'&&fr===7&&fc===7)game.castling.K=false;
+    if(piece==='R'&&fr===7&&fc===0)game.castling.Q=false;
+    if(piece==='r'&&fr===0&&fc===7)game.castling.k=false;
+    if(piece==='r'&&fr===0&&fc===0)game.castling.q=false;
+
+    game.board[tr][tc] = piece;
+    game.board[fr][fc] = 0;
+
+    // Pawn promotion
+    if(piece.toUpperCase()==='P' && (tr===0||tr===7)){
+      game.board[tr][tc] = col==='w'?'Q':'q';
+    }
+
+    const files='abcdefgh';
+    const notation = `${files[fc]}${8-fr}${captured!==0?'x':''}${files[tc]}${8-tr}`;
+    game.moveHistory.push(notation);
+    game.lastMove = {fr,fc,tr,tc};
+    game.turn = opponent(col);
+  }
+
+  // ── AI (Petru AI plays Black) ──
+  const PIECE_VALUES = {P:100,N:320,B:330,R:500,Q:900,K:20000};
+  const PST_PAWN = [
+    [0,0,0,0,0,0,0,0],[50,50,50,50,50,50,50,50],[10,10,20,30,30,20,10,10],
+    [5,5,10,25,25,10,5,5],[0,0,0,20,20,0,0,0],[5,-5,-10,0,0,-10,-5,5],
+    [5,10,10,-20,-20,10,10,5],[0,0,0,0,0,0,0,0]
+  ];
+  const PST_KNIGHT = [
+    [-50,-40,-30,-30,-30,-30,-40,-50],[-40,-20,0,0,0,0,-20,-40],
+    [-30,0,10,15,15,10,0,-30],[-30,5,15,20,20,15,5,-30],
+    [-30,0,15,20,20,15,0,-30],[-30,5,10,15,15,10,5,-30],
+    [-40,-20,0,5,5,0,-20,-40],[-50,-40,-30,-30,-30,-30,-40,-50]
+  ];
+  const PST_BISHOP = [
+    [-20,-10,-10,-10,-10,-10,-10,-20],[-10,0,0,0,0,0,0,-10],
+    [-10,0,10,10,10,10,0,-10],[-10,5,5,10,10,5,5,-10],
+    [-10,0,10,10,10,10,0,-10],[-10,10,10,10,10,10,10,-10],
+    [-10,5,0,0,0,0,5,-10],[-20,-10,-10,-10,-10,-10,-10,-20]
+  ];
+
+  function evaluate(board) {
+    let score = 0;
+    for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+      const p = board[r][c];
+      if(p===0)continue;
+      const type = p.toUpperCase();
+      const val = PIECE_VALUES[type]||0;
+      let pst = 0;
+      if(type==='P') pst = PST_PAWN[isWhite(p)?r:7-r][c];
+      else if(type==='N') pst = PST_KNIGHT[isWhite(p)?r:7-r][c];
+      else if(type==='B') pst = PST_BISHOP[isWhite(p)?r:7-r][c];
+      score += isWhite(p) ? (val+pst) : -(val+pst);
+    }
+    return score;
+  }
+
+  function minimax(board, depth, alpha, beta, maximizing, castling, enPassant) {
+    const col = maximizing ? 'w' : 'b';
+    const moves = allLegalMoves(board, col, castling, enPassant);
+    if(depth===0 || moves.length===0){
+      if(moves.length===0){
+        if(isInCheck(board, col)) return maximizing ? -99999 : 99999;
+        return 0; // stalemate
+      }
+      return evaluate(board);
+    }
+    // Order moves: captures first
+    moves.sort((a,b)=>{
+      const capA = board[a.tr][a.tc]!==0 ? 1 : 0;
+      const capB = board[b.tr][b.tc]!==0 ? 1 : 0;
+      return capB - capA;
+    });
+    if(maximizing){
+      let best = -Infinity;
+      for(const m of moves){
+        const b2=cloneBoard(board);
+        const piece=b2[m.fr][m.fc];
+        b2[m.tr][m.tc]=piece; b2[m.fr][m.fc]=0;
+        if(piece.toUpperCase()==='P'&&(m.tr===0||m.tr===7)) b2[m.tr][m.tc]=maximizing?'Q':'q';
+        if(piece.toUpperCase()==='K'&&Math.abs(m.tc-m.fc)===2){if(m.tc===6){b2[m.fr][5]=b2[m.fr][7];b2[m.fr][7]=0;}if(m.tc===2){b2[m.fr][3]=b2[m.fr][0];b2[m.fr][0]=0;}}
+        if(piece.toUpperCase()==='P'&&enPassant&&m.tr===enPassant[0]&&m.tc===enPassant[1]) b2[m.fr][m.tc]=0;
+        const newEp = piece.toUpperCase()==='P'&&Math.abs(m.tr-m.fr)===2 ? [(m.fr+m.tr)/2,m.fc] : null;
+        const val = minimax(b2, depth-1, alpha, beta, false, {...castling}, newEp);
+        best = Math.max(best, val);
+        alpha = Math.max(alpha, val);
+        if(beta<=alpha) break;
+      }
+      return best;
+    } else {
+      let best = Infinity;
+      for(const m of moves){
+        const b2=cloneBoard(board);
+        const piece=b2[m.fr][m.fc];
+        b2[m.tr][m.tc]=piece; b2[m.fr][m.fc]=0;
+        if(piece.toUpperCase()==='P'&&(m.tr===0||m.tr===7)) b2[m.tr][m.tc]='q';
+        if(piece.toUpperCase()==='K'&&Math.abs(m.tc-m.fc)===2){if(m.tc===6){b2[m.fr][5]=b2[m.fr][7];b2[m.fr][7]=0;}if(m.tc===2){b2[m.fr][3]=b2[m.fr][0];b2[m.fr][0]=0;}}
+        if(piece.toUpperCase()==='P'&&enPassant&&m.tr===enPassant[0]&&m.tc===enPassant[1]) b2[m.fr][m.tc]=0;
+        const newEp = piece.toUpperCase()==='P'&&Math.abs(m.tr-m.fr)===2 ? [(m.fr+m.tr)/2,m.fc] : null;
+        const val = minimax(b2, depth-1, alpha, beta, true, {...castling}, newEp);
+        best = Math.min(best, val);
+        beta = Math.min(beta, val);
+        if(beta<=alpha) break;
+      }
+      return best;
+    }
+  }
+
+  function aiMove() {
+    if(game.gameOver || game.turn!=='b') return;
+    const moves = allLegalMoves(game.board, 'b', game.castling, game.enPassant);
+    if(moves.length===0) return;
+
+    let bestScore = Infinity;
+    let bestMoves = [];
+    const depth = moves.length > 30 ? 2 : 3;
+
+    for(const m of moves){
+      const b2=cloneBoard(game.board);
+      const piece=b2[m.fr][m.fc];
+      b2[m.tr][m.tc]=piece; b2[m.fr][m.fc]=0;
+      if(piece==='p'&&m.tr===7) b2[m.tr][m.tc]='q';
+      if(piece==='k'&&Math.abs(m.tc-m.fc)===2){if(m.tc===6){b2[m.fr][5]=b2[m.fr][7];b2[m.fr][7]=0;}if(m.tc===2){b2[m.fr][3]=b2[m.fr][0];b2[m.fr][0]=0;}}
+      if(piece==='p'&&game.enPassant&&m.tr===game.enPassant[0]&&m.tc===game.enPassant[1]) b2[m.fr][m.tc]=0;
+      const newEp = piece==='p'&&Math.abs(m.tr-m.fr)===2 ? [(m.fr+m.tr)/2,m.fc] : null;
+      const score = minimax(b2, depth, -Infinity, Infinity, true, {...game.castling}, newEp);
+      if(score < bestScore){bestScore=score; bestMoves=[m];}
+      else if(score===bestScore) bestMoves.push(m);
+    }
+
+    const chosen = bestMoves[Math.floor(Math.random()*bestMoves.length)];
+    makeMove(chosen.fr, chosen.fc, chosen.tr, chosen.tc);
+    render();
+    checkGameEnd();
+  }
+
+  function checkGameEnd() {
+    const moves = allLegalMoves(game.board, game.turn, game.castling, game.enPassant);
+    const statusEl = container.querySelector('.chess-status');
+    if(moves.length===0){
+      game.gameOver = true;
+      if(isInCheck(game.board, game.turn)){
+        const winner = game.turn==='w' ? 'Black (Petru AI)' : 'White (You)';
+        statusEl.textContent = `Checkmate! ${winner} wins! 🏆`;
+        statusEl.className = 'chess-status mate';
+      } else {
+        statusEl.textContent = 'Stalemate! Draw. 🤝';
+        statusEl.className = 'chess-status mate';
+      }
+    } else if(isInCheck(game.board, game.turn)){
+      statusEl.textContent = 'Check! ⚠️';
+      statusEl.className = 'chess-status check';
+    } else {
+      statusEl.textContent = game.turn==='w' ? 'Your move (White)' : 'Petru AI is thinking...';
+      statusEl.className = 'chess-status';
+    }
+  }
+
+  function onSquareClick(r,c) {
+    if(game.gameOver || game.turn!=='w') return;
+
+    const piece = game.board[r][c];
+
+    if(game.selected) {
+      // Try to move
+      const [sr,sc] = game.selected;
+      const isLegal = game.legalMoves.some(m=>m[0]===r&&m[1]===c);
+      if(isLegal){
+        makeMove(sr, sc, r, c);
+        game.selected = null;
+        game.legalMoves = [];
+        render();
+        checkGameEnd();
+        if(!game.gameOver){
+          const statusEl = container.querySelector('.chess-status');
+          statusEl.textContent = 'Petru AI is thinking...';
+          setTimeout(()=>aiMove(), 400 + Math.random()*600);
+        }
+        return;
+      }
+      // Deselect or select new piece
+      game.selected = null;
+      game.legalMoves = [];
+      if(piece!==0 && color(piece)==='w'){
+        game.selected = [r,c];
+        game.legalMoves = legalMoves(game.board, r, c, game.castling, game.enPassant);
+      }
+    } else {
+      if(piece!==0 && color(piece)==='w'){
+        game.selected = [r,c];
+        game.legalMoves = legalMoves(game.board, r, c, game.castling, game.enPassant);
+      }
+    }
+    render();
+  }
+
+  function render() {
+    const boardEl = container.querySelector('.chess-board');
+    if(!boardEl) return;
+    boardEl.innerHTML = '';
+    for(let r=0;r<8;r++){
+      for(let c=0;c<8;c++){
+        const sq = document.createElement('div');
+        const isLight = (r+c)%2===0;
+        sq.className = 'chess-sq ' + (isLight?'light':'dark');
+
+        // Highlights
+        if(game.selected && game.selected[0]===r && game.selected[1]===c) sq.classList.add('selected');
+        if(game.lastMove){
+          if(game.lastMove.fr===r&&game.lastMove.fc===c) sq.classList.add('last-from');
+          if(game.lastMove.tr===r&&game.lastMove.tc===c) sq.classList.add('last-to');
+        }
+        if(game.legalMoves.some(m=>m[0]===r&&m[1]===c)){
+          if(game.board[r][c]!==0) sq.classList.add('legal-capture');
+          else sq.classList.add('legal-move');
+        }
+
+        const piece = game.board[r][c];
+        if(piece!==0) sq.textContent = CHESS_PIECES[piece] || '';
+
+        sq.addEventListener('click', ()=>onSquareClick(r,c));
+        boardEl.appendChild(sq);
+      }
+    }
+    // Update info
+    const turnEl = container.querySelector('.turn-indicator');
+    if(turnEl) {
+      turnEl.innerHTML = game.turn==='w'
+        ? '<span class="turn-dot" style="background:#fff;border:1px solid #888"></span> White (You)'
+        : '<span class="turn-dot" style="background:#333"></span> Black (Petru AI)';
+    }
+    const movesEl = container.querySelector('.move-count');
+    if(movesEl) movesEl.textContent = `Move ${Math.floor(game.moveHistory.length/2)+1}`;
+  }
+
+  function resetGame() {
+    game.board = [
+      ['r','n','b','q','k','b','n','r'],
+      ['p','p','p','p','p','p','p','p'],
+      [0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],
+      ['P','P','P','P','P','P','P','P'],
+      ['R','N','B','Q','K','B','N','R'],
+    ];
+    game.turn='w'; game.selected=null; game.legalMoves=[];
+    game.lastMove=null; game.castling={K:true,Q:true,k:true,q:true};
+    game.enPassant=null; game.moveHistory=[]; game.gameOver=false;
+    render(); checkGameEnd();
+  }
+
+  // Build UI
+  container.innerHTML = `
+    <div class="chess-info">
+      <span class="turn-indicator"><span class="turn-dot" style="background:#fff;border:1px solid #888"></span> White (You)</span>
+      <span class="move-count">Move 1</span>
+    </div>
+    <div class="chess-board"></div>
+    <div class="chess-status">Your move (White)</div>
+    <div class="chess-btns">
+      <button onclick="this.closest('.chess-wrap').chessReset()">&#8634; New Game</button>
+      <button onclick="this.closest('.chess-wrap').chessUndo()">&#9100; Undo</button>
+    </div>`;
+  container.chessReset = resetGame;
+  container.chessUndo = function() {
+    if(game.moveHistory.length < 2 || game.gameOver) return;
+    // Undo is complex with full state — just reset for simplicity
+    resetGame();
+  };
+  render();
+}
+
+// ═══════════════════════════════════════════════════════
+//  AI API INTEGRATION — Real AI Responses
+// ═══════════════════════════════════════════════════════
+
+const AI_PROVIDERS = {
+  groq:     {name:'Groq (Free)',     url:'https://api.groq.com/openai/v1/chat/completions',  models:['llama-3.3-70b-versatile','llama-3.1-8b-instant','gemma2-9b-it','mixtral-8x7b-32768'], default:'llama-3.3-70b-versatile'},
+  openai:   {name:'OpenAI',          url:'https://api.openai.com/v1/chat/completions',        models:['gpt-4o','gpt-4o-mini','gpt-4-turbo','gpt-3.5-turbo'], default:'gpt-4o-mini'},
+  openrouter:{name:'OpenRouter',     url:'https://openrouter.ai/api/v1/chat/completions',     models:['meta-llama/llama-3.3-70b-instruct','google/gemini-2.0-flash-001','anthropic/claude-3.5-sonnet'], default:'meta-llama/llama-3.3-70b-instruct'},
+  custom:   {name:'Custom (OpenAI-compatible)', url:'',                                       models:[], default:''},
+};
+
+function getAIConfig() {
+  try { return JSON.parse(localStorage.getItem('petruai-api-config')) || {}; } catch { return {}; }
+}
+function saveAIConfig(cfg) { localStorage.setItem('petruai-api-config', JSON.stringify(cfg)); }
+function isAIConnected() { const c=getAIConfig(); return !!(c.apiKey && c.provider); }
+
+// Settings modal
+function openSettings() {
+  let overlay = document.getElementById('settingsOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'settingsOverlay';
+    overlay.className = 'settings-overlay';
+    overlay.innerHTML = `<div class="settings-modal">
+      <h2>&#9881; AI Settings</h2>
+      <p style="font-size:13px;color:var(--text-dim);margin-bottom:4px">Connect to a real AI API to make Petru AI as smart as ChatGPT, Claude, or Gemini. Without an API key, Petru AI uses its built-in offline knowledge.</p>
+      <div class="api-status disconnected" id="apiStatus">&#9679; Offline — using built-in knowledge</div>
+      <label>Provider</label>
+      <select id="aiProvider" onchange="onProviderChange()">
+        <option value="">None (offline mode)</option>
+        <option value="groq">Groq — Free, fast (recommended)</option>
+        <option value="openai">OpenAI — GPT-4o</option>
+        <option value="openrouter">OpenRouter — Many models</option>
+        <option value="custom">Custom (OpenAI-compatible)</option>
+      </select>
+      <div class="hint">Groq is free — get a key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a></div>
+      <label>API Key</label>
+      <input type="password" id="aiApiKey" placeholder="sk-... or gsk_..." autocomplete="off">
+      <div class="hint">Your key is stored locally in your browser only. Never sent anywhere except the API provider.</div>
+      <div id="customUrlWrap" style="display:none">
+        <label>Custom API URL</label>
+        <input type="text" id="aiCustomUrl" placeholder="https://your-api.com/v1/chat/completions">
+      </div>
+      <label>Model</label>
+      <select id="aiModel"><option value="">Select a provider first</option></select>
+      <div id="customModelWrap" style="display:none">
+        <label>Custom Model Name</label>
+        <input type="text" id="aiCustomModel" placeholder="my-model-name">
+      </div>
+      <label>System Prompt (optional)</label>
+      <input type="text" id="aiSystemPrompt" placeholder="You are Petru AI, a helpful and friendly assistant." value="">
+      <div class="hint">Customize the AI's personality. Leave empty for default.</div>
+      <div class="settings-btns">
+        <button class="btn-cancel" onclick="closeSettings()">Cancel</button>
+        <button class="btn-save" onclick="saveSettings()">Save & Connect</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeSettings(); });
+  }
+  // Load saved config
+  const cfg = getAIConfig();
+  document.getElementById('aiProvider').value = cfg.provider || '';
+  document.getElementById('aiApiKey').value = cfg.apiKey || '';
+  document.getElementById('aiCustomUrl').value = cfg.customUrl || '';
+  document.getElementById('aiCustomModel').value = cfg.customModel || '';
+  document.getElementById('aiSystemPrompt').value = cfg.systemPrompt || '';
+  onProviderChange();
+  if (cfg.provider && cfg.apiKey) {
+    document.getElementById('aiModel').value = cfg.model || '';
+  }
+  updateApiStatus();
+  overlay.classList.add('show');
+}
+
+function closeSettings() {
+  document.getElementById('settingsOverlay')?.classList.remove('show');
+}
+
+function onProviderChange() {
+  const prov = document.getElementById('aiProvider').value;
+  const modelSel = document.getElementById('aiModel');
+  const customUrlWrap = document.getElementById('customUrlWrap');
+  const customModelWrap = document.getElementById('customModelWrap');
+  customUrlWrap.style.display = prov === 'custom' ? 'block' : 'none';
+  customModelWrap.style.display = prov === 'custom' ? 'block' : 'none';
+  modelSel.innerHTML = '';
+  if (prov && prov !== 'custom' && AI_PROVIDERS[prov]) {
+    AI_PROVIDERS[prov].models.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m; opt.textContent = m;
+      modelSel.appendChild(opt);
+    });
+    modelSel.value = AI_PROVIDERS[prov].default;
+  } else if (prov === 'custom') {
+    modelSel.innerHTML = '<option value="">Enter model name below</option>';
+  } else {
+    modelSel.innerHTML = '<option value="">Select a provider first</option>';
+  }
+}
+
+function updateApiStatus() {
+  const el = document.getElementById('apiStatus');
+  if (!el) return;
+  if (isAIConnected()) {
+    const cfg = getAIConfig();
+    const pName = AI_PROVIDERS[cfg.provider]?.name || cfg.provider;
+    el.className = 'api-status connected';
+    el.innerHTML = `&#9679; Connected — ${pName}`;
+  } else {
+    el.className = 'api-status disconnected';
+    el.innerHTML = '&#9679; Offline — using built-in knowledge';
+  }
+}
+
+function saveSettings() {
+  const provider = document.getElementById('aiProvider').value;
+  const apiKey = document.getElementById('aiApiKey').value.trim();
+  const model = document.getElementById('aiModel').value;
+  const customUrl = document.getElementById('aiCustomUrl').value.trim();
+  const customModel = document.getElementById('aiCustomModel').value.trim();
+  const systemPrompt = document.getElementById('aiSystemPrompt').value.trim();
+  saveAIConfig({provider, apiKey, model, customUrl, customModel, systemPrompt});
+  updateApiStatus();
+  closeSettings();
+}
+
+// Build conversation history for API
+function buildAPIMessages(userText) {
+  const cfg = getAIConfig();
+  const sysPrompt = cfg.systemPrompt || "You are Petru AI, an intelligent, friendly, and knowledgeable assistant created by Petru. You can help with anything: programming, science, math, cooking, history, languages, and more. You speak many languages. You give detailed, well-formatted answers using markdown (bold, lists, tables, code blocks). You are warm, helpful, and sometimes witty. Keep responses focused and informative.";
+  const messages = [{role:'system', content:sysPrompt}];
+
+  // Add conversation history (last 20 messages from context)
+  if (conversationContext && conversationContext.length > 0) {
+    conversationContext.forEach(msg => {
+      messages.push({role: msg.role === 'user' ? 'user' : 'assistant', content: msg.text});
+    });
+  }
+
+  messages.push({role:'user', content:userText});
+  return messages;
+}
+
+// Call AI API and stream response
+async function callAIStream(userText, streamDiv) {
+  const cfg = getAIConfig();
+  if (!cfg.apiKey || !cfg.provider) return null;
+
+  const provider = AI_PROVIDERS[cfg.provider];
+  const url = cfg.provider === 'custom' ? cfg.customUrl : provider?.url;
+  const model = cfg.provider === 'custom' ? cfg.customModel : cfg.model || provider?.default;
+
+  if (!url || !model) return null;
+
+  const messages = buildAPIMessages(userText);
+  const cursor = '<span class="streaming-cursor"></span>';
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${cfg.apiKey}`,
+      },
+      body: JSON.stringify({model, messages, stream:true, max_tokens:4096}),
+    });
+
+    if (!res.ok) {
+      const err = await res.text().catch(()=>'');
+      console.warn('AI API error:', res.status, err);
+      return null; // fall back to local
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let buffer = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, {stream:true});
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed === 'data: [DONE]') continue;
+        if (!trimmed.startsWith('data: ')) continue;
+
+        try {
+          const json = JSON.parse(trimmed.slice(6));
+          const delta = json.choices?.[0]?.delta?.content;
+          if (delta) {
+            fullText += delta;
+            streamDiv.innerHTML = formatMessage(fullText) + cursor;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+          }
+        } catch {}
+      }
+    }
+
+    // Process any remaining buffer
+    if (buffer.trim() && buffer.trim() !== 'data: [DONE]' && buffer.trim().startsWith('data: ')) {
+      try {
+        const json = JSON.parse(buffer.trim().slice(6));
+        const delta = json.choices?.[0]?.delta?.content;
+        if (delta) fullText += delta;
+      } catch {}
+    }
+
+    streamDiv.innerHTML = formatMessage(fullText); // remove cursor
+    return fullText || null;
+  } catch (e) {
+    console.warn('AI API fetch error:', e);
+    return null; // fall back to local
+  }
+}
+
+// Non-streaming fallback (if streaming fails)
+async function callAISimple(userText) {
+  const cfg = getAIConfig();
+  if (!cfg.apiKey || !cfg.provider) return null;
+
+  const provider = AI_PROVIDERS[cfg.provider];
+  const url = cfg.provider === 'custom' ? cfg.customUrl : provider?.url;
+  const model = cfg.provider === 'custom' ? cfg.customModel : cfg.model || provider?.default;
+
+  if (!url || !model) return null;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':`Bearer ${cfg.apiKey}`},
+      body: JSON.stringify({model, messages:buildAPIMessages(userText), max_tokens:4096}),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.choices?.[0]?.message?.content || null;
+  } catch { return null; }
 }
 
 // Init
