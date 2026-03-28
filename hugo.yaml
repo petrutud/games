@@ -31,14 +31,14 @@ params:
     intro: "Welcome to"
     title: "My Browser Games"
     subtitle: "Play directly in your browser"
-    content: "A collection of JS / HTML games I've imagined. No installation required — just click play!"
+    content: "A collection of JS / HTML games and tools I've built. No installation required — just click play! Try Petru AI, my own intelligent assistant."
     image: "/images/petru-site.png"
     bottomImage:
       enable: false
     button:
       enable: true
-      name: "Play Business Tycoon"
-      url: "/games/bisnes-tycoon/"
+      name: "Open Petru AI"
+      url: "/games/petru-ai/"
       download: false
       newPage: false
     socialLinks:
@@ -62,6 +62,19 @@ params:
     enable: true
     title: "Games"
     items:
+      - title: "Petru AI"
+        content: "Your own AI assistant — 13 Opus models, voice chat, image generation, 12 languages, Extended Thinking & DeepSeek modes. Ask about coding, math, science, history, or just chat. Built entirely from scratch."
+        image: "/images/games/petru-ai.svg"
+        badges:
+          - "AI Assistant"
+          - "Voice Chat"
+          - "13 Models"
+          - "12 Languages"
+          - "Image Gen"
+        featured:
+          name: Open Petru AI
+          link: /games/petru-ai/
+
       - title: "Battle of Ages"
         content: "Fight through 100 ages of history! Spawn units to destroy the enemy base, from Primordial amoebas to Omega Colossus. Each age has 3 unique units."
         image: "/images/games/battle-of-ages.svg"

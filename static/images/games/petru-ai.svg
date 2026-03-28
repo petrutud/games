@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0a1a"/>
+      <stop offset="100%" style="stop-color:#1a1a2e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6c5ce7"/>
+      <stop offset="100%" style="stop-color:#a855f7"/>
+    </linearGradient>
+    <linearGradient id="accent2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a855f7"/>
+      <stop offset="100%" style="stop-color:#ec4899"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow2">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- Background -->
+  <rect width="400" height="400" rx="40" fill="url(#bg)"/>
+  <!-- Decorative circles -->
+  <circle cx="320" cy="80" r="60" fill="#6c5ce7" opacity="0.06"/>
+  <circle cx="80" cy="320" r="40" fill="#a855f7" opacity="0.06"/>
+  <!-- Main icon -->
+  <rect x="130" y="80" width="140" height="140" rx="32" fill="url(#accent)" filter="url(#glow2)"/>
+  <text x="200" y="170" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="bold" font-size="72" fill="white">P</text>
+  <!-- Chat bubbles -->
+  <rect x="60" y="250" width="170" height="38" rx="19" fill="#1a1a30" stroke="#2a2a40" stroke-width="1.5"/>
+  <rect x="72" y="261" width="90" height="6" rx="3" fill="url(#accent)" opacity="0.5"/>
+  <rect x="72" y="273" width="55" height="6" rx="3" fill="url(#accent)" opacity="0.25"/>
+  <rect x="170" y="298" width="170" height="38" rx="19" fill="#14142a" stroke="#6c5ce7" stroke-width="1.5" opacity="0.9"/>
+  <rect x="182" y="309" width="110" height="6" rx="3" fill="url(#accent2)" opacity="0.5"/>
+  <rect x="182" y="321" width="65" height="6" rx="3" fill="url(#accent2)" opacity="0.25"/>
+  <!-- Voice waves -->
+  <g transform="translate(55,290)" opacity="0.4">
+    <rect x="0" y="4" width="3" height="8" rx="1.5" fill="#a855f7"/>
+    <rect x="6" y="1" width="3" height="14" rx="1.5" fill="#a855f7"/>
+    <rect x="12" y="3" width="3" height="10" rx="1.5" fill="#a855f7"/>
+    <rect x="18" y="5" width="3" height="6" rx="1.5" fill="#a855f7"/>
+  </g>
+  <!-- Model dots -->
+  <g transform="translate(130,348)">
+    <circle cx="0" cy="0" r="4" fill="#6b7280"/>
+    <circle cx="14" cy="0" r="4" fill="#8b5cf6"/>
+    <circle cx="28" cy="0" r="4" fill="#6c5ce7"/>
+    <circle cx="42" cy="0" r="4" fill="#3b82f6"/>
+    <circle cx="56" cy="0" r="4" fill="#2563eb"/>
+    <circle cx="70" cy="0" r="4" fill="#7c3aed"/>
+    <circle cx="84" cy="0" r="4" fill="#9333ea"/>
+    <circle cx="98" cy="0" r="4" fill="#dc2626"/>
+    <circle cx="112" cy="0" r="4" fill="#f59e0b"/>
+    <circle cx="126" cy="0" r="4" fill="#ef4444"/>
+  </g>
+  <!-- Title -->
+  <text x="200" y="382" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="bold" font-size="18" fill="#c4b5fd">Petru AI</text>
+</svg>

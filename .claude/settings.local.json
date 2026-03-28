@@ -19,11 +19,16 @@
       "Bash(xdg-open /home/petru/code/games/static/games/battle-of-ages/index.html)",
       "Bash(xdg-open /home/petru/code/games/static/games/red-ball/index.html)",
       "Bash(wc -l /home/petru/code/games/project1/*.html)",
-      "Bash(git -C /home/petru/code/games log --oneline)"
+      "Bash(git -C /home/petru/code/games log --oneline)",
+      "Bash(xdg-open /home/petru/code/games/ai-hub/index.html)",
+      "Bash(xdg-open ai-hub/index.html)",
+      "Bash(xdg-open http://localhost:1313/games/petru-ai/)",
+      "Bash(xdg-open http://localhost:1313/)"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",
-      "/home/petru/code/games/project1/tower-defense/js"
+      "/home/petru/code/games/project1/tower-defense/js",
+      "/home/petru/code/games"
     ]
   }
 }
