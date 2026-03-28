@@ -2549,63 +2549,155 @@ async function sendMessage(){
     await new Promise(r=>setTimeout(r,300));
   }
 
-  // Image generation mode
+  // Image generation mode — uses Pollinations.ai free API
   if(activeMode==='image'){
-    const canvas = generateImage(text);
     const imgWrap = document.createElement('div');
     imgWrap.className = 'gen-image';
-    imgWrap.appendChild(canvas);
-    const label = document.createElement('div');
-    label.className = 'gen-image-label';
-    label.innerHTML = `<span>Generated: "${escapeHtml(text.slice(0,50))}"</span><button class="code-btn" onclick="this.closest('.gen-image').querySelector('canvas').toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='petru-ai-image.png';a.click()})">&#x2B73; Save PNG</button>`;
-    imgWrap.appendChild(label);
+    // Show loading
+    const loadDiv = document.createElement('div');
+    loadDiv.className = 'imggen-anim';
+    loadDiv.style.padding = '40px 20px';
+    loadDiv.style.textAlign = 'center';
+    loadDiv.innerHTML = '<span class="palette">&#127912;</span> Generating AI image...';
+    imgWrap.appendChild(loadDiv);
     contentDiv.appendChild(imgWrap);
     chatContainer.scrollTop = chatContainer.scrollHeight;
+    // Create AI image via Pollinations.ai (free, no API key)
+    const imgPrompt = encodeURIComponent(text + ', high quality, detailed, 4k');
+    const imgUrl = `https://image.pollinations.ai/prompt/${imgPrompt}?width=512&height=512&nologo=true`;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.style.width = '100%';
+    img.style.maxWidth = '512px';
+    img.style.display = 'block';
+    img.style.borderRadius = '12px 12px 0 0';
+    img.onload = function() {
+      loadDiv.remove();
+      imgWrap.insertBefore(img, imgWrap.firstChild);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    };
+    img.onerror = function() {
+      loadDiv.innerHTML = '&#9888; Image generation failed. Try again!';
+    };
+    img.src = imgUrl;
+    const label = document.createElement('div');
+    label.className = 'gen-image-label';
+    label.innerHTML = `<span>AI Generated: "${escapeHtml(text.slice(0,50))}"</span><button class="code-btn" onclick="const img=this.closest('.gen-image').querySelector('img');if(img){const a=document.createElement('a');a.href=img.src;a.download='petru-ai-image.png';a.target='_blank';a.click()}">&#x2B73; Save PNG</button>`;
+    imgWrap.appendChild(label);
   }
 
-  // Video generation mode
+  // Video generation mode — AI image + Ken Burns animation recorded as video
   if(activeMode==='video'){
-    // Show progress animation
-    const vidAnim = document.createElement('div');
-    vidAnim.className = 'vidgen-anim';
-    vidAnim.innerHTML = '<span class="clapper">&#127916;</span> Generating video...';
-    contentDiv.appendChild(vidAnim);
+    const vidWrap = document.createElement('div');
+    vidWrap.className = 'gen-video';
+    const loadDiv = document.createElement('div');
+    loadDiv.className = 'vidgen-anim';
+    loadDiv.style.padding = '40px 20px';
+    loadDiv.style.textAlign = 'center';
+    loadDiv.innerHTML = '<span class="clapper">&#127916;</span> Generating AI video...';
+    vidWrap.appendChild(loadDiv);
     const progWrap = document.createElement('div');
     progWrap.className = 'gen-video-progress';
     const progBar = document.createElement('div');
     progBar.className = 'gen-video-progress-bar';
     progWrap.appendChild(progBar);
-    contentDiv.appendChild(progWrap);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-    // Animate progress bar
-    let prog = 0;
-    const progInterval = setInterval(() => { prog = Math.min(prog + 2, 95); progBar.style.width = prog + '%'; }, 100);
-    // Generate
-    const {url, blob, mimeType} = await generateVideo(text);
-    clearInterval(progInterval);
-    progBar.style.width = '100%';
-    await new Promise(r => setTimeout(r, 300));
-    vidAnim.remove();
-    progWrap.remove();
-    // Show video player
-    const vidWrap = document.createElement('div');
-    vidWrap.className = 'gen-video';
-    const video = document.createElement('video');
-    video.src = url;
-    video.controls = true;
-    video.autoplay = true;
-    video.loop = true;
-    video.muted = true;
-    video.style.width = '100%';
-    video.style.maxWidth = '512px';
-    vidWrap.appendChild(video);
-    const label = document.createElement('div');
-    label.className = 'gen-video-label';
-    const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-    label.innerHTML = `<span>Video: "${escapeHtml(text.slice(0,50))}" (6s)</span><button class="code-btn" onclick="const a=document.createElement('a');a.href='${url}';a.download='petru-ai-video.${ext}';a.click()">&#x2B73; Save Video</button>`;
-    vidWrap.appendChild(label);
+    vidWrap.appendChild(progWrap);
     contentDiv.appendChild(vidWrap);
     chatContainer.scrollTop = chatContainer.scrollHeight;
+
+    // Step 1: Generate AI image via Pollinations
+    const vidPrompt = encodeURIComponent(text + ', cinematic, dramatic lighting, 4k, detailed');
+    const aiImgUrl = `https://image.pollinations.ai/prompt/${vidPrompt}?width=512&height=512&nologo=true`;
+    const aiImg = new Image();
+    aiImg.crossOrigin = 'anonymous';
+    let videoGenerated = false;
+
+    await new Promise((resolve) => {
+      aiImg.onload = async function() {
+        loadDiv.innerHTML = '<span class="clapper">&#127916;</span> Animating video...';
+        // Step 2: Draw image on canvas with Ken Burns + particles, record as video
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 512;
+        canvas.style.position = 'fixed'; canvas.style.left = '-9999px';
+        document.body.appendChild(canvas);
+        const ctx = canvas.getContext('2d');
+        const fps = 24, duration = 6, totalFrames = fps * duration;
+        let frame = 0;
+
+        // Random Ken Burns params
+        const startScale = 1.0, endScale = 1.25;
+        const panX = (Math.random()-0.5)*60, panY = (Math.random()-0.5)*40;
+        // Particles
+        const parts = Array.from({length:30},()=>({x:Math.random()*512,y:Math.random()*512,s:Math.random()*2+1,sp:Math.random()+0.5,ph:Math.random()*Math.PI*2}));
+
+        const stream = canvas.captureStream(0);
+        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')?'video/webm;codecs=vp9':'video/webm';
+        const recorder = new MediaRecorder(stream,{mimeType,videoBitsPerSecond:2500000});
+        const chunks = [];
+        recorder.ondataavailable = e=>{if(e.data.size>0)chunks.push(e.data);};
+        recorder.onstop = ()=>{
+          document.body.removeChild(canvas);
+          const blob = new Blob(chunks,{type:mimeType});
+          const url = URL.createObjectURL(blob);
+          loadDiv.remove(); progWrap.remove();
+          // Show video player
+          const video = document.createElement('video');
+          video.src = url; video.controls=true; video.autoplay=true; video.loop=true; video.muted=true;
+          video.style.width='100%'; video.style.maxWidth='512px';
+          vidWrap.insertBefore(video, vidWrap.firstChild);
+          const ext = mimeType.includes('mp4')?'mp4':'webm';
+          const label = document.createElement('div');
+          label.className = 'gen-video-label';
+          label.innerHTML = `<span>AI Video: "${escapeHtml(text.slice(0,40))}" (6s)</span><button class="code-btn" onclick="const a=document.createElement('a');a.href='${url}';a.download='petru-ai-video.${ext}';a.click()">&#x2B73; Save</button>`;
+          vidWrap.appendChild(label);
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+          videoGenerated = true;
+          resolve();
+        };
+        recorder.start();
+
+        function drawVideoFrame(){
+          const t = frame/totalFrames;
+          const scale = startScale + (endScale-startScale)*t;
+          const ox = panX*t, oy = panY*t;
+          ctx.clearRect(0,0,512,512);
+          ctx.save();
+          ctx.translate(256,256);
+          ctx.scale(scale,scale);
+          ctx.translate(-256+ox,-256+oy);
+          ctx.drawImage(aiImg,0,0,512,512);
+          ctx.restore();
+          // Subtle light particles
+          for(const p of parts){
+            const px=p.x+Math.sin(frame/fps*p.sp+p.ph)*20;
+            const py=(p.y-frame*p.sp*0.8)%540;
+            const alpha=0.15+0.1*Math.sin(frame/fps*2+p.ph);
+            ctx.beginPath();ctx.arc(px<0?px+512:px,py<0?py+512:py,p.s,0,Math.PI*2);
+            ctx.fillStyle=`rgba(255,255,255,${alpha})`;ctx.fill();
+          }
+          // Vignette
+          const vg=ctx.createRadialGradient(256,256,150,256,256,360);
+          vg.addColorStop(0,'transparent');vg.addColorStop(1,'rgba(0,0,0,0.3)');
+          ctx.fillStyle=vg;ctx.fillRect(0,0,512,512);
+          // Watermark
+          ctx.fillStyle='rgba(255,255,255,0.2)';ctx.font='12px Inter,sans-serif';
+          ctx.fillText('Petru AI',16,500);
+
+          if(stream.getVideoTracks()[0].requestFrame) stream.getVideoTracks()[0].requestFrame();
+          progBar.style.width = (t*100)+'%';
+          frame++;
+          if(frame<totalFrames) setTimeout(drawVideoFrame,1000/fps);
+          else setTimeout(()=>recorder.stop(),100);
+        }
+        drawVideoFrame();
+      };
+      aiImg.onerror = function(){
+        loadDiv.innerHTML = '&#9888; Video generation failed. Try again!';
+        progWrap.remove();
+        resolve();
+      };
+      aiImg.src = aiImgUrl;
+    });
   }
 
   // Chess mode
@@ -2630,10 +2722,10 @@ async function sendMessage(){
     fullRaw = "Let's play chess! ♟️ You are **White** — click a piece to select it, then click a square to move.\n\nI'll play as Black. Good luck!";
     await streamText(streamDiv, formatMessage(fullRaw), currentModel.speed);
   } else if (activeMode==='image') {
-    fullRaw = "Here's your generated image! Click **Save PNG** to download it.\n\nTry describing: *sunset, ocean, space, forest, mountains*, or anything else — I'll paint it for you!";
+    fullRaw = "Here's your **AI-generated image**! The image is created by real AI based on your description.\n\nTry anything: *a cat in space, futuristic city at night, Romanian village in winter, portrait of a knight* — the more detailed your description, the better the result!";
     await streamText(streamDiv, formatMessage(fullRaw), currentModel.speed);
   } else if (activeMode==='video') {
-    fullRaw = "Here's your generated video! It plays automatically and loops. Click **Save Video** to download.\n\nTry describing: *sunset, ocean, space, forest, mountains, rain, fire, city, sarmale, cooking*, or anything else — I'll animate it for you!";
+    fullRaw = "Here's your **AI-generated video**! It's created from a real AI image with cinematic Ken Burns animation.\n\nTry anything: *dragon flying over mountains, underwater coral reef, Romanian countryside at sunset* — describe any scene and I'll bring it to life!";
     await streamText(streamDiv, formatMessage(fullRaw), currentModel.speed);
   } else if (isAIConnected()) {
     // Use REAL AI API with streaming
@@ -3040,19 +3132,20 @@ function initChessGame(container, prompt) {
     gameOver: false,
   };
 
-  // Init board: standard starting position
+  // Init board: standard starting position (null = empty square)
   game.board = [
     ['r','n','b','q','k','b','n','r'],
     ['p','p','p','p','p','p','p','p'],
-    [0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],
+    [null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],
+    [null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],
     ['P','P','P','P','P','P','P','P'],
     ['R','N','B','Q','K','B','N','R'],
   ];
 
-  function isWhite(p){return p && p===p.toUpperCase()}
-  function isBlack(p){return p && p===p.toLowerCase() && p!=='0'}
-  function color(p){if(!p||p===0)return null; return isWhite(p)?'w':'b'}
+  function isEmpty(p){return p===null||p===0}
+  function isWhite(p){return p && typeof p==='string' && p===p.toUpperCase()}
+  function isBlack(p){return p && typeof p==='string' && p===p.toLowerCase()}
+  function color(p){if(!p||typeof p!=='string')return null; return isWhite(p)?'w':'b'}
   function opponent(c){return c==='w'?'b':'w'}
   function inBounds(r,c){return r>=0&&r<8&&c>=0&&c<8}
   function cloneBoard(b){return b.map(r=>[...r])}
@@ -3060,7 +3153,7 @@ function initChessGame(container, prompt) {
   // Generate pseudo-legal moves for a piece (doesn't check for leaving king in check)
   function pseudoMoves(board, r, c, castling, enPassant) {
     const piece = board[r][c];
-    if(!piece||piece===0) return [];
+    if(isEmpty(piece)) return [];
     const col = color(piece);
     const moves = [];
     const type = piece.toUpperCase();
@@ -3069,7 +3162,7 @@ function initChessGame(container, prompt) {
     function addIfValid(tr,tc,capture){
       if(!inBounds(tr,tc))return false;
       const target = board[tr][tc];
-      if(target===0||target===null){if(!capture){moves.push([tr,tc]);return true;}return false;}
+      if(isEmpty(target)){if(!capture){moves.push([tr,tc]);return true;}return false;}
       if(color(target)!==col){if(capture!==false)moves.push([tr,tc]);}
       return false;
     }
@@ -3078,7 +3171,7 @@ function initChessGame(container, prompt) {
         const tr=r+dr*i,tc=c+dc*i;
         if(!inBounds(tr,tc))break;
         const t=board[tr][tc];
-        if(t===0){moves.push([tr,tc]);continue;}
+        if(isEmpty(t)){moves.push([tr,tc]);continue;}
         if(color(t)!==col)moves.push([tr,tc]);
         break;
       }
@@ -3087,16 +3180,16 @@ function initChessGame(container, prompt) {
     if(type==='P'){
       const startRow=col==='w'?6:1;
       // Forward
-      if(inBounds(r+dir,c)&&board[r+dir][c]===0){
+      if(inBounds(r+dir,c)&&isEmpty(board[r+dir][c])){
         moves.push([r+dir,c]);
-        if(r===startRow&&board[r+dir*2][c]===0)moves.push([r+dir*2,c]);
+        if(r===startRow&&isEmpty(board[r+dir*2][c]))moves.push([r+dir*2,c]);
       }
       // Captures
       for(const dc of [-1,1]){
         const tr=r+dir,tc=c+dc;
         if(inBounds(tr,tc)){
           const t=board[tr][tc];
-          if(t!==0&&color(t)!==col)moves.push([tr,tc]);
+          if(!isEmpty(t)&&color(t)!==col)moves.push([tr,tc]);
           if(enPassant&&enPassant[0]===tr&&enPassant[1]===tc)moves.push([tr,tc]);
         }
       }
@@ -3104,7 +3197,7 @@ function initChessGame(container, prompt) {
     else if(type==='N'){
       for(const[dr,dc]of[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]){
         const tr=r+dr,tc=c+dc;
-        if(inBounds(tr,tc)){const t=board[tr][tc];if(t===0||color(t)!==col)moves.push([tr,tc]);}
+        if(inBounds(tr,tc)){const t=board[tr][tc];if(isEmpty(t)||color(t)!==col)moves.push([tr,tc]);}
       }
     }
     else if(type==='B'){for(const[dr,dc]of[[-1,-1],[-1,1],[1,-1],[1,1]])addSlide(dr,dc);}
@@ -3113,16 +3206,16 @@ function initChessGame(container, prompt) {
     else if(type==='K'){
       for(const[dr,dc]of[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]){
         const tr=r+dr,tc=c+dc;
-        if(inBounds(tr,tc)){const t=board[tr][tc];if(t===0||color(t)!==col)moves.push([tr,tc]);}
+        if(inBounds(tr,tc)){const t=board[tr][tc];if(isEmpty(t)||color(t)!==col)moves.push([tr,tc]);}
       }
       // Castling
       const row=col==='w'?7:0;
       if(r===row&&c===4){
-        if(castling[col==='w'?'K':'k']&&board[row][5]===0&&board[row][6]===0&&board[row][7]===(col==='w'?'R':'r')){
+        if(castling[col==='w'?'K':'k']&&isEmpty(board[row][5])&&isEmpty(board[row][6])&&board[row][7]===(col==='w'?'R':'r')){
           if(!isSquareAttacked(board,row,4,opponent(col))&&!isSquareAttacked(board,row,5,opponent(col)))
             moves.push([row,6]);
         }
-        if(castling[col==='w'?'Q':'q']&&board[row][3]===0&&board[row][2]===0&&board[row][1]===0&&board[row][0]===(col==='w'?'R':'r')){
+        if(castling[col==='w'?'Q':'q']&&isEmpty(board[row][3])&&isEmpty(board[row][2])&&isEmpty(board[row][1])&&board[row][0]===(col==='w'?'R':'r')){
           if(!isSquareAttacked(board,row,4,opponent(col))&&!isSquareAttacked(board,row,3,opponent(col)))
             moves.push([row,2]);
         }
@@ -3134,7 +3227,7 @@ function initChessGame(container, prompt) {
   function isSquareAttacked(board, r, c, byColor) {
     for(let rr=0;rr<8;rr++)for(let cc=0;cc<8;cc++){
       const p=board[rr][cc];
-      if(p===0||color(p)!==byColor)continue;
+      if(isEmpty(p)||color(p)!==byColor)continue;
       const mvs=pseudoMovesRaw(board,rr,cc);
       if(mvs.some(m=>m[0]===r&&m[1]===c))return true;
     }
@@ -3144,7 +3237,7 @@ function initChessGame(container, prompt) {
   // Raw pseudo moves without castling (to avoid recursion)
   function pseudoMovesRaw(board, r, c) {
     const piece = board[r][c];
-    if(!piece||piece===0) return [];
+    if(isEmpty(piece)) return [];
     const col = color(piece);
     const moves = [];
     const type = piece.toUpperCase();
@@ -3154,7 +3247,7 @@ function initChessGame(container, prompt) {
         const tr=r+dr*i,tc=c+dc*i;
         if(!inBounds(tr,tc))break;
         const t=board[tr][tc];
-        if(t===0){moves.push([tr,tc]);continue;}
+        if(isEmpty(t)){moves.push([tr,tc]);continue;}
         if(color(t)!==col)moves.push([tr,tc]);
         break;
       }
@@ -3188,16 +3281,16 @@ function initChessGame(container, prompt) {
     const pmoves = pseudoMoves(board, r, c, castling, enPassant);
     return pmoves.filter(([tr,tc])=>{
       const b2 = cloneBoard(board);
-      b2[tr][tc] = b2[r][c]; b2[r][c] = 0;
+      b2[tr][tc] = b2[r][c]; b2[r][c] = null;
       // Handle en passant capture
       if(piece.toUpperCase()==='P' && enPassant && tr===enPassant[0] && tc===enPassant[1]){
-        b2[r][tc] = 0;
+        b2[r][tc] = null;
       }
       // Handle castling rook move
       if(piece.toUpperCase()==='K' && Math.abs(tc-c)===2){
         const row=r;
-        if(tc===6){b2[row][5]=b2[row][7];b2[row][7]=0;}
-        if(tc===2){b2[row][3]=b2[row][0];b2[row][0]=0;}
+        if(tc===6){b2[row][5]=b2[row][7];b2[row][7]=null;}
+        if(tc===2){b2[row][3]=b2[row][0];b2[row][0]=null;}
       }
       return !isInCheck(b2, col);
     });
@@ -3206,7 +3299,7 @@ function initChessGame(container, prompt) {
   function allLegalMoves(board, col, castling, enPassant) {
     const moves = [];
     for(let r=0;r<8;r++)for(let c=0;c<8;c++){
-      if(board[r][c]!==0 && color(board[r][c])===col){
+      if(!isEmpty(board[r][c]) && color(board[r][c])===col){
         const lm = legalMoves(board,r,c,castling,enPassant);
         lm.forEach(([tr,tc])=>moves.push({fr:r,fc:c,tr,tc}));
       }
@@ -3221,7 +3314,7 @@ function initChessGame(container, prompt) {
 
     // En passant capture
     if(piece.toUpperCase()==='P' && game.enPassant && tr===game.enPassant[0] && tc===game.enPassant[1]){
-      game.board[fr][tc] = 0;
+      game.board[fr][tc] = null;
     }
 
     // Update en passant target
@@ -3233,8 +3326,8 @@ function initChessGame(container, prompt) {
     // Castling rook
     if(piece.toUpperCase()==='K' && Math.abs(tc-fc)===2){
       const row=fr;
-      if(tc===6){game.board[row][5]=game.board[row][7];game.board[row][7]=0;}
-      if(tc===2){game.board[row][3]=game.board[row][0];game.board[row][0]=0;}
+      if(tc===6){game.board[row][5]=game.board[row][7];game.board[row][7]=null;}
+      if(tc===2){game.board[row][3]=game.board[row][0];game.board[row][0]=null;}
     }
 
     // Update castling rights
@@ -3246,7 +3339,7 @@ function initChessGame(container, prompt) {
     if(piece==='r'&&fr===0&&fc===0)game.castling.q=false;
 
     game.board[tr][tc] = piece;
-    game.board[fr][fc] = 0;
+    game.board[fr][fc] = null;
 
     // Pawn promotion
     if(piece.toUpperCase()==='P' && (tr===0||tr===7)){
@@ -3254,7 +3347,7 @@ function initChessGame(container, prompt) {
     }
 
     const files='abcdefgh';
-    const notation = `${files[fc]}${8-fr}${captured!==0?'x':''}${files[tc]}${8-tr}`;
+    const notation = `${files[fc]}${8-fr}${!isEmpty(captured)?'x':''}${files[tc]}${8-tr}`;
     game.moveHistory.push(notation);
     game.lastMove = {fr,fc,tr,tc};
     game.turn = opponent(col);
@@ -3284,7 +3377,7 @@ function initChessGame(container, prompt) {
     let score = 0;
     for(let r=0;r<8;r++)for(let c=0;c<8;c++){
       const p = board[r][c];
-      if(p===0)continue;
+      if(isEmpty(p))continue;
       const type = p.toUpperCase();
       const val = PIECE_VALUES[type]||0;
       let pst = 0;
@@ -3308,8 +3401,8 @@ function initChessGame(container, prompt) {
     }
     // Order moves: captures first
     moves.sort((a,b)=>{
-      const capA = board[a.tr][a.tc]!==0 ? 1 : 0;
-      const capB = board[b.tr][b.tc]!==0 ? 1 : 0;
+      const capA = !isEmpty(board[a.tr][a.tc]) ? 1 : 0;
+      const capB = !isEmpty(board[b.tr][b.tc]) ? 1 : 0;
       return capB - capA;
     });
     if(maximizing){
@@ -3317,10 +3410,10 @@ function initChessGame(container, prompt) {
       for(const m of moves){
         const b2=cloneBoard(board);
         const piece=b2[m.fr][m.fc];
-        b2[m.tr][m.tc]=piece; b2[m.fr][m.fc]=0;
+        b2[m.tr][m.tc]=piece; b2[m.fr][m.fc]=null;
         if(piece.toUpperCase()==='P'&&(m.tr===0||m.tr===7)) b2[m.tr][m.tc]=maximizing?'Q':'q';
-        if(piece.toUpperCase()==='K'&&Math.abs(m.tc-m.fc)===2){if(m.tc===6){b2[m.fr][5]=b2[m.fr][7];b2[m.fr][7]=0;}if(m.tc===2){b2[m.fr][3]=b2[m.fr][0];b2[m.fr][0]=0;}}
-        if(piece.toUpperCase()==='P'&&enPassant&&m.tr===enPassant[0]&&m.tc===enPassant[1]) b2[m.fr][m.tc]=0;
+        if(piece.toUpperCase()==='K'&&Math.abs(m.tc-m.fc)===2){if(m.tc===6){b2[m.fr][5]=b2[m.fr][7];b2[m.fr][7]=null;}if(m.tc===2){b2[m.fr][3]=b2[m.fr][0];b2[m.fr][0]=null;}}
+        if(piece.toUpperCase()==='P'&&enPassant&&m.tr===enPassant[0]&&m.tc===enPassant[1]) b2[m.fr][m.tc]=null;
         const newEp = piece.toUpperCase()==='P'&&Math.abs(m.tr-m.fr)===2 ? [(m.fr+m.tr)/2,m.fc] : null;
         const val = minimax(b2, depth-1, alpha, beta, false, {...castling}, newEp);
         best = Math.max(best, val);
@@ -3333,10 +3426,10 @@ function initChessGame(container, prompt) {
       for(const m of moves){
         const b2=cloneBoard(board);
         const piece=b2[m.fr][m.fc];
-        b2[m.tr][m.tc]=piece; b2[m.fr][m.fc]=0;
+        b2[m.tr][m.tc]=piece; b2[m.fr][m.fc]=null;
         if(piece.toUpperCase()==='P'&&(m.tr===0||m.tr===7)) b2[m.tr][m.tc]='q';
-        if(piece.toUpperCase()==='K'&&Math.abs(m.tc-m.fc)===2){if(m.tc===6){b2[m.fr][5]=b2[m.fr][7];b2[m.fr][7]=0;}if(m.tc===2){b2[m.fr][3]=b2[m.fr][0];b2[m.fr][0]=0;}}
-        if(piece.toUpperCase()==='P'&&enPassant&&m.tr===enPassant[0]&&m.tc===enPassant[1]) b2[m.fr][m.tc]=0;
+        if(piece.toUpperCase()==='K'&&Math.abs(m.tc-m.fc)===2){if(m.tc===6){b2[m.fr][5]=b2[m.fr][7];b2[m.fr][7]=null;}if(m.tc===2){b2[m.fr][3]=b2[m.fr][0];b2[m.fr][0]=null;}}
+        if(piece.toUpperCase()==='P'&&enPassant&&m.tr===enPassant[0]&&m.tc===enPassant[1]) b2[m.fr][m.tc]=null;
         const newEp = piece.toUpperCase()==='P'&&Math.abs(m.tr-m.fr)===2 ? [(m.fr+m.tr)/2,m.fc] : null;
         const val = minimax(b2, depth-1, alpha, beta, true, {...castling}, newEp);
         best = Math.min(best, val);
@@ -3359,10 +3452,10 @@ function initChessGame(container, prompt) {
     for(const m of moves){
       const b2=cloneBoard(game.board);
       const piece=b2[m.fr][m.fc];
-      b2[m.tr][m.tc]=piece; b2[m.fr][m.fc]=0;
+      b2[m.tr][m.tc]=piece; b2[m.fr][m.fc]=null;
       if(piece==='p'&&m.tr===7) b2[m.tr][m.tc]='q';
-      if(piece==='k'&&Math.abs(m.tc-m.fc)===2){if(m.tc===6){b2[m.fr][5]=b2[m.fr][7];b2[m.fr][7]=0;}if(m.tc===2){b2[m.fr][3]=b2[m.fr][0];b2[m.fr][0]=0;}}
-      if(piece==='p'&&game.enPassant&&m.tr===game.enPassant[0]&&m.tc===game.enPassant[1]) b2[m.fr][m.tc]=0;
+      if(piece==='k'&&Math.abs(m.tc-m.fc)===2){if(m.tc===6){b2[m.fr][5]=b2[m.fr][7];b2[m.fr][7]=null;}if(m.tc===2){b2[m.fr][3]=b2[m.fr][0];b2[m.fr][0]=null;}}
+      if(piece==='p'&&game.enPassant&&m.tr===game.enPassant[0]&&m.tc===game.enPassant[1]) b2[m.fr][m.tc]=null;
       const newEp = piece==='p'&&Math.abs(m.tr-m.fr)===2 ? [(m.fr+m.tr)/2,m.fc] : null;
       const score = minimax(b2, depth, -Infinity, Infinity, true, {...game.castling}, newEp);
       if(score < bestScore){bestScore=score; bestMoves=[m];}
@@ -3422,12 +3515,12 @@ function initChessGame(container, prompt) {
       // Deselect or select new piece
       game.selected = null;
       game.legalMoves = [];
-      if(piece!==0 && color(piece)==='w'){
+      if(!isEmpty(piece) && color(piece)==='w'){
         game.selected = [r,c];
         game.legalMoves = legalMoves(game.board, r, c, game.castling, game.enPassant);
       }
     } else {
-      if(piece!==0 && color(piece)==='w'){
+      if(!isEmpty(piece) && color(piece)==='w'){
         game.selected = [r,c];
         game.legalMoves = legalMoves(game.board, r, c, game.castling, game.enPassant);
       }
@@ -3452,12 +3545,12 @@ function initChessGame(container, prompt) {
           if(game.lastMove.tr===r&&game.lastMove.tc===c) sq.classList.add('last-to');
         }
         if(game.legalMoves.some(m=>m[0]===r&&m[1]===c)){
-          if(game.board[r][c]!==0) sq.classList.add('legal-capture');
+          if(!isEmpty(game.board[r][c])) sq.classList.add('legal-capture');
           else sq.classList.add('legal-move');
         }
 
         const piece = game.board[r][c];
-        if(piece!==0) sq.textContent = CHESS_PIECES[piece] || '';
+        if(!isEmpty(piece)) sq.textContent = CHESS_PIECES[piece] || '';
 
         sq.addEventListener('click', ()=>onSquareClick(r,c));
         boardEl.appendChild(sq);
@@ -3478,8 +3571,8 @@ function initChessGame(container, prompt) {
     game.board = [
       ['r','n','b','q','k','b','n','r'],
       ['p','p','p','p','p','p','p','p'],
-      [0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],
-      [0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],
+      [null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],
       ['P','P','P','P','P','P','P','P'],
       ['R','N','B','Q','K','B','N','R'],
     ];
