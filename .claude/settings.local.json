@@ -23,7 +23,10 @@
       "Bash(xdg-open /home/petru/code/games/ai-hub/index.html)",
       "Bash(xdg-open ai-hub/index.html)",
       "Bash(xdg-open http://localhost:1313/games/petru-ai/)",
-      "Bash(xdg-open http://localhost:1313/)"
+      "Bash(xdg-open http://localhost:1313/)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",
