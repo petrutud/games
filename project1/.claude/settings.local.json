@@ -4,7 +4,12 @@
       "Bash(xdg-open /home/petru/code/project1/geometrydash/index.html)",
       "Bash(xdg-open /home/petru/code/project1/tabs.html)",
       "Bash(git clone:*)",
-      "Bash(sudo apt:*)"
+      "Bash(sudo apt:*)",
+      "Read(//home/petru/code/games/static/games/flappy-birds/**)",
+      "Bash(code /home/petru/code/games/project1/flappy-birds/index.html)",
+      "Read(//home/petru/code/games/**)",
+      "Read(//home/petru/code/games/static/games/**)",
+      "Bash(ls -d /home/petru/code/games/project1/*/)"
     ]
   }
 }

@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chess</title>
+<title>Chess — Game Hub</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@500;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Cinzel:wght@700;900&family=Inter:wght@500;700&display=swap');
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -13,9 +14,62 @@
     background: #1a1a2e;
     font-family: 'Inter', sans-serif;
     display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  .site-nav {
+    width: 100%;
+    background: rgba(15,15,35,0.85);
+    backdrop-filter: blur(10px);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    z-index: 500;
+    flex-shrink: 0;
+  }
+  .site-nav a {
+    color: #ccc;
+    text-decoration: none;
+    font-family: 'Roboto', sans-serif;
+    font-size: 14px;
+    transition: color 0.2s;
+  }
+  .site-nav a:hover { color: #fff; }
+  .site-nav .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+    font-size: 16px;
+  }
+  .site-nav .nav-links {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+  .site-nav .nav-links a:hover { color: #ffd700; }
+
+  .site-footer {
+    text-align: center;
+    padding: 16px;
+    color: rgba(255,255,255,0.3);
+    font-size: 12px;
+    font-family: 'Roboto', sans-serif;
+    position: relative;
+    z-index: 1;
+  }
+  .site-footer a { color: rgba(255,255,255,0.5); text-decoration: none; }
+  .site-footer a:hover { color: #fff; }
+
+  .game-wrapper {
+    flex: 1;
+    display: flex;
     justify-content: center;
     align-items: center;
-    overflow: hidden;
   }
 
   #bg {
@@ -513,6 +567,16 @@
 </head>
 <body>
 
+<nav class="site-nav">
+  <a href="index.html" class="brand">
+    &#8592; Game Hub
+  </a>
+  <div class="nav-links">
+    <a href="index.html">Games</a>
+  </div>
+</nav>
+
+<div class="game-wrapper">
 <div id="bg"></div>
 
 <div id="menu-overlay" id="menu">
@@ -1659,5 +1723,10 @@ render = function() {
 // Show menu on load instead of starting directly
 showMenu();
 </script>
+</div>
+
+<footer class="site-footer">
+  &copy; 2026 Game Hub &middot; All Rights Reserved
+</footer>
 </body>
 </html>

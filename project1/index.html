@@ -1,13 +1,404 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="refresh" content="0; url=bisnes-tycoon.html">
-  <link rel="canonical" href="bisnes-tycoon.html">
-  <title>Business Tycoon</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Hub</title>
+<style>
+:root {
+  --bg: #1a1d29;
+  --surface: #252936;
+  --surface-hover: #2e3344;
+  --text: #e8eaed;
+  --text-muted: #9aa0a6;
+  --accent: #7caf5e;
+  --accent-hover: #8fc76a;
+  --danger: #d9655c;
+  --gold: #e8c547;
+  --radius: 8px;
+  --shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* Navbar */
+.navbar {
+  background: var(--surface);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 1rem 1.5rem;
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.navbar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--gold);
+  text-decoration: none;
+}
+
+.logo span { color: var(--accent); }
+
+.search-box {
+  flex: 1;
+  max-width: 350px;
+  position: relative;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 0.5rem 1rem 0.5rem 2.4rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-box input:focus { border-color: var(--accent); }
+
+.search-box::before {
+  content: "\1F50D";
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.85rem;
+}
+
+.game-count {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Category Filter */
+.filters {
+  max-width: 1200px;
+  margin: 1.5rem auto 0;
+  padding: 0 1.5rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 0.4rem 1rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-btn:hover { border-color: var(--accent); color: var(--text); }
+.filter-btn.active { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+
+/* Grid */
+.container {
+  max-width: 1200px;
+  margin: 1.5rem auto;
+  padding: 0 1.5rem;
+}
+
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.25rem;
+}
+
+/* Game Card */
+.game-card {
+  background: var(--surface);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+}
+
+.game-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.card-thumb {
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.card-thumb .icon { z-index: 1; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4)); }
+
+.card-body {
+  padding: 0.8rem 1rem 1rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-body h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.card-body .tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  margin-bottom: 0.4rem;
+  width: fit-content;
+}
+
+.tag-action   { background: rgba(217,101,92,0.2); color: var(--danger); }
+.tag-strategy { background: rgba(107,140,206,0.2); color: #6b8cce; }
+.tag-puzzle   { background: rgba(124,175,94,0.2); color: var(--accent); }
+.tag-board    { background: rgba(232,197,71,0.2); color: var(--gold); }
+.tag-arcade   { background: rgba(170,85,255,0.2); color: #aa55ff; }
+.tag-sim      { background: rgba(88,200,220,0.2); color: #58c8dc; }
+.tag-card     { background: rgba(232,150,71,0.2); color: #e89647; }
+.tag-rpg      { background: rgba(200,100,180,0.2); color: #c864b4; }
+.tag-new      { background: rgba(255,215,0,0.15); color: var(--gold); border: 1px solid rgba(255,215,0,0.3); }
+
+.card-body p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  flex: 1;
+}
+
+.play-btn {
+  display: block;
+  margin-top: 0.6rem;
+  padding: 0.45rem;
+  background: var(--accent);
+  color: #111;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.play-btn:hover { background: var(--accent-hover); }
+
+/* Responsive */
+@media (max-width: 640px) {
+  .game-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.75rem; }
+  .card-thumb { height: 100px; font-size: 2.2rem; }
+  .navbar-inner { flex-wrap: wrap; }
+  .search-box { max-width: 100%; order: 3; }
+}
+
+/* No results */
+.no-results {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-muted);
+  grid-column: 1 / -1;
+}
+</style>
 </head>
 <body>
-  <p><a href="bisnes-tycoon.html">Open Business Tycoon</a></p>
+
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="index.html" class="logo">GAME<span>HUB</span></a>
+    <div class="search-box">
+      <input type="text" id="search" placeholder="Search games..." autocomplete="off">
+    </div>
+    <div class="game-count" id="gameCount"></div>
+  </div>
+</nav>
+
+<div class="filters" id="filters"></div>
+
+<div class="container">
+  <div class="game-grid" id="grid"></div>
+</div>
+
+<script>
+const games = [
+  // NEW — Featured
+  { name:"Flappy Birds", href:"flappy-birds/index.html", icon:"\uD83D\uDC26", bg:"linear-gradient(135deg,#0f0c29,#302b63)", cat:"arcade", desc:"Flap through pipes! 6 bird skins, particle effects.", tags:["new"] },
+  { name:"Boss Flip", href:"boss-game.html", icon:"\uD83D\uDC79", bg:"linear-gradient(135deg,#1a0000,#4a0000)", cat:"action", desc:"You are the boss. Fight waves of heroes in epic battles.", tags:["new"] },
+
+  // Board
+  { name:"Chess", href:"chess.html", icon:"\u265A", bg:"linear-gradient(135deg,#1a1a2e,#16213e)", cat:"board", desc:"Classic chess with AI. Beautiful board and animations." },
+  { name:"Checkers", href:"checkers.html", icon:"\u26C0", bg:"linear-gradient(135deg,#2a1a0a,#4a2a0a)", cat:"board", desc:"Traditional checkers with king promotions." },
+  { name:"Backgammon", href:"backgammon.html", icon:"\uD83C\uDFB2", bg:"linear-gradient(135deg,#1a2a1a,#0a1a0a)", cat:"board", desc:"Classic backgammon with dice rolls." },
+  { name:"Tic Tac Toe", href:"tictactoe/index.html", icon:"\u274C", bg:"linear-gradient(135deg,#1a1a3a,#2a2a5a)", cat:"board", desc:"Simple X and O game with AI opponent." },
+
+  // Strategy / Sim
+  { name:"Business Tycoon", href:"bisnes-tycoon.html", icon:"\uD83C\uDFE2", bg:"linear-gradient(135deg,#1a1d29,#252936)", cat:"sim", desc:"Build your empire from scratch. Hire, invest, prestige." },
+  { name:"Bloons TD", href:"bloons-td.html", icon:"\uD83C\uDF88", bg:"linear-gradient(135deg,#0a2a1a,#1a4a2a)", cat:"strategy", desc:"Pop bloons with strategic tower placement." },
+  { name:"Kingdom Rush", href:"kingdom-rush.html", icon:"\uD83C\uDFF0", bg:"linear-gradient(135deg,#2a1a0a,#3a2a1a)", cat:"strategy", desc:"Defend your kingdom with towers and heroes." },
+  { name:"Plants vs Zombies", href:"plants-vs-zombies.html", icon:"\uD83C\uDF3B", bg:"linear-gradient(135deg,#0a2a0a,#1a4a1a)", cat:"strategy", desc:"Defend your garden against zombie hordes." },
+  { name:"Tower Defense", href:"tower-defense/index.html", icon:"\uD83D\uDEE1\uFE0F", bg:"linear-gradient(135deg,#1a1a2a,#2a2a4a)", cat:"strategy", desc:"Build towers and stop the enemy waves." },
+  { name:"Mindustry", href:"mindustry/index.html", icon:"\u2699\uFE0F", bg:"linear-gradient(135deg,#0a1a2a,#1a2a3a)", cat:"strategy", desc:"Factory building and tower defense combined." },
+  { name:"Stardew Valley", href:"stardew-valley/index.html", icon:"\uD83C\uDF3E", bg:"linear-gradient(135deg,#1a3a1a,#2a5a2a)", cat:"sim", desc:"Farm, forage, and build your countryside life." },
+  { name:"Worldbox", href:"worldbox/index.html", icon:"\uD83C\uDF0D", bg:"linear-gradient(135deg,#0a2a3a,#1a3a4a)", cat:"sim", desc:"God simulator. Create worlds and civilizations." },
+  { name:"Sandbox", href:"sandbox/index.html", icon:"\uD83C\uDFD6\uFE0F", bg:"linear-gradient(135deg,#3a2a0a,#5a3a1a)", cat:"sim", desc:"Open sandbox physics playground." },
+  { name:"Survival", href:"survival/index.html", icon:"\uD83C\uDFD5\uFE0F", bg:"linear-gradient(135deg,#1a2a1a,#2a3a2a)", cat:"sim", desc:"Gather resources and survive the wilderness." },
+
+  // Arcade
+  { name:"Tetris", href:"tetris.html", icon:"\uD83D\uDFE6", bg:"linear-gradient(135deg,#0a0a2a,#1a1a4a)", cat:"arcade", desc:"The classic block-stacking puzzle game." },
+  { name:"Mario", href:"mario.html", icon:"\uD83C\uDF44", bg:"linear-gradient(135deg,#1a0a0a,#3a1a1a)", cat:"arcade", desc:"Run, jump and stomp through platformer levels." },
+  { name:"Breakout", href:"breakout.html", icon:"\uD83E\uDDF1", bg:"linear-gradient(135deg,#0a0a1a,#1a1a3a)", cat:"arcade", desc:"Smash bricks with a bouncing ball and paddle." },
+  { name:"Geometry Dash", href:"geometrydash/index.html", icon:"\uD83D\uDD36", bg:"linear-gradient(135deg,#1a0a2a,#3a1a4a)", cat:"arcade", desc:"Rhythm-based platformer. Jump to the beat!" },
+  { name:"Red Ball", href:"red-ball.html", icon:"\uD83D\uDD34", bg:"linear-gradient(135deg,#2a0a0a,#4a1a1a)", cat:"arcade", desc:"Roll and jump through obstacle courses." },
+  { name:"Snake", href:"snake/index.html", icon:"\uD83D\uDC0D", bg:"linear-gradient(135deg,#0a2a0a,#1a3a1a)", cat:"arcade", desc:"Eat, grow, don't hit yourself." },
+
+  // Action
+  { name:"Hollow Knight", href:"hollow-knight.html", icon:"\uD83D\uDDE1\uFE0F", bg:"linear-gradient(135deg,#0a0a1a,#1a1a2a)", cat:"action", desc:"Dark metroidvania exploration and combat." },
+  { name:"Terraria", href:"terraria.html", icon:"\u26CF\uFE0F", bg:"linear-gradient(135deg,#1a2a1a,#2a4a2a)", cat:"action", desc:"Mine, craft, build, and fight bosses." },
+  { name:"Stick Fight", href:"stick-fight/index.html", icon:"\uD83E\uDD3A", bg:"linear-gradient(135deg,#2a1a0a,#4a2a1a)", cat:"action", desc:"Fast-paced stick figure combat." },
+  { name:"Strike Force Heroes", href:"strike-force-heroes/index.html", icon:"\uD83D\uDD2B", bg:"linear-gradient(135deg,#1a1a0a,#2a2a1a)", cat:"action", desc:"Side-scrolling shooter with upgrades." },
+  { name:"Raze", href:"raze/index.html", icon:"\uD83D\uDCA5", bg:"linear-gradient(135deg,#2a0a0a,#3a1a1a)", cat:"action", desc:"Arena shooter with aliens and soldiers." },
+  { name:"Space Shooter", href:"space-shooter/index.html", icon:"\uD83D\uDE80", bg:"linear-gradient(135deg,#0a0a2a,#0a1a3a)", cat:"action", desc:"Blast through waves of alien ships." },
+  { name:"Shooter", href:"shooter/index.html", icon:"\uD83C\uDFAF", bg:"linear-gradient(135deg,#1a1a1a,#2a2a2a)", cat:"action", desc:"Top-down combat shooter." },
+
+  // Puzzle
+  { name:"Block Blast", href:"blockblast.html", icon:"\uD83D\uDFE9", bg:"linear-gradient(135deg,#0a1a2a,#1a2a4a)", cat:"puzzle", desc:"Fit blocks and clear rows in this addictive puzzle." },
+  { name:"Minesweeper", href:"minesweeper/index.html", icon:"\uD83D\uDCA3", bg:"linear-gradient(135deg,#1a1a1a,#2a2a2a)", cat:"puzzle", desc:"Clear the board without hitting a mine." },
+  { name:"Puzzle Blocks", href:"puzzle-blocks/index.html", icon:"\uD83E\uDDE9", bg:"linear-gradient(135deg,#2a1a2a,#3a2a3a)", cat:"puzzle", desc:"Drag and drop blocks to solve puzzles." },
+  { name:"Lemmings", href:"lemmings.html", icon:"\uD83D\uDC3E", bg:"linear-gradient(135deg,#0a2a1a,#1a3a2a)", cat:"puzzle", desc:"Guide the lemmings safely to the exit." },
+  { name:"Bubble Pop", href:"bubble-pop.html", icon:"\uD83E\uDEE7", bg:"linear-gradient(135deg,#1a0a2a,#2a1a4a)", cat:"puzzle", desc:"Match and pop colorful bubbles." },
+
+  // Card / RPG
+  { name:"Solitaire", href:"solitaire/index.html", icon:"\uD83C\uDCCF", bg:"linear-gradient(135deg,#0a1a0a,#1a2a1a)", cat:"card", desc:"Classic Klondike solitaire card game." },
+  { name:"Septica", href:"septica.html", icon:"\uD83C\uDCA0", bg:"linear-gradient(135deg,#2a0a1a,#3a1a2a)", cat:"card", desc:"Romanian trick-taking card game." },
+  { name:"Grimoire Shuffles", href:"grimoire-shuffles.html", icon:"\uD83D\uDCD6", bg:"linear-gradient(135deg,#1a0a2a,#2a1a3a)", cat:"card", desc:"Magical deck-building card game." },
+  { name:"Roguelike", href:"roguelike/index.html", icon:"\uD83D\uDDFA\uFE0F", bg:"linear-gradient(135deg,#1a1a0a,#2a2a1a)", cat:"rpg", desc:"Procedural dungeon crawling adventure." },
+  { name:"Dungeon Bisque", href:"dungeon-bisque.html", icon:"\uD83C\uDFF0", bg:"linear-gradient(135deg,#2a1a1a,#3a2a1a)", cat:"rpg", desc:"Explore dark dungeons and defeat monsters." },
+
+  // Other
+  { name:"Table Tennis", href:"table-tennis.html", icon:"\uD83C\uDFD3", bg:"linear-gradient(135deg,#0a1a2a,#1a2a3a)", cat:"arcade", desc:"Fast-paced ping pong action." },
+  { name:"Whack-a-Mole", href:"whackamole/index.html", icon:"\uD83D\uDC39", bg:"linear-gradient(135deg,#2a2a0a,#3a3a1a)", cat:"arcade", desc:"Whack the moles before they hide!" },
+  { name:"Fireboy & Watergirl", href:"fireboy-watergirl/index.html", icon:"\uD83D\uDD25", bg:"linear-gradient(135deg,#2a0a0a,#0a0a2a)", cat:"puzzle", desc:"Co-op temple adventure. Fire and water elements." },
+  { name:"Human Fall Flat", href:"human-fall-flat/index.html", icon:"\uD83E\uDDD7", bg:"linear-gradient(135deg,#2a2a2a,#3a3a3a)", cat:"puzzle", desc:"Wobbly physics-based puzzle platformer." },
+  { name:"Eclipse", href:"eclipse.html", icon:"\uD83C\uDF11", bg:"linear-gradient(135deg,#0a0a1a,#1a0a2a)", cat:"action", desc:"Dark atmospheric action game." },
+  { name:"Cold Echoes", href:"cold-echoes/index.html", icon:"\u2744\uFE0F", bg:"linear-gradient(135deg,#0a1a2a,#1a2a3a)", cat:"rpg", desc:"Frozen world exploration RPG." },
+  { name:"Last Stand", href:"last-stand.html", icon:"\uD83C\uDF03", bg:"linear-gradient(135deg,#1a0a0a,#2a1a1a)", cat:"action", desc:"Survive the final wave against all odds." },
+  { name:"Formless", href:"formless.html", icon:"\uD83C\uDF00", bg:"linear-gradient(135deg,#1a1a2a,#2a1a3a)", cat:"action", desc:"Shape-shifting experimental action." },
+  { name:"Tether", href:"tether.html", icon:"\uD83D\uDD17", bg:"linear-gradient(135deg,#0a2a2a,#1a3a3a)", cat:"puzzle", desc:"Physics-based tethering puzzle game." },
+];
+
+const categories = {
+  all: "All Games",
+  arcade: "Arcade",
+  action: "Action",
+  strategy: "Strategy",
+  puzzle: "Puzzle",
+  board: "Board",
+  sim: "Simulation",
+  card: "Card",
+  rpg: "RPG"
+};
+
+const catTagClass = {
+  arcade: "tag-arcade",
+  action: "tag-action",
+  strategy: "tag-strategy",
+  puzzle: "tag-puzzle",
+  board: "tag-board",
+  sim: "tag-sim",
+  card: "tag-card",
+  rpg: "tag-rpg"
+};
+
+let currentCat = 'all';
+
+// Build filters
+const filtersEl = document.getElementById('filters');
+Object.entries(categories).forEach(([key, label]) => {
+  const btn = document.createElement('button');
+  btn.className = 'filter-btn' + (key === 'all' ? ' active' : '');
+  btn.textContent = label;
+  btn.dataset.cat = key;
+  btn.onclick = () => {
+    currentCat = key;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderGrid();
+  };
+  filtersEl.appendChild(btn);
+});
+
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  const query = document.getElementById('search').value.toLowerCase().trim();
+  let filtered = games.filter(g => {
+    const matchesCat = currentCat === 'all' || g.cat === currentCat;
+    const matchesSearch = !query || g.name.toLowerCase().includes(query) || g.desc.toLowerCase().includes(query) || g.cat.includes(query);
+    return matchesCat && matchesSearch;
+  });
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div class="no-results">No games found. Try a different search or category.</div>';
+    document.getElementById('gameCount').textContent = '0 games';
+    return;
+  }
+
+  grid.innerHTML = filtered.map(g => {
+    const tagClass = catTagClass[g.cat] || 'tag-arcade';
+    const catLabel = categories[g.cat] || g.cat;
+    const newTag = (g.tags && g.tags.includes('new')) ? '<span class="tag tag-new">NEW</span> ' : '';
+    return `<a href="${g.href}" class="game-card">
+      <div class="card-thumb" style="background:${g.bg}">
+        <span class="icon">${g.icon}</span>
+      </div>
+      <div class="card-body">
+        ${newTag}<span class="tag ${tagClass}">${catLabel}</span>
+        <h3>${g.name}</h3>
+        <p>${g.desc}</p>
+        <div class="play-btn">PLAY</div>
+      </div>
+    </a>`;
+  }).join('');
+
+  document.getElementById('gameCount').textContent = filtered.length + ' game' + (filtered.length !== 1 ? 's' : '');
+}
+
+document.getElementById('search').addEventListener('input', renderGrid);
+renderGrid();
+</script>
 </body>
 </html>
