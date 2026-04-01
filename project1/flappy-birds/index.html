@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+no<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Flappy Birds — Game Hub</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
@@ -11,11 +11,12 @@
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
   min-height: 100vh;
+  height: 100vh;
   background: #1a1a2e;
   font-family: 'Inter', sans-serif;
   display: flex;
   flex-direction: column;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .site-nav {
@@ -58,6 +59,14 @@ body {
   align-items: center;
   position: relative;
   padding: 20px;
+  overflow: hidden;
+}
+
+@media (max-width: 480px) {
+  .game-wrapper { padding: 8px; }
+  .site-nav { padding: 8px 12px; }
+  .site-nav .brand { font-size: 14px; }
+  .site-footer { padding: 8px; font-size: 10px; }
 }
 
 .site-footer {
@@ -93,6 +102,11 @@ canvas {
   cursor: pointer;
   border-radius: 12px;
   box-shadow: 0 0 30px rgba(0,180,255,0.2), 0 4px 20px rgba(0,0,0,0.5);
+  max-width: 100%;
+  max-height: calc(100vh - 100px);
+  width: auto;
+  height: auto;
+  touch-action: none;
 }
 </style>
 </head>
@@ -122,6 +136,19 @@ const ctx = canvas.getContext('2d');
 const W = 400, H = 600;
 canvas.width = W;
 canvas.height = H;
+
+// Responsive canvas scaling
+function resizeCanvas() {
+  const wrapper = document.querySelector('.game-wrapper');
+  const maxW = wrapper.clientWidth - 16;
+  const maxH = wrapper.clientHeight - 16;
+  const scale = Math.min(maxW / W, maxH / H, 1.5);
+  canvas.style.width = Math.floor(W * scale) + 'px';
+  canvas.style.height = Math.floor(H * scale) + 'px';
+}
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 100));
+resizeCanvas();
 
 // Bird skins
 const SKINS = [
@@ -199,15 +226,39 @@ document.addEventListener('keydown', e => {
     if (e.code === 'ArrowLeft') skinIndex = (skinIndex-1+SKINS.length)%SKINS.length;
   }
 });
-canvas.addEventListener('mousedown', e => {
+function getCanvasPos(clientX, clientY) {
+  let rect = canvas.getBoundingClientRect();
+  return {
+    x: (clientX - rect.left) * (W / rect.width),
+    y: (clientY - rect.top) * (H / rect.height)
+  };
+}
+
+function handleInput(cx) {
   if (gameState === 'dead') { gameState = 'menu'; return; }
+  if (gameState === 'menu') {
+    // Tap left third to go prev skin, right third to go next skin, middle to play
+    if (cx < W * 0.3) {
+      skinIndex = (skinIndex - 1 + SKINS.length) % SKINS.length;
+      return;
+    } else if (cx > W * 0.7) {
+      skinIndex = (skinIndex + 1) % SKINS.length;
+      return;
+    }
+  }
   flap();
+}
+
+canvas.addEventListener('mousedown', e => {
+  let pos = getCanvasPos(e.clientX, e.clientY);
+  handleInput(pos.x);
 });
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
-  if (gameState === 'dead') { gameState = 'menu'; return; }
-  flap();
-});
+  let touch = e.touches[0];
+  let pos = getCanvasPos(touch.clientX, touch.clientY);
+  handleInput(pos.x);
+}, { passive: false });
 
 // Draw functions
 function drawSky() {
@@ -476,8 +527,8 @@ function drawMenu() {
   // Instructions
   ctx.font = '16px Arial, sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText('SPACE / CLICK to play', W/2, 400);
-  ctx.fillText('< > arrows to change skin', W/2, 425);
+  ctx.fillText('TAP center / SPACE to play', W/2, 400);
+  ctx.fillText('TAP sides / arrows to change skin', W/2, 425);
 
   // Best score
   if (bestScore > 0) {

@@ -9,7 +9,15 @@
       "Bash(code /home/petru/code/games/project1/flappy-birds/index.html)",
       "Read(//home/petru/code/games/**)",
       "Read(//home/petru/code/games/static/games/**)",
-      "Bash(ls -d /home/petru/code/games/project1/*/)"
+      "Bash(ls -d /home/petru/code/games/project1/*/)",
+      "Bash(hugo)",
+      "Bash(cp /home/petru/code/games/project1/flappy-birds/index.html /home/petru/code/games/static/games/flappy-birds/index.html)",
+      "Bash(cp /home/petru/code/games/project1/mario.html /home/petru/code/games/static/games/mario/game.html)",
+      "Bash(cp /home/petru/code/games/project1/kingdom-rush.html /home/petru/code/games/static/games/kingdom-rush/index.html)",
+      "Bash(xdg-open /home/petru/code/games/project1/flappy-birds/index.html)",
+      "Bash(grep -l site-nav /home/petru/code/games/project1/*.html)",
+      "Bash(grep -l \"site-nav\\\\|Game Hub\" /home/petru/code/games/project1/*.html)",
+      "Bash(xargs -I {} basename {} .html)"
     ]
   }
 }
