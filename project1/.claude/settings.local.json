@@ -18,6 +18,11 @@
       "Bash(grep -l site-nav /home/petru/code/games/project1/*.html)",
       "Bash(grep -l \"site-nav\\\\|Game Hub\" /home/petru/code/games/project1/*.html)",
       "Bash(xargs -I {} basename {} .html)"
+    ],
+    "additionalDirectories": [
+      "/home/petru/code/games/static/games/geometry-dash/js",
+      "/home/petru/code/games/static/games/geometry-dash",
+      "/home/petru/code/games"
     ]
   }
 }

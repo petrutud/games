@@ -58,6 +58,7 @@
     MINI:          { type:'mini',     color1:'#4dff70', color2:'#00cc44', label:'m',   icon:'▾' },
     BIG:           { type:'big',      color1:'#ff4040', color2:'#cc0000', label:'M',   icon:'▴' },
     TELEPORT:      { type:'teleport', color1:'#cc44ff', color2:'#8800ff', label:'T',   icon:'⊕' },
+    JUMP_BOOST:    { type:'jump_boost', color1:'#00ffff', color2:'#ff6600', label:'J',  icon:'⇑' },
   };
   const PORTAL_TYPES = Object.values(PORTAL);
 
@@ -81,6 +82,7 @@
   let deathParticles = [];
   let flashAlpha = 0;
   let orbsCollected = 0;
+  let jumpBoostActive = false; // true = next jump is boosted
 
   // ═══════════════════════════════════════════════
   //  SOUND
@@ -431,6 +433,9 @@
         scrollOff += 200;
         flashAlpha = 0.8;
         break;
+      case 'jump_boost':
+        jumpBoostActive = true;
+        break;
     }
   }
 
@@ -683,6 +688,18 @@
       ctx.fillRect(-ps/2+3, -ps/2+3, ps/2-3, ps/2-3);
 
       ctx.shadowBlur = 0;
+
+      // Jump boost indicator (pulsing glow around player)
+      if (jumpBoostActive) {
+        const pulse = Math.sin(Date.now()*0.008)*0.3 + 0.5;
+        ctx.shadowColor = '#00ffff';
+        ctx.shadowBlur = 30 * pulse;
+        ctx.strokeStyle = `rgba(0,255,255,${pulse})`;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(-ps/2 - 4, -ps/2 - 4, ps + 8, ps + 8);
+        ctx.shadowBlur = 0;
+      }
+
       ctx.restore();
 
       // Gravity flip indicator
@@ -750,7 +767,12 @@
       : (playerY <= CEILING_Y + 2);
 
     if (onGround) {
-      playerVelY = JUMP_VEL * gravityDir;
+      const boost = jumpBoostActive ? 1.8 : 1;
+      playerVelY = JUMP_VEL * gravityDir * boost;
+      if (jumpBoostActive) {
+        jumpBoostActive = false;
+        spawnParticles(PLAYER_X + ps/2, playerY + ps/2, '#00ffff', 15, 6);
+      }
       sfx('jump');
       spawnParticles(PLAYER_X + ps/2, playerY + (gravityDir===1 ? ps : 0), levelColor, 6, 3);
     }
@@ -814,6 +836,7 @@
     particles = [];
     deathParticles = [];
     orbsCollected = 0;
+    jumpBoostActive = false;
 
     genStars();
     genLevel(idx);
@@ -847,4 +870,373 @@
 
   updateButtons();
   updateSoundBtn();
+
+  // ═══════════════════════════════════════════════
+  //  LEVEL EDITOR
+  // ═══════════════════════════════════════════════
+  const EDITOR_KEY = 'gd2_editor_level';
+  const editorAreaEl = document.getElementById('editor-area');
+  const editorCanvas = document.getElementById('editor-canvas');
+  const editorCtx = editorCanvas.getContext('2d');
+  const GRID = 40; // grid cell size
+  const ED_H = editorCanvas.height; // 400
+  const ED_GROUND_Y = ED_H - GROUND_H;
+
+  let editorTool = 'spike';
+  let editorItems = []; // {type, gridX, gridY}
+  let editorSpeed = 3.0;
+  let editorColor = '#00f0ff';
+  let isCustomLevel = false;
+
+  const PORTAL_MAP = {
+    portal_gravity: PORTAL.GRAVITY_FLIP,
+    portal_speed_up: PORTAL.SPEED_UP,
+    portal_speed_dn: PORTAL.SPEED_DOWN,
+    portal_mini: PORTAL.MINI,
+    portal_big: PORTAL.BIG,
+    portal_teleport: PORTAL.TELEPORT,
+    portal_jump_boost: PORTAL.JUMP_BOOST,
+  };
+
+  // Tool selection
+  document.getElementById('editor-tools').addEventListener('click', e => {
+    const btn = e.target.closest('.tool-btn');
+    if (!btn) return;
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    editorTool = btn.getAttribute('data-tool');
+  });
+
+  // Speed slider
+  const speedSlider = document.getElementById('editor-speed');
+  const speedVal = document.getElementById('editor-speed-val');
+  speedSlider.addEventListener('input', () => {
+    editorSpeed = parseFloat(speedSlider.value);
+    speedVal.textContent = editorSpeed.toFixed(1);
+  });
+
+  // Color picker
+  document.getElementById('editor-color').addEventListener('input', e => {
+    editorColor = e.target.value;
+    drawEditor();
+  });
+
+  // Open editor
+  document.getElementById('btn-editor').addEventListener('click', () => {
+    levelSelEl.classList.add('hidden');
+    gameAreaEl.classList.add('hidden');
+    editorAreaEl.classList.remove('hidden');
+    if (animId) { cancelAnimationFrame(animId); animId = null; }
+    loadEditorFromStorage();
+    drawEditor();
+  });
+
+  // Back to menu
+  document.getElementById('btn-editor-back').addEventListener('click', () => {
+    editorAreaEl.classList.add('hidden');
+    showMenu();
+  });
+
+  // Clear
+  document.getElementById('btn-editor-clear').addEventListener('click', () => {
+    editorItems = [];
+    drawEditor();
+  });
+
+  // Save
+  document.getElementById('btn-editor-save').addEventListener('click', () => {
+    try {
+      localStorage.setItem(EDITOR_KEY, JSON.stringify({
+        items: editorItems,
+        speed: editorSpeed,
+        color: editorColor
+      }));
+    } catch(e){}
+  });
+
+  // Load
+  document.getElementById('btn-editor-load').addEventListener('click', () => {
+    loadEditorFromStorage();
+    drawEditor();
+  });
+
+  function loadEditorFromStorage() {
+    try {
+      const data = JSON.parse(localStorage.getItem(EDITOR_KEY));
+      if (data && data.items) {
+        editorItems = data.items;
+        editorSpeed = data.speed || 3.0;
+        editorColor = data.color || '#00f0ff';
+        speedSlider.value = editorSpeed;
+        speedVal.textContent = editorSpeed.toFixed(1);
+        document.getElementById('editor-color').value = editorColor;
+      }
+    } catch(e){}
+  }
+
+  // Play custom level
+  document.getElementById('btn-editor-play').addEventListener('click', () => {
+    if (editorItems.length === 0) return;
+    isCustomLevel = true;
+    startCustomLevel();
+  });
+
+  function startCustomLevel() {
+    // Find the rightmost item to determine level length
+    let maxX = 0;
+    editorItems.forEach(item => {
+      const px = item.gridX * GRID;
+      if (px > maxX) maxX = px;
+    });
+    const customLength = maxX + 700; // add buffer
+
+    currentLevel = -1;
+    baseSpeed = editorSpeed;
+    scrollSpeed = editorSpeed;
+    levelLen = customLength;
+    levelColor = editorColor;
+    levelBg = '#0a0a2a';
+
+    scrollOff = 0;
+    playerSize = BASE_SIZE;
+    sizeScale = 1;
+    playerY = GROUND_Y - playerSize;
+    playerVelY = 0;
+    playerAngle = 0;
+    gravityDir = 1;
+    gameOver = false;
+    levelComplete = false;
+    started = false;
+    shakeTime = 0;
+    flashAlpha = 0;
+    trail = [];
+    particles = [];
+    deathParticles = [];
+    orbsCollected = 0;
+    jumpBoostActive = false;
+
+    genStars();
+
+    // Convert editor items to game objects
+    obstacles = [];
+    portals = [];
+    orbs = [];
+
+    editorItems.forEach(item => {
+      const px = item.gridX * GRID;
+      const py = item.gridY * GRID;
+
+      if (item.type === 'spike') {
+        obstacles.push({ type: 'spike', x: px, w: 30, h: 35 });
+      } else if (item.type === 'block') {
+        obstacles.push({ type: 'block', x: px, w: 36, h: 36 });
+      } else if (item.type === 'pillar') {
+        obstacles.push({ type: 'pillar', x: px, w: 22, h: 45 });
+      } else if (item.type === 'orb') {
+        orbs.push({ x: px + 20, y: py + GRID/2, collected: false });
+      } else if (item.type.startsWith('portal_')) {
+        const portalDef = PORTAL_MAP[item.type];
+        if (portalDef) {
+          portals.push({ x: px, portalDef: portalDef, used: false });
+        }
+      }
+    });
+
+    editorAreaEl.classList.add('hidden');
+    levelSelEl.classList.add('hidden');
+    gameAreaEl.classList.remove('hidden');
+    scoreEl.textContent = '0';
+    pctEl.textContent = '0%';
+    progressEl.style.width = '0%';
+    levelNameEl.textContent = 'Custom Level';
+    overlay.classList.add('hidden');
+
+    if (animId) cancelAnimationFrame(animId);
+    loop();
+  }
+
+  // Override showOverlay for custom levels to add "Edit" button
+  const origShowOverlay = showOverlay;
+  showOverlay = function(msg, buttons) {
+    if (isCustomLevel) {
+      buttons.push({ text: 'Edit Level', action: () => {
+        isCustomLevel = false;
+        editorAreaEl.classList.remove('hidden');
+        gameAreaEl.classList.add('hidden');
+        if (animId) { cancelAnimationFrame(animId); animId = null; }
+        drawEditor();
+      }});
+      // Replace retry to replay custom
+      const retryIdx = buttons.findIndex(b => b.text === 'Retry');
+      if (retryIdx >= 0) {
+        buttons[retryIdx] = { text: 'Retry', action: () => { isCustomLevel = true; startCustomLevel(); } };
+      }
+      // Remove "Next Level" for custom
+      const nextIdx = buttons.findIndex(b => b.text === 'Next Level');
+      if (nextIdx >= 0) buttons.splice(nextIdx, 1);
+    }
+    origShowOverlay(msg, buttons);
+  };
+
+  // Also fix Level Select button for custom levels
+  const origShowMenu = showMenu;
+  showMenu = function() {
+    isCustomLevel = false;
+    origShowMenu();
+  };
+
+  // ── EDITOR CANVAS INTERACTION ──
+  function getEditorGridPos(e) {
+    const rect = editorCanvas.getBoundingClientRect();
+    const scaleX = editorCanvas.width / rect.width;
+    const scaleY = editorCanvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    return { gridX: Math.floor(x / GRID), gridY: Math.floor(y / GRID) };
+  }
+
+  function itemAt(gx, gy) {
+    return editorItems.findIndex(i => i.gridX === gx && i.gridY === gy);
+  }
+
+  editorCanvas.addEventListener('click', e => {
+    const { gridX, gridY } = getEditorGridPos(e);
+    // Don't place below ground
+    if (gridY * GRID >= ED_GROUND_Y) return;
+
+    if (editorTool === 'eraser') {
+      const idx = itemAt(gridX, gridY);
+      if (idx >= 0) editorItems.splice(idx, 1);
+    } else {
+      // Remove existing item at this position
+      const idx = itemAt(gridX, gridY);
+      if (idx >= 0) editorItems.splice(idx, 1);
+      editorItems.push({ type: editorTool, gridX, gridY });
+    }
+    drawEditor();
+  });
+
+  editorCanvas.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    const { gridX, gridY } = getEditorGridPos(e);
+    const idx = itemAt(gridX, gridY);
+    if (idx >= 0) {
+      editorItems.splice(idx, 1);
+      drawEditor();
+    }
+  });
+
+  // ── EDITOR DRAWING ──
+  function drawEditor() {
+    const ew = editorCanvas.width;
+    const eh = editorCanvas.height;
+
+    // Background
+    const grad = editorCtx.createLinearGradient(0,0,0,eh);
+    grad.addColorStop(0, '#0a0a2a');
+    grad.addColorStop(1, '#000');
+    editorCtx.fillStyle = grad;
+    editorCtx.fillRect(0,0,ew,eh);
+
+    // Grid lines
+    editorCtx.strokeStyle = 'rgba(255,255,255,0.04)';
+    editorCtx.lineWidth = 1;
+    for (let x = 0; x < ew; x += GRID) {
+      editorCtx.beginPath(); editorCtx.moveTo(x,0); editorCtx.lineTo(x,eh); editorCtx.stroke();
+    }
+    for (let y = 0; y < eh; y += GRID) {
+      editorCtx.beginPath(); editorCtx.moveTo(0,y); editorCtx.lineTo(ew,y); editorCtx.stroke();
+    }
+
+    // Ground
+    editorCtx.fillStyle = editorColor + '20';
+    editorCtx.fillRect(0, ED_GROUND_Y, ew, GROUND_H);
+    editorCtx.strokeStyle = editorColor;
+    editorCtx.lineWidth = 2;
+    editorCtx.beginPath();
+    editorCtx.moveTo(0, ED_GROUND_Y);
+    editorCtx.lineTo(ew, ED_GROUND_Y);
+    editorCtx.stroke();
+
+    // Player start indicator
+    editorCtx.fillStyle = editorColor + '60';
+    editorCtx.fillRect(PLAYER_X - BASE_SIZE/2, ED_GROUND_Y - BASE_SIZE, BASE_SIZE, BASE_SIZE);
+    editorCtx.strokeStyle = '#fff';
+    editorCtx.lineWidth = 1;
+    editorCtx.strokeRect(PLAYER_X - BASE_SIZE/2, ED_GROUND_Y - BASE_SIZE, BASE_SIZE, BASE_SIZE);
+    editorCtx.fillStyle = '#fff';
+    editorCtx.font = '9px Orbitron';
+    editorCtx.textAlign = 'center';
+    editorCtx.fillText('START', PLAYER_X, ED_GROUND_Y - BASE_SIZE - 4);
+
+    // Draw items
+    editorItems.forEach(item => {
+      const px = item.gridX * GRID;
+      const py = item.gridY * GRID;
+
+      if (item.type === 'spike') {
+        editorCtx.fillStyle = '#ff404080';
+        editorCtx.strokeStyle = '#ff4040';
+        editorCtx.lineWidth = 2;
+        editorCtx.beginPath();
+        editorCtx.moveTo(px + GRID/2, py);
+        editorCtx.lineTo(px + GRID, py + GRID);
+        editorCtx.lineTo(px, py + GRID);
+        editorCtx.closePath();
+        editorCtx.fill();
+        editorCtx.stroke();
+      } else if (item.type === 'block') {
+        editorCtx.fillStyle = '#ff604050';
+        editorCtx.strokeStyle = '#ff6040';
+        editorCtx.lineWidth = 2;
+        editorCtx.fillRect(px+2, py+2, GRID-4, GRID-4);
+        editorCtx.strokeRect(px+2, py+2, GRID-4, GRID-4);
+        // X mark
+        editorCtx.strokeStyle = '#ff604060';
+        editorCtx.lineWidth = 1;
+        editorCtx.beginPath();
+        editorCtx.moveTo(px+2,py+2); editorCtx.lineTo(px+GRID-2,py+GRID-2);
+        editorCtx.moveTo(px+GRID-2,py+2); editorCtx.lineTo(px+2,py+GRID-2);
+        editorCtx.stroke();
+      } else if (item.type === 'pillar') {
+        editorCtx.fillStyle = editorColor + '40';
+        editorCtx.strokeStyle = editorColor;
+        editorCtx.lineWidth = 2;
+        editorCtx.fillRect(px+8, py, GRID-16, GRID);
+        editorCtx.strokeRect(px+8, py, GRID-16, GRID);
+      } else if (item.type === 'orb') {
+        editorCtx.fillStyle = '#ffe600';
+        editorCtx.shadowColor = '#ffe600';
+        editorCtx.shadowBlur = 8;
+        editorCtx.beginPath();
+        editorCtx.arc(px + GRID/2, py + GRID/2, 10, 0, Math.PI*2);
+        editorCtx.fill();
+        editorCtx.shadowBlur = 0;
+        editorCtx.fillStyle = '#fff';
+        editorCtx.beginPath();
+        editorCtx.arc(px + GRID/2, py + GRID/2, 4, 0, Math.PI*2);
+        editorCtx.fill();
+      } else if (item.type.startsWith('portal_')) {
+        const portalDef = PORTAL_MAP[item.type];
+        if (portalDef) {
+          const cx = px + GRID/2;
+          const cy = py + GRID/2;
+          editorCtx.shadowColor = portalDef.color1;
+          editorCtx.shadowBlur = 12;
+          editorCtx.strokeStyle = portalDef.color1;
+          editorCtx.lineWidth = 2;
+          editorCtx.beginPath();
+          editorCtx.ellipse(cx, cy, GRID/2 - 4, GRID/2, 0, 0, Math.PI*2);
+          editorCtx.stroke();
+          editorCtx.shadowBlur = 0;
+          editorCtx.fillStyle = '#fff';
+          editorCtx.font = 'bold 16px Orbitron, sans-serif';
+          editorCtx.textAlign = 'center';
+          editorCtx.textBaseline = 'middle';
+          editorCtx.fillText(portalDef.icon, cx, cy);
+          editorCtx.textBaseline = 'alphabetic';
+        }
+      }
+    });
+  }
 })();

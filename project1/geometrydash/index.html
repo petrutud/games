@@ -27,7 +27,47 @@
         <button type="button" class="btn level-btn" data-level="10">Level 10</button>
         <button type="button" class="btn level-btn" data-level="11">Level 11</button>
       </div>
+      <div style="margin-top:1rem;">
+        <button type="button" class="btn btn-editor" id="btn-editor">✏️ Level Editor</button>
+      </div>
     </div>
+
+    <div id="editor-area" class="editor-area hidden">
+      <h1>LEVEL EDITOR</h1>
+      <div class="editor-toolbar">
+        <span class="editor-tool-label">Tool:</span>
+        <div class="editor-tools" id="editor-tools">
+          <button class="btn tool-btn active" data-tool="spike" title="Spike">▲</button>
+          <button class="btn tool-btn" data-tool="block" title="Block">■</button>
+          <button class="btn tool-btn" data-tool="pillar" title="Pillar">▐</button>
+          <button class="btn tool-btn" data-tool="orb" title="Orb">★</button>
+          <button class="btn tool-btn" data-tool="portal_gravity" title="Gravity Flip">↕</button>
+          <button class="btn tool-btn" data-tool="portal_speed_up" title="Speed Up">»</button>
+          <button class="btn tool-btn" data-tool="portal_speed_dn" title="Speed Down">«</button>
+          <button class="btn tool-btn" data-tool="portal_mini" title="Mini">▾</button>
+          <button class="btn tool-btn" data-tool="portal_big" title="Big">▴</button>
+          <button class="btn tool-btn" data-tool="portal_teleport" title="Teleport">⊕</button>
+          <button class="btn tool-btn" data-tool="portal_jump_boost" title="Jump Boost">⇑</button>
+          <button class="btn tool-btn tool-eraser" data-tool="eraser" title="Eraser">✕</button>
+        </div>
+      </div>
+      <div class="editor-settings">
+        <label>Speed: <input type="range" id="editor-speed" min="2" max="6" step="0.2" value="3.0"><span id="editor-speed-val">3.0</span></label>
+        <label>Color: <input type="color" id="editor-color" value="#00f0ff"></label>
+      </div>
+      <div class="editor-canvas-wrap">
+        <canvas id="editor-canvas" width="2000" height="400"></canvas>
+      </div>
+      <p class="hint">Click to place, right-click to remove. Scroll horizontally to extend the level.</p>
+      <div class="editor-actions">
+        <button class="btn" id="btn-editor-play">▶ Play Level</button>
+        <button class="btn" id="btn-editor-clear">Clear All</button>
+        <button class="btn" id="btn-editor-save">Save</button>
+        <button class="btn" id="btn-editor-load">Load</button>
+        <button class="btn" id="btn-editor-back">← Back</button>
+      </div>
+    </div>
+
     <div id="game-area" class="game-area hidden">
       <h1>GEOMETRY DASH</h1>
       <p class="score-line">Score: <strong id="score">0</strong> <span class="pct" id="pct">0%</span> / <span id="level-name"></span></p>
