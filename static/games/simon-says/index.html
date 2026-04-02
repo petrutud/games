@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simon Says — Petru Tudorica</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Roboto:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    font-family: 'Orbitron', sans-serif;
+    background: #0a0a12;
+    color: #ccc;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .site-nav {
+    background: rgba(10,10,18,0.85);
+    backdrop-filter: blur(10px);
+    padding: 8px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    z-index: 500;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .site-nav a { color: #ccc; text-decoration: none; font-family: 'Roboto', sans-serif; font-size: 14px; transition: color 0.2s; }
+  .site-nav a:hover { color: #fff; }
+  .site-nav .brand { display: flex; align-items: center; gap: 10px; font-weight: 500; font-size: 16px; }
+  .site-nav .brand img { width: 28px; height: 28px; }
+  .site-nav .nav-links { display: flex; gap: 20px; align-items: center; }
+  .site-nav .nav-links a:hover { color: #7cb8f0; }
+
+  .game-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .game-wrap {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  h1 {
+    font-size: 2rem;
+    color: #e0e0ff;
+    text-shadow: 0 0 20px rgba(120,120,255,0.3);
+    letter-spacing: 4px;
+  }
+
+  .info-bar {
+    display: flex;
+    gap: 2rem;
+    font-size: 0.9rem;
+    color: #8a8fa0;
+  }
+  .info-bar strong { color: #7cb8f0; margin-left: 4px; }
+
+  .message {
+    font-size: 1rem;
+    color: #aab;
+    min-height: 1.5em;
+    transition: color 0.3s;
+  }
+  .message.fail { color: #ef4444; }
+  .message.success { color: #22c55e; }
+
+  /* Simon board */
+  .simon-board {
+    position: relative;
+    width: 320px;
+    height: 320px;
+  }
+
+  .pad {
+    position: absolute;
+    width: 148px;
+    height: 148px;
+    border: none;
+    cursor: pointer;
+    transition: filter 0.1s, transform 0.1s;
+    outline: none;
+  }
+  .pad:active, .pad.lit {
+    filter: brightness(2.2) saturate(1.3);
+    transform: scale(1.03);
+    z-index: 10;
+  }
+  .pad.disabled {
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .pad.green {
+    top: 0; left: 0;
+    background: #22c55e;
+    border-radius: 148px 8px 8px 8px;
+    box-shadow: inset -4px -4px 12px rgba(0,0,0,0.3), 0 0 15px rgba(34,197,94,0.2);
+  }
+  .pad.red {
+    top: 0; right: 0;
+    background: #ef4444;
+    border-radius: 8px 148px 8px 8px;
+    box-shadow: inset 4px -4px 12px rgba(0,0,0,0.3), 0 0 15px rgba(239,68,68,0.2);
+  }
+  .pad.yellow {
+    bottom: 0; left: 0;
+    background: #eab308;
+    border-radius: 8px 8px 8px 148px;
+    box-shadow: inset -4px 4px 12px rgba(0,0,0,0.3), 0 0 15px rgba(234,179,8,0.2);
+  }
+  .pad.blue {
+    bottom: 0; right: 0;
+    background: #3b82f6;
+    border-radius: 8px 8px 148px 8px;
+    box-shadow: inset 4px 4px 12px rgba(0,0,0,0.3), 0 0 15px rgba(59,130,246,0.2);
+  }
+
+  /* Center circle */
+  .center-circle {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    width: 90px; height: 90px;
+    background: #14141e;
+    border-radius: 50%;
+    border: 3px solid #2a2a3a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+
+  .btn {
+    padding: 0.6rem 2rem;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+    letter-spacing: 2px;
+    transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 15px rgba(99,102,241,0.3);
+  }
+  .btn:hover { background: linear-gradient(135deg, #818cf8, #6366f1); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(99,102,241,0.4); }
+
+  .mode-select {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .mode-btn {
+    padding: 0.4rem 1rem;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 500;
+    background: #1e1e2e;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: #888;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .mode-btn.active {
+    background: #2a2a4a;
+    border-color: #6366f1;
+    color: #c4b5fd;
+  }
+  .mode-btn:hover { border-color: #6366f1; color: #aaa; }
+
+  .high-score {
+    font-size: 0.75rem;
+    color: #555;
+    letter-spacing: 1px;
+  }
+
+  @media (max-width: 400px) {
+    .simon-board { width: 260px; height: 260px; }
+    .pad { width: 122px; height: 122px; }
+    .pad.green { border-radius: 122px 6px 6px 6px; }
+    .pad.red { border-radius: 6px 122px 6px 6px; }
+    .pad.yellow { border-radius: 6px 6px 6px 122px; }
+    .pad.blue { border-radius: 6px 6px 122px 6px; }
+    .center-circle { width: 70px; height: 70px; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a href="/" class="brand">
+    <img src="/favicon.svg" alt="">
+    Petru Tudorica
+  </a>
+  <div class="nav-links">
+    <a href="/#projects">Games</a>
+    <a href="/#about">About</a>
+  </div>
+</nav>
+
+<div class="game-area">
+  <div class="game-wrap">
+    <h1>SIMON SAYS</h1>
+
+    <div class="info-bar">
+      <span>Round:<strong id="round">0</strong></span>
+      <span>Score:<strong id="score">0</strong></span>
+    </div>
+
+    <div class="mode-select">
+      <button class="mode-btn active" data-mode="normal">Normal</button>
+      <button class="mode-btn" data-mode="fast">Fast</button>
+      <button class="mode-btn" data-mode="chaos">Chaos</button>
+    </div>
+
+    <div class="simon-board" id="board">
+      <button class="pad green disabled" data-color="green"></button>
+      <button class="pad red disabled" data-color="red"></button>
+      <button class="pad yellow disabled" data-color="yellow"></button>
+      <button class="pad blue disabled" data-color="blue"></button>
+      <div class="center-circle">
+        <button class="btn" id="startBtn">START</button>
+      </div>
+    </div>
+
+    <div class="message" id="message">Press START to play</div>
+
+    <div class="high-score">Best: <span id="best">0</span></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const pads = document.querySelectorAll('.pad');
+  const startBtn = document.getElementById('startBtn');
+  const roundEl = document.getElementById('round');
+  const scoreEl = document.getElementById('score');
+  const msgEl = document.getElementById('message');
+  const bestEl = document.getElementById('best');
+  const modeButtons = document.querySelectorAll('.mode-btn');
+
+  const colors = ['green', 'red', 'yellow', 'blue'];
+  const padMap = {};
+  pads.forEach(p => padMap[p.dataset.color] = p);
+
+  // Audio via Web Audio API
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const freqs = { green: 391.99, red: 329.63, yellow: 261.63, blue: 220.00 };
+
+  function playTone(color, duration = 300) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freqs[color];
+    gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration / 1000);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration / 1000);
+  }
+
+  function playErrorTone() {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 80;
+    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.6);
+  }
+
+  let sequence = [];
+  let playerIndex = 0;
+  let playing = false;
+  let showingSequence = false;
+  let score = 0;
+  let bestScore = parseInt(localStorage.getItem('simon-best') || '0');
+  let mode = 'normal';
+
+  bestEl.textContent = bestScore;
+
+  // Modes: normal, fast, chaos
+  const speeds = {
+    normal: { light: 500, pause: 200 },
+    fast:   { light: 280, pause: 100 },
+    chaos:  { light: 400, pause: 150 },
+  };
+
+  modeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (playing) return;
+      modeButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      mode = btn.dataset.mode;
+    });
+  });
+
+  function lightPad(color, duration) {
+    const pad = padMap[color];
+    pad.classList.add('lit');
+    playTone(color, duration);
+    setTimeout(() => pad.classList.remove('lit'), duration);
+  }
+
+  function enablePads(on) {
+    pads.forEach(p => {
+      if (on) p.classList.remove('disabled');
+      else p.classList.add('disabled');
+    });
+  }
+
+  async function showSequence() {
+    showingSequence = true;
+    enablePads(false);
+    msgEl.textContent = 'Watch...';
+    msgEl.className = 'message';
+
+    const sp = speeds[mode];
+    await sleep(500);
+
+    for (let i = 0; i < sequence.length; i++) {
+      lightPad(sequence[i], sp.light);
+      await sleep(sp.light + sp.pause);
+    }
+
+    showingSequence = false;
+    enablePads(true);
+    msgEl.textContent = 'Your turn!';
+    playerIndex = 0;
+  }
+
+  function addToSequence() {
+    if (mode === 'chaos' && sequence.length > 0 && Math.random() < 0.3) {
+      // In chaos mode, occasionally shuffle a random element
+      const idx = Math.floor(Math.random() * sequence.length);
+      sequence[idx] = colors[Math.floor(Math.random() * 4)];
+    }
+    sequence.push(colors[Math.floor(Math.random() * 4)]);
+  }
+
+  function nextRound() {
+    addToSequence();
+    roundEl.textContent = sequence.length;
+    showSequence();
+  }
+
+  function gameOver() {
+    playing = false;
+    enablePads(false);
+    playErrorTone();
+
+    // Flash all pads red-ish
+    pads.forEach(p => p.classList.add('lit'));
+    setTimeout(() => pads.forEach(p => p.classList.remove('lit')), 600);
+
+    if (score > bestScore) {
+      bestScore = score;
+      localStorage.setItem('simon-best', bestScore);
+      bestEl.textContent = bestScore;
+      msgEl.textContent = `Game Over! New best: ${bestScore}!`;
+      msgEl.className = 'message success';
+    } else {
+      msgEl.textContent = `Game Over! Score: ${score}`;
+      msgEl.className = 'message fail';
+    }
+
+    startBtn.textContent = 'RETRY';
+    startBtn.style.display = '';
+  }
+
+  function handlePadClick(color) {
+    if (!playing || showingSequence) return;
+
+    lightPad(color, 200);
+
+    if (color === sequence[playerIndex]) {
+      playerIndex++;
+      if (playerIndex === sequence.length) {
+        // Completed this round
+        score = sequence.length;
+        scoreEl.textContent = score;
+        enablePads(false);
+        msgEl.textContent = 'Correct!';
+        msgEl.className = 'message success';
+        setTimeout(() => nextRound(), 800);
+      }
+    } else {
+      gameOver();
+    }
+  }
+
+  pads.forEach(pad => {
+    pad.addEventListener('click', () => handlePadClick(pad.dataset.color));
+  });
+
+  // Keyboard controls
+  const keyMap = { q: 'green', w: 'red', a: 'yellow', s: 'blue' };
+  document.addEventListener('keydown', (e) => {
+    const color = keyMap[e.key.toLowerCase()];
+    if (color && playing && !showingSequence) {
+      handlePadClick(color);
+    }
+  });
+
+  startBtn.addEventListener('click', () => {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    sequence = [];
+    score = 0;
+    scoreEl.textContent = '0';
+    roundEl.textContent = '0';
+    playing = true;
+    startBtn.style.display = 'none';
+    nextRound();
+  });
+
+  function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  }
+})();
+</script>
+</body>
+</html>

@@ -500,3 +500,14 @@ params:
         featured:
           name: Play Game
           link: /games/minesweeper/
+
+      - title: "Simon Says"
+        content: "Test your memory in this classic color and sound pattern game. Watch the sequence, then repeat it. Three modes: Normal, Fast, and Chaos."
+        image: "/images/games/simon-says.svg"
+        badges:
+          - "HTML5"
+          - "JavaScript"
+          - "Memory"
+        featured:
+          name: Play Game
+          link: /games/simon-says/
