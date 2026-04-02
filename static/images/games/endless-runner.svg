@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a1a3e"/>
+      <stop offset="100%" stop-color="#0d0d1f"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="24" fill="url(#bg)"/>
+
+  <!-- Sky gradient effect -->
+  <rect x="0" y="0" width="200" height="100" fill="none" opacity="0.1"/>
+
+  <!-- Ground -->
+  <rect x="0" y="140" width="200" height="60" fill="#4a3f35"/>
+  <rect x="0" y="138" width="200" height="4" fill="#6b5f55"/>
+
+  <!-- Ground detail lines (movement effect) -->
+  <line x1="20" y1="140" x2="20" y2="145" stroke="#5a4f45" stroke-width="1"/>
+  <line x1="50" y1="140" x2="50" y2="145" stroke="#5a4f45" stroke-width="1"/>
+  <line x1="80" y1="140" x2="80" y2="145" stroke="#5a4f45" stroke-width="1"/>
+  <line x1="110" y1="140" x2="110" y2="145" stroke="#5a4f45" stroke-width="1"/>
+  <line x1="140" y1="140" x2="140" y2="145" stroke="#5a4f45" stroke-width="1"/>
+  <line x1="170" y1="140" x2="170" y2="145" stroke="#5a4f45" stroke-width="1"/>
+
+  <!-- Runner character -->
+  <g>
+    <!-- Head -->
+    <circle cx="50" cy="115" r="6" fill="#f0b080"/>
+    <!-- Body -->
+    <rect x="46" y="121" width="8" height="12" rx="1" fill="#e85d5d"/>
+    <!-- Left leg (running pose) -->
+    <line x1="48" y1="133" x2="46" y2="145" stroke="#333" stroke-width="2" stroke-linecap="round"/>
+    <!-- Right leg (running pose) -->
+    <line x1="52" y1="133" x2="54" y2="143" stroke="#4a4a4a" stroke-width="2" stroke-linecap="round"/>
+    <!-- Left arm -->
+    <line x1="46" y1="124" x2="42" y2="120" stroke="#f0b080" stroke-width="2" stroke-linecap="round"/>
+    <!-- Right arm -->
+    <line x1="54" y1="124" x2="58" y2="128" stroke="#f0b080" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- Obstacles (boxes) -->
+  <!-- Box 1 -->
+  <rect x="120" y="125" width="12" height="15" rx="1" fill="#e67e22"/>
+  <rect x="120" y="125" width="12" height="2" fill="#f39c12" opacity="0.6"/>
+
+  <!-- Box 2 -->
+  <rect x="160" y="130" width="10" height="10" rx="1" fill="#c0392b"/>
+  <circle cx="165" cy="135" r="1" fill="#fff" opacity="0.5"/>
+
+  <!-- Coins/collectibles -->
+  <circle cx="85" cy="110" r="3" fill="#f1c40f"/>
+  <circle cx="85" cy="110" r="1.5" fill="none" stroke="#f39c12" stroke-width="0.5"/>
+
+  <circle cx="100" cy="105" r="3" fill="#f1c40f"/>
+  <circle cx="100" cy="105" r="1.5" fill="none" stroke="#f39c12" stroke-width="0.5"/>
+
+  <!-- Title -->
+  <text x="100" y="175" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="14" fill="#fff" letter-spacing="1">ENDLESS RUNNER</text>
+  <text x="100" y="190" text-anchor="middle" font-family="sans-serif" font-weight="600" font-size="7" fill="rgba(255,255,255,0.5)" letter-spacing="0.5">ARCADE</text>
+</svg>
