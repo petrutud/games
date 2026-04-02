@@ -48,6 +48,36 @@
     { length: 5000,  speed: 4.4, gap:[240,350], portalChance: 0.45, col:'#ff8800', bg:'#1a0f0a' },
     { length: 5500,  speed: 4.6, gap:[230,340], portalChance: 0.5,  col:'#cc44ff', bg:'#120a1a' },
     { length: 6500,  speed: 4.8, gap:[220,320], portalChance: 0.55, col:'#ffffff', bg:'#0a0a0a' },
+    { length: 7000,  speed: 5.0, gap:[210,310], portalChance: 0.35, col:'#ff00ff', bg:'#1a001a' },
+    { length: 7500,  speed: 5.2, gap:[200,300], portalChance: 0.4,  col:'#00ffff', bg:'#001a1a' },
+    { length: 8000,  speed: 5.4, gap:[190,290], portalChance: 0.45, col:'#ffff00', bg:'#1a1a00' },
+    { length: 8500,  speed: 5.6, gap:[180,280], portalChance: 0.5,  col:'#ff6600', bg:'#1a0a00' },
+    { length: 9000,  speed: 5.8, gap:[170,270], portalChance: 0.55, col:'#00ff66', bg:'#001a0a' },
+    { length: 9500,  speed: 6.0, gap:[160,260], portalChance: 0.6,  col:'#ff0066', bg:'#1a000a' },
+    { length: 10000, speed: 6.2, gap:[150,250], portalChance: 0.35, col:'#66ffff', bg:'#001a1a' },
+    { length: 10500, speed: 6.4, gap:[140,240], portalChance: 0.4,  col:'#ffaa00', bg:'#1a0a00' },
+    { length: 11000, speed: 6.6, gap:[130,230], portalChance: 0.45, col:'#aa00ff', bg:'#0a001a' },
+    { length: 11500, speed: 6.8, gap:[120,220], portalChance: 0.5,  col:'#00aaff', bg:'#000a1a' },
+    { length: 12000, speed: 7.0, gap:[110,210], portalChance: 0.55, col:'#ffff66', bg:'#1a1a00' },
+    { length: 12500, speed: 7.2, gap:[100,200], portalChance: 0.6,  col:'#ff66aa', bg:'#1a000a' },
+    { length: 13000, speed: 7.4, gap:[90,190],  portalChance: 0.35, col:'#66ff99', bg:'#001a06' },
+    { length: 13500, speed: 7.6, gap:[80,180],  portalChance: 0.4,  col:'#ff9966', bg:'#1a0600' },
+    { length: 14000, speed: 7.8, gap:[70,170],  portalChance: 0.45, col:'#9966ff', bg:'#0a001a' },
+    { length: 14500, speed: 8.0, gap:[60,160],  portalChance: 0.5,  col:'#66ffee', bg:'#001a1a' },
+    { length: 15000, speed: 8.2, gap:[50,150],  portalChance: 0.55, col:'#ffee66', bg:'#1a1a00' },
+    { length: 15500, speed: 8.4, gap:[40,140],  portalChance: 0.6,  col:'#ff6699', bg:'#1a000a' },
+    { length: 16000, speed: 8.6, gap:[30,130],  portalChance: 0.35, col:'#66ff66', bg:'#001a00' },
+    { length: 16500, speed: 8.8, gap:[20,120],  portalChance: 0.4,  col:'#ff8866', bg:'#1a0300' },
+    { length: 17000, speed: 9.0, gap:[10,110],  portalChance: 0.45, col:'#8866ff', bg:'#0a001a' },
+    { length: 17500, speed: 9.2, gap:[5,100],   portalChance: 0.5,  col:'#66ffdd', bg:'#001a1a' },
+    { length: 18000, speed: 9.4, gap:[5,90],    portalChance: 0.55, col:'#ffdd66', bg:'#1a1a00' },
+    { length: 18500, speed: 9.6, gap:[5,80],    portalChance: 0.6,  col:'#ff6688', bg:'#1a000a' },
+    { length: 19000, speed: 9.8, gap:[5,70],    portalChance: 0.35, col:'#66ff88', bg:'#001a00' },
+    { length: 19500, speed: 10.0, gap:[5,60],   portalChance: 0.4,  col:'#ff7744', bg:'#1a0200' },
+    { length: 20000, speed: 10.2, gap:[5,50],   portalChance: 0.45, col:'#7744ff', bg:'#080001' },
+    { length: 20500, speed: 10.4, gap:[5,40],   portalChance: 0.5,  col:'#44ffcc', bg:'#001a0f' },
+    { length: 21000, speed: 10.6, gap:[5,30],   portalChance: 0.55, col:'#ffcc44', bg:'#1a1200' },
+    { length: 21500, speed: 10.8, gap:[5,20],   portalChance: 0.6,  col:'#ff4488', bg:'#1a000c' },
   ];
 
   // Portal types
@@ -59,6 +89,7 @@
     BIG:           { type:'big',      color1:'#ff4040', color2:'#cc0000', label:'M',   icon:'▴' },
     TELEPORT:      { type:'teleport', color1:'#cc44ff', color2:'#8800ff', label:'T',   icon:'⊕' },
     JUMP_BOOST:    { type:'jump_boost', color1:'#00ffff', color2:'#ff6600', label:'J',  icon:'⇑' },
+    JUMP_PAD:      { type:'jump_pad',   color1:'#ffff00', color2:'#ffaa00', label:'Π',  icon:'⬆' },
   };
   const PORTAL_TYPES = Object.values(PORTAL);
 
@@ -435,6 +466,12 @@
         break;
       case 'jump_boost':
         jumpBoostActive = true;
+        break;
+      case 'jump_pad':
+        // High jump - makes you jump really high one time
+        const padBoost = 2.2;
+        playerVelY = JUMP_VEL * gravityDir * padBoost;
+        spawnParticles(p.x - scrollOff + 20, GROUND_Y - 50, '#ffff00', 20, 8);
         break;
     }
   }
@@ -896,6 +933,7 @@
     portal_big: PORTAL.BIG,
     portal_teleport: PORTAL.TELEPORT,
     portal_jump_boost: PORTAL.JUMP_BOOST,
+    portal_jump_pad: PORTAL.JUMP_PAD,
   };
 
   // Tool selection

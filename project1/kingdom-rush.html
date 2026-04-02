@@ -229,7 +229,7 @@ const ENEMY_TYPES = {
 // ==================== LEVELS ====================
 const LEVELS = [];
 function generateLevels() {
-    const TOTAL_LEVELS = 65;
+    const TOTAL_LEVELS = 165;
     const pathTemplates = [
         // Level 1 - simple S curve (tutorial)
         [{x:0,y:300},{x:200,y:300},{x:200,y:150},{x:500,y:150},{x:500,y:400},{x:750,y:400},{x:750,y:300},{x:960,y:300}],
@@ -470,8 +470,34 @@ function generateLevels() {
                 for (let r = 0; r < 8 + (i-49)*2; r++) wave.push('shadow');
                 for (let r = 0; r < 2 + Math.floor((i-49)/3); r++) wave.push('necromancer');
             }
+            // Abyss levels (66-73): darkness surge
+            if (i >= 65 && i <= 72 && w === Math.floor(numWaves/3)) {
+                for (let r = 0; r < 12 + (i-65)*3; r++) wave.push('shadow');
+                for (let r = 0; r < 4 + (i-65); r++) wave.push('lich_king');
+            }
+            // Ancient levels (74-81): corruption wave
+            if (i >= 73 && i <= 80 && w === Math.floor(numWaves*2/3)) {
+                for (let r = 0; r < 10 + (i-73)*2; r++) wave.push('necromancer');
+                for (let r = 0; r < 3 + Math.floor((i-73)/2); r++) wave.push('golem');
+            }
+            // Twilight levels (82-89): twilight assault
+            if (i >= 81 && i <= 88 && w === Math.floor(numWaves/2)) {
+                for (let r = 0; r < 8 + (i-81)*2; r++) wave.push('dark_knight');
+                for (let r = 0; r < 6 + (i-81); r++) wave.push('demon');
+            }
+            // Chaos levels (90-97): pure chaos
+            if (i >= 89 && i <= 96 && w === Math.floor(numWaves/2)) {
+                for (let r = 0; r < 15 + (i-89)*3; r++) wave.push('golem');
+                for (let r = 0; r < 8 + (i-89)*2; r++) wave.push('dragon');
+            }
+            // Nexus levels (98-165): final challenge
+            if (i >= 97 && w === Math.floor(numWaves/2)) {
+                for (let r = 0; r < 10; r++) wave.push('lich_king');
+                for (let r = 0; r < 8; r++) wave.push('dragon');
+                for (let r = 0; r < 6; r++) wave.push('frost_wyrm');
+            }
             // Final Siege (58-65): massive mixed waves
-            if (i >= 57 && w === Math.floor(numWaves/2)) {
+            if (i >= 57 && i <= 64 && w === Math.floor(numWaves/2)) {
                 for (let r = 0; r < 4; r++) wave.push('golem');
                 for (let r = 0; r < 6; r++) wave.push('dark_knight');
                 for (let r = 0; r < 8; r++) wave.push('demon');
@@ -486,7 +512,36 @@ function generateLevels() {
 
             // Boss on last wave
             if (w === numWaves - 1) {
-                if (i >= 62) {
+                if (i >= 154) {
+                    // Ultimate levels: multiple mega bosses
+                    wave.push('lich_king'); wave.push('lich_king'); wave.push('lich_king');
+                    wave.push('dragon'); wave.push('dragon'); wave.push('dragon');
+                    wave.push('frost_wyrm'); wave.push('frost_wyrm'); wave.push('frost_wyrm');
+                } else if (i >= 145) {
+                    // Nexus final bosses
+                    wave.push('lich_king'); wave.push('lich_king');
+                    wave.push('dragon'); wave.push('dragon');
+                    wave.push('frost_wyrm');
+                    for (let r = 0; r < 6; r++) wave.push('golem');
+                } else if (i >= 89) {
+                    // Chaos through Nexus bosses
+                    wave.push('lich_king'); wave.push('dragon'); 
+                    wave.push('frost_wyrm'); wave.push('golem');
+                    for (let r = 0; r < 5; r++) wave.push('demon');
+                } else if (i >= 81) {
+                    // Twilight bosses
+                    wave.push('lich_king'); wave.push('dragon');
+                    for (let r = 0; r < 3; r++) wave.push('dark_knight');
+                } else if (i >= 73) {
+                    // Ancient bosses
+                    wave.push('lich_king'); 
+                    for (let r = 0; r < 4; r++) wave.push('necromancer');
+                    for (let r = 0; r < 2; r++) wave.push('golem');
+                } else if (i >= 65) {
+                    // Abyss bosses
+                    wave.push('lich_king'); wave.push('lich_king');
+                    for (let r = 0; r < 5; r++) wave.push('shadow');
+                } else if (i >= 62) {
                     // Final levels: multiple bosses
                     wave.push('lich_king'); wave.push('lich_king');
                     wave.push('dragon'); wave.push('dragon');
@@ -539,11 +594,17 @@ function generateLevels() {
             'volcanic','volcanic','volcanic','volcanic','volcanic','volcanic','volcanic','volcanic',
             'void','void','void','void','void','void','void','void',
             'siege','siege','siege','siege','siege','siege','siege','siege',
+            'abyss','abyss','abyss','abyss','abyss','abyss','abyss','abyss',
+            'ancient','ancient','ancient','ancient','ancient','ancient','ancient','ancient',
+            'twilight','twilight','twilight','twilight','twilight','twilight','twilight','twilight',
+            'chaos','chaos','chaos','chaos','chaos','chaos','chaos','chaos',
+            'nexus','nexus','nexus','nexus','nexus','nexus','nexus','nexus',
         ];
 
         const realmNames = {
             forest:'Greenwood',desert:'Scorchlands',dark:'Shadow Realm',ice:'Frozen Peaks',hell:'Inferno',
-            swamp:'Cursed Swamp',celestial:'Celestial Peaks',volcanic:'Volcanic Core',void:'Void Realm',siege:'Final Siege'
+            swamp:'Cursed Swamp',celestial:'Celestial Peaks',volcanic:'Volcanic Core',void:'Void Realm',siege:'Final Siege',
+            abyss:'The Abyss',ancient:'Ancient Ruins',twilight:'Twilight Vale',chaos:'Chaos Dimension',nexus:'Nexus Core'
         };
 
         LEVELS.push({
