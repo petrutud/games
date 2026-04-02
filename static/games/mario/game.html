@@ -17,6 +17,8 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    touch-action: none;
+    -webkit-touch-callout: none;
   }
 
   canvas {
@@ -24,42 +26,58 @@
     image-rendering: pixelated;
     border-radius: 8px;
     box-shadow: 0 0 60px rgba(0,80,255,0.3);
+    max-width: 100vw;
+    max-height: 100vh;
+    touch-action: none;
   }
 
   #mobile-controls {
     display: none;
     position: fixed;
-    bottom: 10px;
+    bottom: 12px;
     left: 0;
     width: 100%;
-    padding: 0 15px;
+    padding: 0 12px;
     z-index: 10;
     justify-content: space-between;
+    align-items: flex-end;
     pointer-events: none;
   }
 
   .ctrl-btn {
-    width: 60px;
-    height: 60px;
+    width: 68px;
+    height: 68px;
     border-radius: 50%;
-    background: rgba(255,255,255,0.15);
-    border: 2px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.2);
+    border: 3px solid rgba(255,255,255,0.4);
     color: #fff;
-    font-size: 24px;
+    font-size: 26px;
     display: flex;
     align-items: center;
     justify-content: center;
     pointer-events: all;
     -webkit-tap-highlight-color: transparent;
+    touch-action: none;
   }
 
-  .ctrl-btn:active { background: rgba(255,255,255,0.35); }
+  .ctrl-btn:active, .ctrl-btn.active { background: rgba(255,255,255,0.45); }
 
-  .ctrl-left { display: flex; gap: 10px; }
-  .ctrl-right { display: flex; gap: 10px; }
+  .ctrl-left { display: flex; gap: 12px; }
+  .ctrl-right { display: flex; gap: 12px; }
 
-  @media (max-width: 768px) {
+  #btn-jump {
+    width: 80px;
+    height: 80px;
+    font-size: 20px;
+    font-weight: bold;
+    background: rgba(255,80,80,0.3);
+    border-color: rgba(255,80,80,0.5);
+  }
+
+  @media (pointer: coarse), (max-width: 900px) {
     #mobile-controls { display: flex; }
+    body { align-items: flex-start; padding-top: 5px; }
+    canvas { max-height: calc(100vh - 100px); }
   }
 </style>
 </head>
@@ -95,8 +113,13 @@ const VIEW_ROWS = 14;
 
 let W, H;
 function resize() {
-  const maxW = Math.min(window.innerWidth - 20, VIEW_COLS * TILE);
-  const scale = maxW / (VIEW_COLS * TILE);
+  const isMobile = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 900;
+  const controlsHeight = isMobile ? 110 : 0;
+  const maxW = Math.min(window.innerWidth - 10, VIEW_COLS * TILE);
+  const maxH = window.innerHeight - controlsHeight - 10;
+  const scaleW = maxW / (VIEW_COLS * TILE);
+  const scaleH = maxH / (VIEW_ROWS * TILE);
+  const scale = Math.min(scaleW, scaleH, 1);
   W = canvas.width = VIEW_COLS * TILE;
   H = canvas.height = VIEW_ROWS * TILE;
   canvas.style.width = Math.floor(W * scale) + 'px';
@@ -373,6 +396,7 @@ function createLevel(num) {
   const coins = [];
   const questions = [];
   const pipes = [];
+  const boosts = []; // Jump boost powerups scattered on the ground
   let flagX = width - 10;
 
   // Ground gaps (fewer and narrower for easier play)
@@ -395,16 +419,21 @@ function createLevel(num) {
   while (px < width - 20) {
     const r = Math.random();
 
-    if (r < 0.18) {
-      // Question blocks
-      const count = 1 + Math.floor(Math.random() * 3);
+    if (r < 0.22) {
+      // Question blocks (more frequent, more powerups)
+      const count = 2 + Math.floor(Math.random() * 3);
       for (let i = 0; i < count; i++) {
         if (px + i < width) {
-          questions.push({ x: px + i, y: groundY - 4, used: false, type: Math.random() < 0.3 ? 'big' : 'coin' });
+          // 40% chance of powerup (big or jump boost), 60% coin
+          let qtype = 'coin';
+          const tr = Math.random();
+          if (tr < 0.2) qtype = 'big';
+          else if (tr < 0.4) qtype = 'jumpboost';
+          questions.push({ x: px + i, y: groundY - 4, used: false, type: qtype });
           tiles[px + i][groundY - 4] = 3;
         }
       }
-      px += count + 3;
+      px += count + 2;
     } else if (r < 0.35) {
       // Brick platform
       const count = 3 + Math.floor(Math.random() * 5);
@@ -415,7 +444,7 @@ function createLevel(num) {
         }
       }
       px += count + 2;
-    } else if (r < 0.48) {
+    } else if (r < 0.46) {
       // Pipe
       const ph = 2 + Math.floor(Math.random() * 2);
       pipes.push({ x: px, y: groundY - ph, h: ph });
@@ -424,7 +453,7 @@ function createLevel(num) {
           tiles[px][groundY - ph + dy] = 4;
       }
       px += 4;
-    } else if (r < 0.6) {
+    } else if (r < 0.58) {
       // Coins
       const count = 3 + Math.floor(Math.random() * 4);
       const cy = groundY - 3 - Math.floor(Math.random() * 2);
@@ -432,7 +461,7 @@ function createLevel(num) {
         coins.push({ x: (px + i) * TILE + 8, y: cy * TILE, alive: true });
       }
       px += count + 2;
-    } else if (r < 0.75) {
+    } else if (r < 0.72) {
       // Staircase
       const height = 3 + Math.floor(Math.random() * 3);
       for (let step = 0; step < height; step++) {
@@ -446,8 +475,20 @@ function createLevel(num) {
       px += 3;
     }
 
-    // Enemies (fewer and slower)
-    if (Math.random() < 0.15 + num * 0.01) {
+    // Jump boost powerups on the ground (very frequent - makes game easier)
+    if (Math.random() < 0.25) {
+      const inGap = gaps.some(g => px >= g.x && px < g.x + g.w);
+      if (!inGap && px < width - 20) {
+        boosts.push({
+          x: px * TILE + 4, y: (groundY - 1) * TILE + 8,
+          alive: true,
+          type: Math.random() < 0.5 ? 'spring' : 'star'
+        });
+      }
+    }
+
+    // Enemies (more frequent - but game is easier because of all the powerups)
+    if (Math.random() < 0.28 + num * 0.02) {
       const inGap = gaps.some(g => px >= g.x && px < g.x + g.w);
       if (!inGap && px < width - 20) {
         enemies.push({
@@ -456,6 +497,15 @@ function createLevel(num) {
           alive: true, frame: 0,
           startX: px * TILE
         });
+        // Sometimes spawn a second enemy nearby
+        if (Math.random() < 0.3) {
+          enemies.push({
+            x: (px + 2) * TILE, y: (groundY - 1) * TILE,
+            vx: -0.6 - num * 0.04,
+            alive: true, frame: 0,
+            startX: (px + 2) * TILE
+          });
+        }
       }
     }
   }
@@ -466,7 +516,7 @@ function createLevel(num) {
     tiles[x][groundY + 1] = 1;
   }
 
-  return { width, tiles, enemies, coins, questions, pipes, flagX, groundY };
+  return { width, tiles, enemies, coins, questions, pipes, boosts, flagX, groundY };
 }
 
 // ─── Game State ────────────────────────────────────────
@@ -485,7 +535,9 @@ function initMario() {
     big: true,
     frame: 0,
     invincible: 0,
-    dead: false
+    dead: false,
+    jumpBoost: 0,
+    starPower: 0
   };
   mario.y = (level.groundY - 2) * TILE;
 }
@@ -529,6 +581,17 @@ setupBtn('btn-left', 'left');
 setupBtn('btn-right', 'right');
 setupBtn('btn-jump', 'jump');
 setupBtn('btn-run', 'run');
+
+// Tap canvas to restart/continue on mobile
+canvas.addEventListener('touchstart', e => {
+  if (gameState === 'gameover' || gameState === 'levelcomplete') {
+    e.preventDefault();
+    handleAction();
+  }
+});
+canvas.addEventListener('click', () => {
+  if (gameState === 'gameover' || gameState === 'levelcomplete') handleAction();
+});
 
 function handleAction() {
   if (gameState === 'gameover') initGame();
@@ -612,6 +675,10 @@ function hitBlock(tx, ty) {
         mario.y -= TILE;
       }
       spawnEffect(tx * TILE, ty * TILE - 20, 'POWER UP!', '#00e800');
+    } else if (q.type === 'jumpboost') {
+      mario.jumpBoost = 600; // 10 seconds of super jump
+      totalScore += 300;
+      spawnEffect(tx * TILE, ty * TILE - 20, 'SUPER JUMP!', '#ff50ff');
     }
   }
   // Break brick if big
@@ -678,7 +745,7 @@ function update() {
   else { m.vx *= 0.7; if (Math.abs(m.vx) < 0.3) m.vx = 0; }
 
   if (keys.jump && m.onGround) {
-    m.vy = JUMP_FORCE;
+    m.vy = m.jumpBoost > 0 ? JUMP_FORCE * 1.5 : JUMP_FORCE;
     m.onGround = false;
   }
 
@@ -700,6 +767,26 @@ function update() {
 
   // Invincibility timer
   if (m.invincible > 0) m.invincible--;
+  if (m.jumpBoost > 0) m.jumpBoost--;
+  if (m.starPower > 0) m.starPower--;
+
+  // Collect boost items on the ground
+  for (const b of level.boosts) {
+    if (!b.alive) continue;
+    if (m.x + m.w > b.x && m.x < b.x + 24 && m.y + m.h > b.y && m.y < b.y + 24) {
+      b.alive = false;
+      if (b.type === 'spring') {
+        m.jumpBoost = 600;
+        totalScore += 300;
+        spawnEffect(b.x, b.y - 16, 'SUPER JUMP!', '#ff50ff');
+      } else {
+        m.starPower = 480;
+        m.invincible = 480;
+        totalScore += 500;
+        spawnEffect(b.x, b.y - 16, 'STAR!', '#ffd800');
+      }
+    }
+  }
 
   // Fall death
   if (m.y > H + TILE) {
@@ -748,18 +835,23 @@ function update() {
     }
 
     // Collision with mario
-    if (m.invincible <= 0 && !m.dead) {
+    if (!m.dead) {
       if (m.x + m.w > e.x + 4 && m.x < e.x + TILE - 4 &&
           m.y + m.h > e.y + 4 && m.y < e.y + TILE) {
-        // Stomped from above? (more forgiving hitbox)
-        if (m.vy > 0 && m.y + m.h < e.y + TILE / 2 + 18) {
+        if (m.starPower > 0) {
+          // Star power kills enemies on contact
+          e.alive = false;
+          totalScore += 200;
+          spawnEffect(e.x, e.y - 10, '+200', '#ffd800');
+          effects.push({ x: e.x, y: e.y + TILE * 0.7, life: 0.5, type: 'squish' });
+        } else if (m.vy > 0 && m.y + m.h < e.y + TILE / 2 + 18) {
+          // Stomped from above? (more forgiving hitbox)
           e.alive = false;
           m.vy = BOUNCE_FORCE;
           totalScore += 100;
           spawnEffect(e.x, e.y - 10, '+100', '#fff');
-          // Squish effect
           effects.push({ x: e.x, y: e.y + TILE * 0.7, life: 0.5, type: 'squish' });
-        } else {
+        } else if (m.invincible <= 0) {
           // Mario hit
           if (m.big) {
             m.big = false;
@@ -789,6 +881,42 @@ function update() {
     else { e.x += e.vx; e.y += e.vy; e.vy += 0.2; e.life -= 0.02; }
     if (e.life <= 0) effects.splice(i, 1);
   }
+}
+
+// ─── Draw Boost Items ─────────────────────────────────
+function drawSpring(x, y, frame) {
+  // Green spring/mushroom powerup
+  const bob = Math.sin(frame * 0.1) * 3;
+  // Stem
+  drawRect(x + 8, y + 12 + bob, 8, 12, '#00c800');
+  // Cap
+  drawRect(x + 2, y + 2 + bob, 20, 12, '#00e800');
+  drawRect(x + 4, y + bob, 16, 4, '#50ff50');
+  // Eyes
+  drawRect(x + 6, y + 6 + bob, 3, 3, '#000');
+  drawRect(x + 15, y + 6 + bob, 3, 3, '#000');
+}
+
+function drawStar(x, y, frame) {
+  const bob = Math.sin(frame * 0.12) * 3;
+  const pulse = Math.sin(frame * 0.15) * 2;
+  ctx.fillStyle = '#ffd800';
+  ctx.beginPath();
+  const cx = x + 12, cy = y + 10 + bob;
+  const spikes = 5, outerR = 10 + pulse, innerR = 4;
+  for (let i = 0; i < spikes * 2; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const angle = (i * Math.PI / spikes) - Math.PI / 2;
+    const px = cx + Math.cos(angle) * r;
+    const py = cy + Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  // Eyes
+  drawRect(x + 8, y + 9 + bob, 2, 2, '#000');
+  drawRect(x + 14, y + 9 + bob, 2, 2, '#000');
 }
 
 // ─── Draw ──────────────────────────────────────────────
@@ -834,6 +962,13 @@ function draw() {
     if (c.alive) drawCoin(c.x, c.y, frameCount);
   }
 
+  // Boost items
+  for (const b of level.boosts) {
+    if (!b.alive) continue;
+    if (b.type === 'spring') drawSpring(b.x, b.y, frameCount);
+    else drawStar(b.x, b.y, frameCount);
+  }
+
   // Enemies
   for (const e of level.enemies) {
     if (e.alive) drawGoomba(e.x, e.y, e.frame);
@@ -848,7 +983,17 @@ function draw() {
   // Mario
   if (!mario.dead || mario.vy !== 0) {
     if (mario.invincible <= 0 || Math.floor(frameCount / 3) % 2 === 0) {
+      // Rainbow glow during star power
+      if (mario.starPower > 0) {
+        const hue = (frameCount * 15) % 360;
+        ctx.shadowColor = `hsl(${hue},100%,60%)`;
+        ctx.shadowBlur = 15;
+      } else if (mario.jumpBoost > 0) {
+        ctx.shadowColor = '#ff50ff';
+        ctx.shadowBlur = 8;
+      }
       drawMario(mario.x, mario.y, Math.floor(mario.frame), mario.dir, mario.big);
+      ctx.shadowBlur = 0;
     }
   }
 
@@ -895,6 +1040,22 @@ function draw() {
   ctx.fillStyle = '#e40000';
   ctx.fillText('x' + lives, W - 12, 18);
 
+  // Active powerup indicators
+  ctx.textAlign = 'left';
+  let indY = 38;
+  if (mario.jumpBoost > 0) {
+    ctx.fillStyle = '#ff50ff';
+    ctx.font = '8px "Press Start 2P"';
+    ctx.fillText('SUPER JUMP ' + Math.ceil(mario.jumpBoost / 60) + 's', 12, indY);
+    indY += 14;
+  }
+  if (mario.starPower > 0) {
+    const hue = (frameCount * 10) % 360;
+    ctx.fillStyle = `hsl(${hue},100%,60%)`;
+    ctx.font = '8px "Press Start 2P"';
+    ctx.fillText('STAR ' + Math.ceil(mario.starPower / 60) + 's', 12, indY);
+  }
+
   // ─── Overlays ────────────────────────────────────────
   if (gameState === 'gameover') {
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
@@ -909,7 +1070,7 @@ function draw() {
     ctx.fillStyle = '#fff';
     ctx.font = '11px "Press Start 2P"';
     const blink = Math.sin(frameCount * 0.08) > 0;
-    if (blink) ctx.fillText('Press ENTER to restart', W/2, H/2 + 50);
+    if (blink) ctx.fillText('ENTER or TAP to restart', W/2, H/2 + 50);
   }
 
   if (gameState === 'levelcomplete') {
@@ -929,7 +1090,7 @@ function draw() {
     ctx.fillStyle = '#fff';
     ctx.font = '10px "Press Start 2P"';
     const blink = Math.sin(frameCount * 0.08) > 0;
-    if (blink) ctx.fillText('Press ENTER for next world', W/2, H/2 + 80);
+    if (blink) ctx.fillText('ENTER or TAP for next world', W/2, H/2 + 80);
   }
 }
 

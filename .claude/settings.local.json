@@ -26,12 +26,14 @@
       "Bash(xdg-open http://localhost:1313/)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(grep -r \"Flappy\\\\|flappy\\\\|FLAPPY\" /home/petru/code/games --include=*.html --include=*.js --include=*.md)"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",
       "/home/petru/code/games/project1/tower-defense/js",
-      "/home/petru/code/games"
+      "/home/petru/code/games",
+      "/home/petru/code/games/project1"
     ]
   }
 }

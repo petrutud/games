@@ -75,16 +75,17 @@ params:
           name: Open Petru AI
           link: /games/petru-ai/
 
-      - title: "Battle of Ages"
-        content: "Fight through 100 ages of history! Spawn units to destroy the enemy base, from Primordial amoebas to Omega Colossus. Each age has 3 unique units."
-        image: "/images/games/battle-of-ages.svg"
+      - title: "Flappy Birds"
+        content: "The classic one-tap game! Flap through pipes, chase the high score. 6 unique bird skins — Classic, Blue Jay, Red Robin, Toxic, Purple, and Phoenix. Particle effects and starry night sky."
+        image: "/images/games/flappy-birds.svg"
         badges:
           - "HTML5"
           - "Canvas"
-          - "Strategy"
+          - "Arcade"
+          - "6 Skins"
         featured:
           name: Play Game
-          link: /games/battle-of-ages/
+          link: /games/flappy-birds/
 
       - title: "Boss Flip"
         content: "You are the boss! A canvas-based action game with multiple phases, abilities, and epic boss battles."
@@ -96,6 +97,17 @@ params:
         featured:
           name: Play Game
           link: /games/boss-game/
+
+      - title: "Battle of Ages"
+        content: "Fight through 100 ages of history! Spawn units to destroy the enemy base, from Primordial amoebas to Omega Colossus. Each age has 3 unique units."
+        image: "/images/games/battle-of-ages.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Strategy"
+        featured:
+          name: Play Game
+          link: /games/battle-of-ages/
 
       - title: "Complex 2D Starters"
         content: "Twelve HTML prototypes for advanced 2D concepts — metroidvania, tactical RPG, factory automation, bullet hell, city builder, and more. Each folder is a playable starter."
@@ -368,7 +380,7 @@ params:
           link: /games/block-blast/
 
       - title: "Geometry Dash"
-        content: "Jump, flip gravity, and dodge obstacles through 11 neon-themed levels with portals, orbs, and increasing difficulty!"
+        content: "Jump, flip gravity, and dodge obstacles through 11 neon levels — plus a Level Editor to build and play your own! 7 portal types including Jump Boost."
         image: "/images/games/geometry-dash.svg"
         badges:
           - "HTML5"

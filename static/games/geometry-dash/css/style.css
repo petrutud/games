@@ -210,3 +210,102 @@ body {
   transition: width 0.1s linear;
   box-shadow: 0 0 8px rgba(0,240,255,0.4);
 }
+
+/* EDITOR BUTTON */
+.btn-editor {
+  margin-top: 0.5rem;
+  background: linear-gradient(135deg, rgba(0,240,255,0.12), rgba(255,0,224,0.12));
+  border-color: #00f0ff;
+  color: #00f0ff;
+  font-size: 1rem;
+  padding: 0.6rem 1.6rem;
+}
+.btn-editor:hover {
+  background: linear-gradient(135deg, rgba(0,240,255,0.25), rgba(255,0,224,0.25));
+  box-shadow: 0 0 20px rgba(0,240,255,0.25);
+}
+
+/* EDITOR AREA */
+.editor-area { text-align: center; padding: 0.5rem; }
+.editor-area.hidden { display: none; }
+.editor-area h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #8080b0;
+  margin-bottom: 0.4rem;
+  letter-spacing: 1px;
+}
+
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.4rem;
+}
+.editor-tool-label {
+  color: #6a6a8a;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.editor-tools {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.tool-btn {
+  min-width: 2.2rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 1rem;
+}
+.tool-btn.active {
+  background: rgba(0,240,255,0.2);
+  border-color: #00f0ff;
+  color: #00f0ff;
+  box-shadow: 0 0 10px rgba(0,240,255,0.2);
+}
+.tool-eraser { color: #ff4040; }
+.tool-eraser.active { border-color: #ff4040; color: #ff4040; box-shadow: 0 0 10px rgba(255,64,64,0.2); background: rgba(255,64,64,0.15); }
+
+.editor-settings {
+  display: flex;
+  gap: 1.2rem;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 0.4rem;
+  flex-wrap: wrap;
+}
+.editor-settings label {
+  color: #8080b0;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.editor-settings input[type="range"] { width: 80px; }
+.editor-settings input[type="color"] { width: 32px; height: 24px; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; background: transparent; cursor: pointer; }
+
+.editor-canvas-wrap {
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 0 auto;
+  max-width: 700px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.05);
+  box-shadow: 0 0 30px rgba(0,240,255,0.08), 0 4px 20px rgba(0,0,0,0.5);
+}
+#editor-canvas {
+  display: block;
+  cursor: crosshair;
+  background: #0a0a2a;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
