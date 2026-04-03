@@ -671,6 +671,11 @@
         Mikhail Tal
         <span class="desc">The Magician</span>
       </button>
+      <button class="menu-btn" onclick="startGame('turk')">
+        <span class="icon">&#9820;</span>
+        Mechanical Turk
+        <span class="desc">The legendary automaton</span>
+      </button>
     </div>
   </div>
 </div>
@@ -997,7 +1002,7 @@ function resetGame() {
   document.getElementById('thinking').classList.remove('active');
   document.getElementById('history').textContent = '';
 
-  const modeLabels = { pvp: 'Player vs Player', easy: 'vs Bot \u2022 Easy', medium: 'vs Bot \u2022 Medium', hard: 'vs Bot \u2022 Hard', pro: 'vs Bot \u2022 Professional', master: 'vs Bot \u2022 Master', alwayswins: 'Always Wins \u2022 Easy Win', magnus: 'vs Magnus Carlsen', fischer: 'vs Bobby Fischer', kasparov: 'vs Garry Kasparov', hikaru: 'vs Hikaru Nakamura', tal: 'vs Mikhail Tal' };
+  const modeLabels = { pvp: 'Player vs Player', easy: 'vs Bot \u2022 Easy', medium: 'vs Bot \u2022 Medium', hard: 'vs Bot \u2022 Hard', pro: 'vs Bot \u2022 Professional', master: 'vs Bot \u2022 Master', alwayswins: 'Always Wins \u2022 Easy Win', magnus: 'vs Magnus Carlsen', fischer: 'vs Bobby Fischer', kasparov: 'vs Garry Kasparov', hikaru: 'vs Hikaru Nakamura', tal: 'vs Mikhail Tal', turk: 'vs The Mechanical Turk' };
   document.getElementById('mode-badge').textContent = modeLabels[gameMode] || '';
 
   render();
@@ -1701,9 +1706,9 @@ function getBotMove() {
     return worstMove;
   }
 
-  const depthMap = { easy: 1, medium: 2, hard: 3, pro: 4, master: 5, magnus: 5, kasparov: 5, fischer: 4, hikaru: 3, tal: 4 };
+  const depthMap = { easy: 1, medium: 2, hard: 3, pro: 4, master: 5, magnus: 5, kasparov: 5, fischer: 4, hikaru: 3, tal: 4, turk: 5 };
   const depth = depthMap[gameMode] || 2;
-  const useQuiescence = (gameMode === 'pro' || gameMode === 'master' || gameMode === 'magnus' || gameMode === 'kasparov' || gameMode === 'fischer' || gameMode === 'tal');
+  const useQuiescence = (gameMode === 'pro' || gameMode === 'master' || gameMode === 'magnus' || gameMode === 'kasparov' || gameMode === 'fischer' || gameMode === 'tal' || gameMode === 'turk');
 
   const moves = getAllMoves(board, 'b', castling, enPassant);
   if (moves.length === 0) return null;
@@ -1714,7 +1719,7 @@ function getBotMove() {
   }
 
   // Pro/Master/Legends: try opening book first
-  if (gameMode === 'pro' || gameMode === 'master' || gameMode === 'magnus' || gameMode === 'kasparov' || gameMode === 'fischer' || gameMode === 'tal') {
+  if (gameMode === 'pro' || gameMode === 'master' || gameMode === 'magnus' || gameMode === 'kasparov' || gameMode === 'fischer' || gameMode === 'tal' || gameMode === 'turk') {
     const bookMove = getBookMove();
     if (bookMove) return bookMove;
   }
@@ -1753,7 +1758,7 @@ function getBotMove() {
 function triggerBot() {
   botThinking = true;
   document.getElementById('thinking').classList.add('active');
-  const legendNames = { magnus: 'Magnus', fischer: 'Fischer', kasparov: 'Kasparov', hikaru: 'Hikaru', tal: 'Tal' };
+  const legendNames = { magnus: 'Magnus', fischer: 'Fischer', kasparov: 'Kasparov', hikaru: 'Hikaru', tal: 'Tal', turk: 'The Turk' };
   const tName = legendNames[gameMode] || 'Bot';
   document.getElementById('thinking').innerHTML = tName + ' is thinking<span class="thinking-dots"><span></span><span></span><span></span></span>';
   render();
@@ -1781,7 +1786,7 @@ render = function() {
   origRender();
   if (gameMode !== 'pvp') {
     const txt = document.getElementById('turn-text');
-    const legendNames = { magnus: 'Magnus', fischer: 'Fischer', kasparov: 'Kasparov', hikaru: 'Hikaru', tal: 'Tal' };
+    const legendNames = { magnus: 'Magnus', fischer: 'Fischer', kasparov: 'Kasparov', hikaru: 'Hikaru', tal: 'Tal', turk: 'The Turk' };
     const botName = legendNames[gameMode] || 'Bot';
     if (turn === 'b' && !gameOver) {
       txt.textContent = botName + "'s turn";
