@@ -1,12 +1,199 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>City Builder</title>
-<style>body{margin:0;background:#0d1218;color:#d9e4f2;font-family:system-ui}#ui{padding:10px}button{margin-right:6px}canvas{display:block;margin:0 auto;background:#141c26}</style></head>
-<body><div id="ui"><b>City Builder</b> <button id="r">Residential</button><button id="i">Industrial</button><button id="p">Park</button> <span id="s"></span></div><canvas id="c" width="720" height="480"></canvas>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>City Builder - Realistic Mode</title>
+<style>
+ body{margin:0;background:#0d1218;color:#d9e4f2;font-family:system-ui}
+ #ui{padding:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+ button{margin:0;padding:6px 10px;border:none;border-radius:5px;background:#2e435d;color:white;cursor:pointer}
+ button.active{box-shadow:0 0 0 2px #f7d080,0 0 18px rgba(247,208,128,.6)}
+ canvas{display:block;margin:0 auto;background:#06101a;cursor:crosshair;}
+</style>
+</head>
+<body>
+<div id="ui">
+ <b>City Builder</b>
+ <button id="r" class="active">Residential</button>
+ <button id="i">Industrial</button>
+ <button id="p">Park</button>
+ <button id="road">Road</button>
+ <button id="bridge">Bridge</button>
+ <button id="enemy">Enemy</button>
+ <button id="erase">Erase</button>
+ <span id="s"></span>
+ <div id="help" style="width:100%;padding:6px 8px;background:#18212b;color:#ced9ef;font-size:0.9em;border-top:1px solid #2c3a4f;">Keys: R=Residential, I=Industrial, P=Park, O=Road, B=Bridge, E=Enemy, X=Erase. Build on valid terrain, bridge on river. If not valid, click another tile.</div>
+</div>
+<canvas id="c" width="720" height="480"></canvas>
 <script>
-const c=document.getElementById('c'),x=c.getContext('2d'),T=30,W=24,H=16,g=Array(W*H).fill(0),S=document.getElementById('s');let tool=1,pop=0,jobs=0,happy=50;
-const id=(x,y)=>y*W+x; r.onclick=()=>tool=1; i.onclick=()=>tool=2; p.onclick=()=>tool=3;
-c.onclick=e=>{const r=c.getBoundingClientRect(),gx=((e.clientX-r.left)/T|0),gy=((e.clientY-r.top)/T|0); if(gx>=0&&gy>=0&&gx<W&&gy<H) g[id(gx,gy)]=tool;};
-setInterval(()=>{pop=g.filter(v=>v===1).length*8; jobs=g.filter(v=>v===2).length*10; happy=Math.max(0,Math.min(100,50+g.filter(v=>v===3).length*2-g.filter(v=>v===2).length)); S.textContent=`Pop ${pop} | Jobs ${jobs} | Happiness ${happy}`;},700);
-function draw(){x.fillStyle='#141c26';x.fillRect(0,0,c.width,c.height); for(let y=0;y<H;y++)for(let xx=0;xx<W;xx++){const v=g[id(xx,y)];
- x.fillStyle=v===1?'#57a0ff':v===2?'#f08a5d':v===3?'#5bc27f':'#1d2736'; x.fillRect(xx*T+1,y*T+1,T-2,T-2);} requestAnimationFrame(draw);}draw();
-</script></body></html>
+const c = document.getElementById('c');
+const x = c.getContext('2d');
+const T = 30, W = 24, H = 16;
+const grid = Array(W*H).fill(0);
+const terrain = Array(W*H).fill(0); // 0=land, 5=mountain, 6=water
+const S = document.getElementById('s');
+let tool = 1;
+let money = 500, pop = 0, jobs = 0, happy = 50, day = 1, pollution = 0;
+const TOOL_NAME = ['Empty','Residential','Industrial','Park','Road','Bridge','Enemy'];
+const colors={0:'#0d1a29',1:'#4c8aff',2:'#f19176',3:'#6bc58f',4:'#a4b0c0',5:'#d4b578',6:'#ff5a5a'};
+const baseCost={1:30,2:50,3:25,4:15,5:80,6:0};
+
+function setTool(id){ tool=id; document.querySelectorAll('button').forEach(b=>b.classList.toggle('active', b.id===['','r','i','p','road','bridge','enemy','erase'][id])); }
+setTool(1);
+
+document.getElementById('r').onclick=()=>setTool(1);
+document.getElementById('i').onclick=()=>setTool(2);
+document.getElementById('p').onclick=()=>setTool(3);
+document.getElementById('road').onclick=()=>setTool(4);
+document.getElementById('bridge').onclick=()=>setTool(5);
+document.getElementById('enemy').onclick=()=>setTool(6);
+document.getElementById('erase').onclick=()=>setTool(0);
+
+document.addEventListener('keydown', e => {
+  const key = e.key.toLowerCase();
+  if(key==='r') setTool(1);
+  if(key==='i') setTool(2);
+  if(key==='p') setTool(3);
+  if(key==='o') setTool(4);
+  if(key==='b') setTool(5);
+  if(key==='e') setTool(6);
+  if(key==='x') setTool(0);
+});
+
+const id=(x,y)=>y*W+x;
+
+function inBounds(x,y){return x>=0&&y>=0&&x<W&&y<H;}
+function neighbors(x,y){return [[x+1,y],[x-1,y],[x,y+1],[x,y-1]].filter(([a,b])=>inBounds(a,b));}
+function isRoadLike(value){return value===4||value===5;}
+
+function generateTerrain(){
+ // mountains: random clumps on left side
+ for(let i=0;i<50;i++){
+   const x0=Math.floor(Math.random()*6);
+   const y0=Math.floor(Math.random()*H);
+   for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
+     const nx=x0+dx, ny=y0+dy;
+     if(inBounds(nx,ny)&&Math.random()>0.4) terrain[id(nx,ny)] = 5;
+   }
+ }
+ // river: starts left and exits right
+ let ry=Math.floor(H/2);
+ for(let x2=0;x2<W;x2++){
+   terrain[id(x2,ry)] = 6;
+   terrain[id(x2,Math.max(0,ry-1))] = 6;
+   terrain[id(x2,Math.min(H-1,ry+1))] = 6;
+   ry += Math.floor(Math.random()*3)-1;
+   if(ry<1) ry=1;
+   if(ry>H-2) ry=H-2;
+ }
+}
+ // river: starts left and exits right
+ let ry=Math.floor(H/2);
+ for(let x2=0;x2<W;x2++){
+   terrain[id(x2,ry)] = 6;
+   terrain[id(x2,Math.max(0,ry-1))] = 6;
+   terrain[id(x2,Math.min(H-1,ry+1))] = 6;
+   ry += Math.floor(Math.random()*3)-1;
+   if(ry<1) ry=1;
+   if(ry>H-2) ry=H-2;
+ }
+
+generateTerrain();
+
+c.onclick=e=>{
+ const r=c.getBoundingClientRect();
+ const gx=((e.clientX-r.left)/T|0), gy=((e.clientY-r.top)/T|0);
+ if(!inBounds(gx,gy)) return;
+ if(tool===0){ grid[id(gx,gy)] = 0; return; }
+ const cost=baseCost[tool];
+ if(money < cost) return;
+ if(tool===5){
+   // bridge on water only (creates a river crossing)
+   if(terrain[id(gx,gy)]!==6) return;
+   grid[id(gx,gy)] = 5;
+   money -= cost;
+   return;
+ }
+ if(tool===6){
+   // enemy can be placed on everything except mountains
+   if(terrain[id(gx,gy)]===5) return;
+   grid[id(gx,gy)] = 6;
+   return;
+ }
+ if(terrain[id(gx,gy)]===5 || terrain[id(gx,gy)]===6) return; // unbuildable for regular tiles
+ if(tool===1 || tool===2){
+   const hasRoad = neighbors(gx,gy).some(([a,b])=>isRoadLike(grid[id(a,b)]));
+   if(!hasRoad){ return; }
+ }
+ grid[id(gx,gy)] = tool;
+ money -= cost;
+};
+
+function scoreCell(x,y){
+ const t = grid[id(x,y)];
+ if(t===1){
+   const parkBonus = neighbors(x,y).filter(([a,b])=>grid[id(a,b)]===3).length*2;
+   const roadBonus = neighbors(x,y).filter(([a,b])=>isRoadLike(grid[id(a,b)])).length*3;
+   const riverBonus = neighbors(x,y).filter(([a,b])=>terrain[id(a,b)]===6).length*3;
+   return {pop:10 + parkBonus + roadBonus + riverBonus, happ:2 + parkBonus + riverBonus - pollution*0.03};
+ }
+ if(t===2){
+   const roadBonus = neighbors(x,y).filter(([a,b])=>isRoadLike(grid[id(a,b)])).length*3;
+   return {job:12 + roadBonus, pol:1.4};
+ }
+ if(t===6){
+   const nearResidential = neighbors(x,y).filter(([a,b])=>grid[id(a,b)]===1).length;
+   return {happ:-8 - nearResidential*2, pol:0.5};
+ }
+ return {};
+}
+
+function update(){
+ pop = 0; jobs = 0; happy = 0; pollution = 0;
+ for(let y=0;y<H;y++){
+   for(let x2=0;x2<W;x2++){
+     const res = scoreCell(x2,y);
+     pop += res.pop||0;
+     jobs += res.job||0;
+     happy += res.happ||0;
+     pollution += res.pol||0;
+   }
+ }
+ happy = Math.max(0, Math.min(100, Math.floor(happy/Math.max(1,pop/10))));
+ const income = pop*4 + jobs*3 - Math.floor(pollution*2);
+ money += Math.floor(income/10);
+ day++;
+ if(day % 7===0) { money += Math.floor(happy/2); }
+}
+
+function draw(){
+ x.fillStyle='#0b1219'; x.fillRect(0,0,c.width,c.height);
+ for(let y=0;y<H;y++){
+   for(let xx=0;xx<W;xx++){
+     const t = terrain[id(xx,y)];
+     const v = grid[id(xx,y)];
+     if(t===6){ x.fillStyle='#1d4fa4'; x.fillRect(xx*T+1,y*T+1,T-2,T-2); continue; }
+     if(t===5){ x.fillStyle='#7c7f83'; x.fillRect(xx*T+1,y*T+1,T-2,T-2); continue; }
+     x.fillStyle=colors[v] || '#0d1a29';
+     x.fillRect(xx*T+1,y*T+1,T-2,T-2);
+     if(v===1){ x.fillStyle='rgba(255,255,255,0.16)'; x.fillRect(xx*T+8,y*T+8,14,14); }
+     if(v===2){ x.fillStyle='rgba(0,0,0,0.2)'; x.fillRect(xx*T+6,y*T+6,18,18); }
+     if(v===3){ x.fillStyle='rgba(42,220,124,0.4)'; x.beginPath(); x.arc(xx*T+15,y*T+15,8,0,Math.PI*2); x.fill(); }
+     if(v===4){ x.fillStyle='#d8e2f7'; x.fillRect(xx*T+5,y*T+12,20,6); }
+     if(v===5){ x.fillStyle='#c4a56f'; x.fillRect(xx*T+6,y*T+11,18,8); x.fillStyle='#8e6f44'; x.fillRect(xx*T+8,y*T+13,14,2); }
+     if(v===1 && Math.random() < 0.08){ x.fillStyle='#fff'; x.fillRect(xx*T+12,y*T+12,2,2); }
+   }
+ }
+ x.strokeStyle='rgba(255,255,255,0.09)';
+ for(let i=0;i<=W;i++){x.beginPath();x.moveTo(i*T,0);x.lineTo(i*T,c.height);x.stroke();}
+ for(let i=0;i<=H;i++){x.beginPath();x.moveTo(0,i*T);x.lineTo(c.width,i*T);x.stroke();}
+ requestAnimationFrame(draw);
+}
+
+setInterval(()=>{
+ update();
+ S.textContent = `Day ${day} | Money $${money} | Pop ${pop} | Jobs ${jobs} | Happy ${happy}% | Pollution ${pollution} | Tool ${TOOL_NAME[tool]}`;
+ if(money<0) S.textContent += '  [GAME OVER: Bankrupt]';
+},1000);
+
+draw();
+</script>
+</body>
+</html>
