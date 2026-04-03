@@ -209,11 +209,13 @@
   .mode-select {
     display: flex;
     gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
   }
   .mode-btn {
-    padding: 0.4rem 1rem;
+    padding: 0.35rem 0.7rem;
     font-family: 'Orbitron', sans-serif;
-    font-size: 0.7rem;
+    font-size: 0.6rem;
     font-weight: 500;
     background: #1e1e2e;
     border: 1px solid rgba(255,255,255,0.1);
@@ -270,9 +272,10 @@
     </div>
 
     <div class="mode-select">
-      <button class="mode-btn active" data-mode="normal">Normal</button>
-      <button class="mode-btn" data-mode="fast">Fast</button>
-      <button class="mode-btn" data-mode="chaos">Chaos</button>
+      <button class="mode-btn active" data-mode="easy">Easy</button>
+      <button class="mode-btn" data-mode="medium">Medium</button>
+      <button class="mode-btn" data-mode="hard">Hard</button>
+      <button class="mode-btn" data-mode="impossible">Almost Impossible</button>
     </div>
 
     <div class="simon-board" id="board">
@@ -341,15 +344,15 @@
   let showingSequence = false;
   let score = 0;
   let bestScore = parseInt(localStorage.getItem('simon-best') || '0');
-  let mode = 'normal';
+  let mode = 'easy';
 
   bestEl.textContent = bestScore;
 
-  // Modes: normal, fast, chaos
   const speeds = {
-    normal: { light: 500, pause: 200 },
-    fast:   { light: 280, pause: 100 },
-    chaos:  { light: 400, pause: 150 },
+    easy:       { light: 700, pause: 350 },
+    medium:     { light: 500, pause: 200 },
+    hard:       { light: 280, pause: 100 },
+    impossible: { light: 150, pause: 60 },
   };
 
   modeButtons.forEach(btn => {
@@ -396,8 +399,7 @@
   }
 
   function addToSequence() {
-    if (mode === 'chaos' && sequence.length > 0 && Math.random() < 0.3) {
-      // In chaos mode, occasionally shuffle a random element
+    if (mode === 'impossible' && sequence.length > 0 && Math.random() < 0.3) {
       const idx = Math.floor(Math.random() * sequence.length);
       sequence[idx] = colors[Math.floor(Math.random() * 4)];
     }

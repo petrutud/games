@@ -631,6 +631,48 @@
       </button>
     </div>
   </div>
+
+  <div class="menu-section">
+    <h3>Always Wins</h3>
+    <div class="menu-btns">
+      <button class="menu-btn" onclick="startGame('alwayswins')">
+        <span class="icon">&#127942;</span>
+        Easy Win
+        <span class="desc">Bot plays terribly</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="menu-section">
+    <h3>Chess Legends</h3>
+    <div class="menu-btns">
+      <button class="menu-btn" onclick="startGame('magnus')">
+        <span class="icon">&#9812;</span>
+        Magnus Carlsen
+        <span class="desc">World Champion</span>
+      </button>
+      <button class="menu-btn" onclick="startGame('fischer')">
+        <span class="icon">&#9733;</span>
+        Bobby Fischer
+        <span class="desc">American genius</span>
+      </button>
+      <button class="menu-btn" onclick="startGame('kasparov')">
+        <span class="icon">&#9889;</span>
+        Garry Kasparov
+        <span class="desc">The Beast</span>
+      </button>
+      <button class="menu-btn" onclick="startGame('hikaru')">
+        <span class="icon">&#9889;</span>
+        Hikaru Nakamura
+        <span class="desc">Speed demon</span>
+      </button>
+      <button class="menu-btn" onclick="startGame('tal')">
+        <span class="icon">&#9763;</span>
+        Mikhail Tal
+        <span class="desc">The Magician</span>
+      </button>
+    </div>
+  </div>
 </div>
 
 <div id="app">
@@ -955,7 +997,7 @@ function resetGame() {
   document.getElementById('thinking').classList.remove('active');
   document.getElementById('history').textContent = '';
 
-  const modeLabels = { pvp: 'Player vs Player', easy: 'vs Bot \u2022 Easy', medium: 'vs Bot \u2022 Medium', hard: 'vs Bot \u2022 Hard', pro: 'vs Bot \u2022 Professional', master: 'vs Bot \u2022 Master' };
+  const modeLabels = { pvp: 'Player vs Player', easy: 'vs Bot \u2022 Easy', medium: 'vs Bot \u2022 Medium', hard: 'vs Bot \u2022 Hard', pro: 'vs Bot \u2022 Professional', master: 'vs Bot \u2022 Master', alwayswins: 'Always Wins \u2022 Easy Win', magnus: 'vs Magnus Carlsen', fischer: 'vs Bobby Fischer', kasparov: 'vs Garry Kasparov', hikaru: 'vs Hikaru Nakamura', tal: 'vs Mikhail Tal' };
   document.getElementById('mode-badge').textContent = modeLabels[gameMode] || '';
 
   render();
@@ -1641,9 +1683,27 @@ function getBookMove() {
 }
 
 function getBotMove() {
-  const depthMap = { easy: 1, medium: 2, hard: 3, pro: 4, master: 5 };
+  // Always Wins: bot picks the worst move
+  if (gameMode === 'alwayswins') {
+    const moves = getAllMoves(board, 'b', castling, enPassant);
+    if (moves.length === 0) return null;
+    let worstMove = moves[0];
+    let worstEval = -Infinity;
+    for (const [fr, fc, tr, tc] of moves) {
+      const s = simMove(board, fr, fc, tr, tc, castling, enPassant);
+      const ev = evaluateBoard(s.board);
+      const noise = (Math.random() - 0.5) * 80;
+      if (ev + noise > worstEval) {
+        worstEval = ev + noise;
+        worstMove = [fr, fc, tr, tc];
+      }
+    }
+    return worstMove;
+  }
+
+  const depthMap = { easy: 1, medium: 2, hard: 3, pro: 4, master: 5, magnus: 5, kasparov: 5, fischer: 4, hikaru: 3, tal: 4 };
   const depth = depthMap[gameMode] || 2;
-  const useQuiescence = (gameMode === 'pro' || gameMode === 'master');
+  const useQuiescence = (gameMode === 'pro' || gameMode === 'master' || gameMode === 'magnus' || gameMode === 'kasparov' || gameMode === 'fischer' || gameMode === 'tal');
 
   const moves = getAllMoves(board, 'b', castling, enPassant);
   if (moves.length === 0) return null;
@@ -1653,8 +1713,8 @@ function getBotMove() {
     return moves[Math.floor(Math.random() * moves.length)];
   }
 
-  // Pro/Master: try opening book first
-  if (gameMode === 'pro' || gameMode === 'master') {
+  // Pro/Master/Legends: try opening book first
+  if (gameMode === 'pro' || gameMode === 'master' || gameMode === 'magnus' || gameMode === 'kasparov' || gameMode === 'fischer' || gameMode === 'tal') {
     const bookMove = getBookMove();
     if (bookMove) return bookMove;
   }
@@ -1693,6 +1753,9 @@ function getBotMove() {
 function triggerBot() {
   botThinking = true;
   document.getElementById('thinking').classList.add('active');
+  const legendNames = { magnus: 'Magnus', fischer: 'Fischer', kasparov: 'Kasparov', hikaru: 'Hikaru', tal: 'Tal' };
+  const tName = legendNames[gameMode] || 'Bot';
+  document.getElementById('thinking').innerHTML = tName + ' is thinking<span class="thinking-dots"><span></span><span></span><span></span></span>';
   render();
 
   // Use setTimeout to let the UI update before heavy computation
@@ -1718,8 +1781,10 @@ render = function() {
   origRender();
   if (gameMode !== 'pvp') {
     const txt = document.getElementById('turn-text');
+    const legendNames = { magnus: 'Magnus', fischer: 'Fischer', kasparov: 'Kasparov', hikaru: 'Hikaru', tal: 'Tal' };
+    const botName = legendNames[gameMode] || 'Bot';
     if (turn === 'b' && !gameOver) {
-      txt.textContent = "Bot's turn";
+      txt.textContent = botName + "'s turn";
     } else if (turn === 'w') {
       txt.textContent = "Your turn";
     }
