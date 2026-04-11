@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Mario Galaxy</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;overflow:hidden;font-family:'Segoe UI',sans-serif;user-select:none}
+canvas{display:block}
+#ui{position:absolute;top:0;left:0;width:100%;pointer-events:none;z-index:10}
+#hud{display:flex;justify-content:space-between;padding:12px 20px;color:#fff;font-size:16px;text-shadow:0 0 8px rgba(0,0,0,.8)}
+#hud div{display:flex;align-items:center;gap:6px}
+.hud-icon{font-size:20px}
+#menu,#costume-select,#galaxy-select,#death-screen,#win-screen{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;pointer-events:all}
+#menu{background:radial-gradient(ellipse at center,#0a0a3a 0%,#000 70%)}
+#costume-select,#galaxy-select{background:rgba(0,0,20,.95)}
+#death-screen{background:rgba(0,0,0,.85)}
+#win-screen{background:radial-gradient(ellipse at center,#1a0a3a 0%,#000 70%)}
+h1{font-size:48px;color:#ffd700;text-shadow:0 0 20px #ff8c00,0 0 40px #ff4500;margin-bottom:8px;text-align:center}
+h2{font-size:28px;color:#aad;margin-bottom:20px;text-align:center}
+.subtitle{color:#88aaff;font-size:18px;margin-bottom:30px}
+.btn{background:linear-gradient(180deg,#4466cc,#2244aa);color:#fff;border:2px solid #6688ee;padding:12px 36px;font-size:18px;border-radius:30px;cursor:pointer;margin:6px;transition:all .2s;pointer-events:all;font-family:inherit}
+.btn:hover{background:linear-gradient(180deg,#5577dd,#3355bb);transform:scale(1.05);box-shadow:0 0 20px rgba(100,130,255,.5)}
+.btn.selected{border-color:#ffd700;box-shadow:0 0 15px rgba(255,215,0,.6)}
+.costume-grid,.galaxy-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;max-width:700px;margin:16px 0}
+.costume-card,.galaxy-card{background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:16px;padding:16px;width:140px;text-align:center;cursor:pointer;transition:all .2s}
+.costume-card:hover,.galaxy-card:hover{background:rgba(255,255,255,.15);transform:scale(1.05)}
+.costume-card.selected,.galaxy-card.selected{border-color:#ffd700;box-shadow:0 0 15px rgba(255,215,0,.4)}
+.costume-card.locked{opacity:.4;cursor:not-allowed}
+.costume-preview{width:60px;height:60px;margin:0 auto 8px;border-radius:50%;border:2px solid rgba(255,255,255,.2)}
+.costume-name,.galaxy-name{color:#fff;font-size:14px;font-weight:600}
+.costume-desc,.galaxy-desc{color:#89a;font-size:11px;margin-top:4px}
+.controls-hint{color:#667;font-size:13px;margin-top:20px;text-align:center}
+.lives{display:flex;gap:4px;align-items:center}
+.star-count{color:#ffd700}
+.coin-count{color:#ffee44}
+#mobile-controls{position:absolute;bottom:20px;left:0;width:100%;display:none;justify-content:space-between;padding:0 20px;z-index:15;pointer-events:none}
+.mobile-btn{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;pointer-events:all;-webkit-tap-highlight-color:transparent}
+.mobile-btn:active{background:rgba(255,255,255,.3)}
+.dpad{display:flex;gap:8px}
+.action-btns{display:flex;gap:8px}
+@media(max-width:768px){
+  #mobile-controls{display:flex}
+  h1{font-size:32px}
+  .costume-card,.galaxy-card{width:110px;padding:10px}
+}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="hud" class="hidden">
+    <div class="lives"><span class="hud-icon">&#9829;</span> <span id="hud-lives">3</span></div>
+    <div class="star-count"><span class="hud-icon">&#9733;</span> <span id="hud-stars">0</span> / <span id="hud-total">5</span></div>
+    <div class="coin-count"><span class="hud-icon">&#9679;</span> <span id="hud-coins">0</span></div>
+    <div id="hud-galaxy" style="color:#88aaff"></div>
+  </div>
+</div>
+
+<div id="menu">
+  <h1>&#9733; SUPER MARIO GALAXY &#9733;</h1>
+  <p class="subtitle">A Cosmic Adventure</p>
+  <button class="btn" onclick="showGalaxySelect()">&#127776; Start Adventure</button>
+  <button class="btn" onclick="showCostumeSelect()">&#128085; Costumes</button>
+  <p class="controls-hint">Arrow Keys / WASD to move &bull; Space to jump &bull; E for special</p>
+</div>
+
+<div id="costume-select" class="hidden">
+  <h2>&#128085; Choose Your Costume</h2>
+  <div class="costume-grid" id="costume-grid"></div>
+  <button class="btn" onclick="closeCostumeSelect()">&#10004; Done</button>
+</div>
+
+<div id="galaxy-select" class="hidden">
+  <h2>&#127776; Select Galaxy</h2>
+  <div class="galaxy-grid" id="galaxy-grid"></div>
+  <button class="btn" onclick="closeGalaxySelect()">&#8592; Back</button>
+</div>
+
+<div id="death-screen" class="hidden">
+  <h2 style="color:#ff4444">&#128128; You Lost a Life!</h2>
+  <p style="color:#aaa;margin-bottom:20px" id="death-msg">Lives remaining: 2</p>
+  <button class="btn" onclick="respawn()">Try Again</button>
+  <button class="btn" onclick="backToMenu()">Main Menu</button>
+</div>
+
+<div id="win-screen" class="hidden">
+  <h1>&#9733; GRAND STAR &#9733;</h1>
+  <h2 id="win-msg" style="color:#aad"></h2>
+  <p style="color:#88aaff;margin-bottom:20px" id="win-stats"></p>
+  <button class="btn" onclick="showGalaxySelect()">Next Galaxy</button>
+  <button class="btn" onclick="backToMenu()">Main Menu</button>
+</div>
+
+<div id="mobile-controls">
+  <div class="dpad">
+    <div class="mobile-btn" id="mb-left">&#9664;</div>
+    <div class="mobile-btn" id="mb-right">&#9654;</div>
+  </div>
+  <div class="action-btns">
+    <div class="mobile-btn" id="mb-special" style="font-size:16px">E</div>
+    <div class="mobile-btn" id="mb-jump">&#9650;</div>
+  </div>
+</div>
+
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+let W,H;
+function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight}
+resize();addEventListener('resize',resize);
+
+// ─── COSTUMES ───
+const COSTUMES=[
+  {id:'classic',name:'Classic Mario',desc:'The original red plumber',hat:'#ff2020',shirt:'#ff2020',overalls:'#2244cc',skin:'#ffcc88',special:'none',unlocked:true},
+  {id:'fire',name:'Fire Mario',desc:'Shoot fireballs! Press E',hat:'#ffffff',shirt:'#ffffff',overalls:'#ff3300',skin:'#ffcc88',special:'fireball',unlocked:true},
+  {id:'ice',name:'Ice Mario',desc:'Freeze enemies! Press E',hat:'#88ddff',shirt:'#88ddff',overalls:'#2255aa',skin:'#ddeeff',special:'iceball',unlocked:true},
+  {id:'bee',name:'Bee Mario',desc:'Float longer in the air',hat:'#ffdd00',shirt:'#ffdd00',overalls:'#443300',skin:'#ffcc88',special:'float',unlocked:true},
+  {id:'spring',name:'Spring Mario',desc:'Super high jumps!',hat:'#44cc44',shirt:'#44cc44',overalls:'#228822',skin:'#ffcc88',special:'superjump',unlocked:true},
+  {id:'star',name:'Star Mario',desc:'Invincible! Stars glow',hat:'#ffd700',shirt:'#ffd700',overalls:'#ff8c00',skin:'#fff5cc',special:'invincible',unlocked:true},
+  {id:'ghost',name:'Boo Mario',desc:'Phase through enemies',hat:'#ccccdd',shirt:'#ccccdd',overalls:'#8888aa',skin:'#eeeeff',special:'phase',unlocked:true},
+  {id:'rock',name:'Rock Mario',desc:'Smash through blocks! Press E',hat:'#887766',shirt:'#887766',overalls:'#665544',skin:'#ccaa88',special:'rocksmash',unlocked:true},
+  {id:'cloud',name:'Cloud Mario',desc:'Create cloud platforms! Press E',hat:'#ffffff',shirt:'#eeeeff',overalls:'#aabbdd',skin:'#ffcc88',special:'cloudcreate',unlocked:true},
+  {id:'rainbow',name:'Rainbow Mario',desc:'Color-shifting cosmic power!',hat:'#ff0000',shirt:'#ff0000',overalls:'#0000ff',skin:'#ffcc88',special:'rainbow',unlocked:true},
+];
+let selectedCostume=0;
+
+// ─── GALAXIES ───
+const GALAXIES=[
+  {id:'good_egg',name:'Good Egg Galaxy',desc:'A gentle start among grassy planets',bg1:'#0a0a2a',bg2:'#1a1a4a',planets:[
+    {x:400,y:500,r:120,type:'grass',enemies:2,coins:5,hasStar:false},
+    {x:700,y:300,r:80,type:'grass',enemies:1,coins:3,hasStar:false},
+    {x:200,y:250,r:90,type:'dirt',enemies:2,coins:4,hasStar:false},
+    {x:500,y:100,r:70,type:'grass',enemies:1,coins:3,hasStar:true},
+    {x:900,y:500,r:100,type:'dirt',enemies:3,coins:6,hasStar:false},
+  ],starGoal:5,unlocked:true},
+  {id:'honeyhive',name:'Honeyhive Galaxy',desc:'Buzzing bees and honey rivers',bg1:'#1a1500',bg2:'#2a2a00',planets:[
+    {x:350,y:520,r:130,type:'honey',enemies:2,coins:4,hasStar:false},
+    {x:650,y:350,r:90,type:'honey',enemies:2,coins:5,hasStar:false},
+    {x:250,y:200,r:75,type:'grass',enemies:3,coins:3,hasStar:false},
+    {x:800,y:180,r:85,type:'honey',enemies:2,coins:4,hasStar:true},
+    {x:550,y:100,r:60,type:'grass',enemies:1,coins:3,hasStar:false},
+    {x:900,y:450,r:100,type:'honey',enemies:3,coins:5,hasStar:false},
+  ],starGoal:6,unlocked:true},
+  {id:'freezeflame',name:'Freezeflame Galaxy',desc:'Ice and fire collide!',bg1:'#0a1020',bg2:'#102040',planets:[
+    {x:300,y:500,r:110,type:'ice',enemies:2,coins:4,hasStar:false},
+    {x:600,y:400,r:90,type:'lava',enemies:3,coins:3,hasStar:false},
+    {x:150,y:280,r:80,type:'ice',enemies:2,coins:5,hasStar:false},
+    {x:450,y:180,r:70,type:'lava',enemies:2,coins:4,hasStar:false},
+    {x:750,y:250,r:85,type:'ice',enemies:3,coins:5,hasStar:true},
+    {x:900,y:500,r:95,type:'lava',enemies:3,coins:4,hasStar:false},
+  ],starGoal:7,unlocked:true},
+  {id:'dusty_dune',name:'Dusty Dune Galaxy',desc:'Endless sand and ancient ruins',bg1:'#1a1008',bg2:'#2a2010',planets:[
+    {x:350,y:520,r:120,type:'sand',enemies:3,coins:5,hasStar:false},
+    {x:700,y:380,r:85,type:'sand',enemies:2,coins:4,hasStar:false},
+    {x:200,y:300,r:75,type:'dirt',enemies:3,coins:3,hasStar:false},
+    {x:500,y:150,r:90,type:'sand',enemies:3,coins:5,hasStar:false},
+    {x:850,y:200,r:70,type:'sand',enemies:2,coins:4,hasStar:true},
+    {x:100,y:150,r:60,type:'dirt',enemies:2,coins:3,hasStar:false},
+  ],starGoal:7,unlocked:true},
+  {id:'melty_molten',name:'Melty Molten Galaxy',desc:'Scorching lava everywhere!',bg1:'#1a0500',bg2:'#2a1000',planets:[
+    {x:400,y:500,r:100,type:'lava',enemies:3,coins:4,hasStar:false},
+    {x:700,y:350,r:80,type:'lava',enemies:3,coins:5,hasStar:false},
+    {x:200,y:280,r:70,type:'lava',enemies:4,coins:3,hasStar:false},
+    {x:500,y:130,r:85,type:'lava',enemies:3,coins:5,hasStar:false},
+    {x:850,y:180,r:75,type:'lava',enemies:4,coins:4,hasStar:true},
+    {x:150,y:480,r:65,type:'dirt',enemies:2,coins:3,hasStar:false},
+  ],starGoal:8,unlocked:true},
+  {id:'bowser',name:"Bowser's Galaxy Reactor",desc:'The final showdown!',bg1:'#1a0000',bg2:'#0a0000',planets:[
+    {x:400,y:520,r:130,type:'dark',enemies:4,coins:3,hasStar:false},
+    {x:700,y:380,r:90,type:'lava',enemies:4,coins:4,hasStar:false},
+    {x:200,y:300,r:80,type:'dark',enemies:5,coins:3,hasStar:false},
+    {x:500,y:150,r:100,type:'dark',enemies:4,coins:5,hasStar:false},
+    {x:850,y:200,r:70,type:'lava',enemies:3,coins:4,hasStar:false},
+    {x:500,y:350,r:60,type:'dark',enemies:0,coins:2,hasStar:true,boss:true},
+  ],starGoal:10,unlocked:true},
+];
+
+// ─── GAME STATE ───
+let state='menu'; // menu, playing, dead, win
+let lives=5,coins=0,starsCollected=0,totalStars=0;
+let currentGalaxy=0;
+let cam={x:0,y:0};
+let mario={x:0,y:0,vx:0,vy:0,onGround:false,currentPlanet:null,angle:0,facingRight:true,
+           jumping:false,jumpHeld:false,floatTime:0,invincibleTime:0,phaseTime:0,
+           flashTime:0,dead:false,width:24,height:32};
+let planets=[],enemies=[],starItems=[],coinItems=[],projectiles=[],particles=[],cloudPlatforms=[];
+let bgStars=[];
+let keys={};
+let bossHP=0,bossMaxHP=0,boss=null;
+let rainbowHue=0;
+let starBits=0;
+let shakeTime=0;
+
+// ─── BACKGROUND STARS ───
+function genBgStars(){
+  bgStars=[];
+  for(let i=0;i<300;i++){
+    bgStars.push({x:Math.random()*2000-500,y:Math.random()*1500-300,
+      s:Math.random()*2+.5,b:Math.random(),speed:Math.random()*.3+.1,twinkle:Math.random()*Math.PI*2});
+  }
+}
+genBgStars();
+
+// ─── INPUT ───
+addEventListener('keydown',e=>{keys[e.code]=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault()});
+addEventListener('keyup',e=>{keys[e.code]=false});
+
+// Mobile controls
+function setupMobile(id,code){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.addEventListener('touchstart',e=>{e.preventDefault();keys[code]=true},{passive:false});
+  el.addEventListener('touchend',e=>{e.preventDefault();keys[code]=false},{passive:false});
+}
+setupMobile('mb-left','ArrowLeft');
+setupMobile('mb-right','ArrowRight');
+setupMobile('mb-jump','Space');
+setupMobile('mb-special','KeyE');
+
+// ─── PLANET RENDERING ───
+function getPlanetColors(type){
+  switch(type){
+    case'grass':return{base:'#44aa44',top:'#66cc55',detail:'#338833'};
+    case'dirt':return{base:'#886644',top:'#aa8855',detail:'#664422'};
+    case'honey':return{base:'#ddaa22',top:'#ffcc33',detail:'#bb8811'};
+    case'ice':return{base:'#88ccff',top:'#aaddff',detail:'#6699cc'};
+    case'lava':return{base:'#cc3300',top:'#ff5500',detail:'#991100'};
+    case'sand':return{base:'#ddcc88',top:'#eedd99',detail:'#bbaa66'};
+    case'dark':return{base:'#443355',top:'#554466',detail:'#332244'};
+    default:return{base:'#668866',top:'#88aa88',detail:'#446644'};
+  }
+}
+
+function drawPlanet(p){
+  const c=getPlanetColors(p.type);
+  ctx.save();
+  ctx.translate(p.x-cam.x,p.y-cam.y);
+  // Planet body
+  const g=ctx.createRadialGradient(-p.r*.3,-p.r*.3,p.r*.1,0,0,p.r);
+  g.addColorStop(0,c.top);g.addColorStop(.7,c.base);g.addColorStop(1,c.detail);
+  ctx.fillStyle=g;
+  ctx.beginPath();ctx.arc(0,0,p.r,0,Math.PI*2);ctx.fill();
+  // Surface details
+  ctx.strokeStyle=c.detail;ctx.lineWidth=2;ctx.globalAlpha=.3;
+  for(let i=0;i<6;i++){
+    const a=p.detailAngles[i],d=p.r*.85+Math.sin(i*2)*5;
+    ctx.beginPath();ctx.arc(Math.cos(a)*d*.3,Math.sin(a)*d*.3,p.r*.12+i*2,a-.3,a+.3);ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  // Atmosphere glow
+  const ag=ctx.createRadialGradient(0,0,p.r*.9,0,0,p.r*1.15);
+  ag.addColorStop(0,'transparent');
+  ag.addColorStop(.5,p.type==='lava'?'rgba(255,80,0,.12)':p.type==='ice'?'rgba(100,180,255,.1)':'rgba(100,200,100,.08)');
+  ag.addColorStop(1,'transparent');
+  ctx.fillStyle=ag;ctx.beginPath();ctx.arc(0,0,p.r*1.15,0,Math.PI*2);ctx.fill();
+  // Star marker
+  if(p.hasStar&&!p.starCollected){
+    ctx.fillStyle='rgba(255,215,0,.15)';
+    ctx.beginPath();ctx.arc(0,-p.r-20,15,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ─── MARIO DRAWING ───
+function drawMario(){
+  if(mario.dead)return;
+  if(mario.flashTime>0&&Math.floor(mario.flashTime*10)%2===0)return;
+  const costume=COSTUMES[selectedCostume];
+  const sx=mario.x-cam.x,sy=mario.y-cam.y;
+  ctx.save();
+  ctx.translate(sx,sy);
+  // Rotate to planet surface
+  if(mario.currentPlanet){
+    const a=Math.atan2(mario.y-mario.currentPlanet.y,mario.x-mario.currentPlanet.x);
+    ctx.rotate(a-Math.PI/2);
+  }
+  const dir=mario.facingRight?1:-1;
+  ctx.scale(dir,1);
+
+  let hatColor=costume.hat,shirtColor=costume.shirt,overallColor=costume.overalls,skinColor=costume.skin;
+
+  // Rainbow effect
+  if(costume.special==='rainbow'){
+    rainbowHue=(rainbowHue+3)%360;
+    hatColor=`hsl(${rainbowHue},80%,50%)`;
+    shirtColor=`hsl(${(rainbowHue+60)%360},80%,50%)`;
+    overallColor=`hsl(${(rainbowHue+180)%360},70%,40%)`;
+  }
+  // Invincible glow
+  if(mario.invincibleTime>0||costume.special==='invincible'){
+    ctx.shadowColor='#ffd700';ctx.shadowBlur=20;
+  }
+  // Ghost transparency
+  if(costume.special==='phase'){
+    ctx.globalAlpha=.6;
+  }
+
+  // Body (overalls)
+  ctx.fillStyle=overallColor;
+  ctx.fillRect(-10,-16,20,20);
+  // Shirt
+  ctx.fillStyle=shirtColor;
+  ctx.fillRect(-10,-16,20,8);
+  // Arms
+  ctx.fillStyle=skinColor;
+  ctx.fillRect(-14,-14,5,10);
+  ctx.fillRect(9,-14,5,10);
+  // Head
+  ctx.fillStyle=skinColor;
+  ctx.beginPath();ctx.arc(0,-22,10,0,Math.PI*2);ctx.fill();
+  // Hat
+  ctx.fillStyle=hatColor;
+  ctx.fillRect(-12,-32,24,6);
+  ctx.fillRect(-8,-36,16,6);
+  // Eyes
+  ctx.fillStyle='#fff';
+  ctx.fillRect(2,-24,4,4);
+  ctx.fillStyle='#222';
+  ctx.fillRect(3,-23,2,2);
+  // Mustache
+  ctx.fillStyle='#442200';
+  ctx.fillRect(-1,-18,8,3);
+  // Shoes
+  ctx.fillStyle='#884400';
+  ctx.fillRect(-10,4,8,5);
+  ctx.fillRect(2,4,8,5);
+
+  // Bee wings
+  if(costume.special==='float'){
+    ctx.globalAlpha=.4;ctx.fillStyle='#ffffff';
+    ctx.beginPath();ctx.ellipse(-8,-28,8,12,-.3,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(8,-28,8,12,.3,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  // Spring coil
+  if(costume.special==='superjump'){
+    ctx.strokeStyle='#44cc44';ctx.lineWidth=3;
+    ctx.beginPath();
+    for(let i=0;i<4;i++){
+      ctx.lineTo(-6+i*4,6+i*3);ctx.lineTo(6-i*4,9+i*3);
+    }
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// ─── ENEMY DRAWING ───
+function drawEnemy(e){
+  const sx=e.x-cam.x,sy=e.y-cam.y;
+  ctx.save();
+  ctx.translate(sx,sy);
+  if(e.planet){
+    const a=Math.atan2(e.y-e.planet.y,e.x-e.planet.x);
+    ctx.rotate(a-Math.PI/2);
+  }
+  if(e.type==='goomba'){
+    ctx.fillStyle='#885533';
+    ctx.beginPath();ctx.ellipse(0,-8,12,10,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#664422';
+    ctx.fillRect(-10,0,20,8);
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(-4,-10,4,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(4,-10,4,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#000';
+    ctx.beginPath();ctx.arc(-3,-10,2,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(5,-10,2,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#443322';
+    ctx.fillRect(-8,8,7,5);ctx.fillRect(1,8,7,5);
+  } else if(e.type==='koopa'){
+    ctx.fillStyle='#44aa44';
+    ctx.beginPath();ctx.ellipse(0,-6,10,14,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ffcc44';
+    ctx.beginPath();ctx.arc(0,-18,7,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(-2,-19,3,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(4,-19,3,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#000';
+    ctx.beginPath();ctx.arc(-1,-19,1.5,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(5,-19,1.5,0,Math.PI*2);ctx.fill();
+  } else if(e.type==='boss'){
+    // Bowser
+    const scale=e.hp>0?1:.8;
+    ctx.scale(scale,scale);
+    ctx.fillStyle='#44aa22';
+    ctx.beginPath();ctx.ellipse(0,-10,25,30,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ddbb44';
+    ctx.beginPath();ctx.arc(0,-10,18,Math.PI*.7,Math.PI*2.3);ctx.fill();
+    // Shell
+    ctx.fillStyle='#886622';
+    ctx.beginPath();ctx.ellipse(0,5,22,15,0,0,Math.PI);ctx.fill();
+    ctx.fillStyle='#664411';
+    for(let i=-1;i<=1;i++){ctx.beginPath();ctx.arc(i*12,0,5,0,Math.PI*2);ctx.fill()}
+    // Head
+    ctx.fillStyle='#44aa22';
+    ctx.beginPath();ctx.arc(0,-35,16,0,Math.PI*2);ctx.fill();
+    // Horns
+    ctx.fillStyle='#ddcc88';
+    ctx.beginPath();ctx.moveTo(-12,-45);ctx.lineTo(-8,-55);ctx.lineTo(-4,-45);ctx.fill();
+    ctx.beginPath();ctx.moveTo(4,-45);ctx.lineTo(8,-55);ctx.lineTo(12,-45);ctx.fill();
+    // Eyes
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(-6,-37,5,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(6,-37,5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ff2200';
+    ctx.beginPath();ctx.arc(-5,-37,3,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(7,-37,3,0,Math.PI*2);ctx.fill();
+    // Mouth
+    ctx.fillStyle='#cc2200';
+    ctx.beginPath();ctx.ellipse(0,-26,10,5,0,0,Math.PI);ctx.fill();
+    // HP bar
+    if(e.hp>0){
+      ctx.fillStyle='#333';ctx.fillRect(-30,-65,60,8);
+      ctx.fillStyle='#ff3300';ctx.fillRect(-30,-65,60*(e.hp/e.maxHP),8);
+      ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.strokeRect(-30,-65,60,8);
+    }
+  }
+  ctx.restore();
+}
+
+// ─── ITEMS ───
+function drawStar(s){
+  if(s.collected)return;
+  const sx=s.x-cam.x,sy=s.y-cam.y;
+  const t=Date.now()*.003;
+  ctx.save();ctx.translate(sx,sy+Math.sin(t)*5);
+  ctx.fillStyle='#ffd700';ctx.shadowColor='#ffd700';ctx.shadowBlur=15;
+  drawStarShape(ctx,0,0,s.big?18:10,s.big?8:4,5);
+  ctx.fill();
+  ctx.shadowBlur=0;
+  // Sparkle
+  ctx.fillStyle='rgba(255,255,200,.6)';
+  ctx.beginPath();ctx.arc(Math.cos(t*3)*8,Math.sin(t*2)*8,2,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+function drawStarShape(c,cx,cy,or,ir,pts){
+  c.beginPath();
+  for(let i=0;i<pts*2;i++){
+    const r=i%2===0?or:ir;
+    const a=Math.PI/pts*i-Math.PI/2;
+    i===0?c.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r):c.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);
+  }
+  c.closePath();
+}
+function drawCoin(c_item){
+  if(c_item.collected)return;
+  const sx=c_item.x-cam.x,sy=c_item.y-cam.y;
+  const t=Date.now()*.004;
+  ctx.save();ctx.translate(sx,sy+Math.sin(t+c_item.phase)*3);
+  const w=Math.abs(Math.cos(t))*8+2;
+  ctx.fillStyle='#ffdd00';ctx.shadowColor='#ffdd00';ctx.shadowBlur=8;
+  ctx.beginPath();ctx.ellipse(0,0,w,8,0,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.restore();
+}
+
+// ─── PARTICLES ───
+function spawnParticles(x,y,color,count,speed){
+  for(let i=0;i<count;i++){
+    const a=Math.random()*Math.PI*2;
+    const s=Math.random()*speed+speed*.5;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color,size:Math.random()*4+2});
+  }
+}
+function updateParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx*dt;p.y+=p.vy*dt;
+    p.life-=dt*1.5;
+    if(p.life<=0)particles.splice(i,1);
+  }
+}
+function drawParticles(){
+  for(const p of particles){
+    ctx.globalAlpha=p.life;
+    ctx.fillStyle=p.color;
+    ctx.beginPath();ctx.arc(p.x-cam.x,p.y-cam.y,p.size*p.life,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+// ─── PROJECTILES ───
+function drawProjectiles(){
+  for(const p of projectiles){
+    ctx.save();ctx.translate(p.x-cam.x,p.y-cam.y);
+    if(p.type==='fireball'){
+      ctx.fillStyle='#ff4400';ctx.shadowColor='#ff6600';ctx.shadowBlur=10;
+      ctx.beginPath();ctx.arc(0,0,6,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#ffaa00';ctx.beginPath();ctx.arc(0,0,3,0,Math.PI*2);ctx.fill();
+    }else if(p.type==='iceball'){
+      ctx.fillStyle='#88ddff';ctx.shadowColor='#aaeeff';ctx.shadowBlur=10;
+      ctx.beginPath();ctx.arc(0,0,6,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#ccf0ff';ctx.beginPath();ctx.arc(0,0,3,0,Math.PI*2);ctx.fill();
+    }
+    ctx.shadowBlur=0;ctx.restore();
+  }
+}
+
+// ─── CLOUD PLATFORMS ───
+function drawCloudPlatforms(){
+  for(const cl of cloudPlatforms){
+    ctx.save();ctx.globalAlpha=cl.life;
+    ctx.fillStyle='#ffffff';
+    ctx.beginPath();
+    ctx.arc(cl.x-cam.x,cl.y-cam.y,20,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(cl.x-cam.x-12,cl.y-cam.y+5,14,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(cl.x-cam.x+12,cl.y-cam.y+5,14,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ─── LAUNCH STAR (between planets) ───
+let launchStars=[];
+function genLaunchStars(){
+  launchStars=[];
+  for(let i=0;i<planets.length-1;i++){
+    const a=planets[i],b=planets[i+1];
+    const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+    // Position launch star at edge of planet a, facing planet b
+    const ang=Math.atan2(b.y-a.y,b.x-a.x);
+    const lx=a.x+Math.cos(ang)*(a.r+25);
+    const ly=a.y+Math.sin(ang)*(a.r+25);
+    launchStars.push({x:lx,y:ly,targetPlanet:i+1,angle:ang,active:true});
+  }
+}
+function drawLaunchStars(){
+  const t=Date.now()*.003;
+  for(const ls of launchStars){
+    const sx=ls.x-cam.x,sy=ls.y-cam.y;
+    ctx.save();ctx.translate(sx,sy);ctx.rotate(t);
+    ctx.fillStyle='#ff8800';ctx.shadowColor='#ff6600';ctx.shadowBlur=12;
+    drawStarShape(ctx,0,0,16,7,5);ctx.fill();
+    ctx.fillStyle='#ffcc00';
+    drawStarShape(ctx,0,0,10,4,5);ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.restore();
+    // Arrow hint
+    ctx.save();ctx.translate(sx,sy);ctx.rotate(ls.angle);
+    ctx.strokeStyle='rgba(255,136,0,.3)';ctx.lineWidth=2;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(20,0);ctx.lineTo(40,0);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+}
+
+// ─── LEVEL GENERATION ───
+function loadGalaxy(idx){
+  const g=GALAXIES[idx];
+  currentGalaxy=idx;
+  planets=[];enemies=[];starItems=[];coinItems=[];projectiles=[];particles=[];cloudPlatforms=[];
+  boss=null;bossHP=0;
+
+  // Scale planets to screen
+  const scaleX=W/1000,scaleY=H/650;
+  for(const pd of g.planets){
+    const p={x:pd.x*scaleX,y:pd.y*scaleY,r:pd.r*Math.min(scaleX,scaleY),type:pd.type,
+      hasStar:pd.hasStar,starCollected:false,boss:pd.boss||false,
+      detailAngles:Array.from({length:6},()=>Math.random()*Math.PI*2)};
+    planets.push(p);
+
+    // Spawn enemies on planet surface
+    for(let i=0;i<pd.enemies;i++){
+      const a=Math.random()*Math.PI*2;
+      const dist=p.r+12;
+      const type=pd.boss?'boss':(Math.random()>.5?'goomba':'koopa');
+      const e={x:p.x+Math.cos(a)*dist,y:p.y+Math.sin(a)*dist,
+        angle:a,speed:pd.boss?0:.5+Math.random()*.5,type,planet:p,
+        hp:type==='boss'?20:1,maxHP:type==='boss'?20:1,
+        dir:Math.random()>.5?1:-1,frozen:0,stunned:0};
+      if(type==='boss'){e.attackTimer=3;boss=e;bossHP=e.hp;bossMaxHP=e.maxHP}
+      enemies.push(e);
+    }
+    // Coins
+    for(let i=0;i<pd.coins;i++){
+      const a=Math.random()*Math.PI*2;
+      coinItems.push({x:p.x+Math.cos(a)*(p.r+20),y:p.y+Math.sin(a)*(p.r+20),
+        collected:false,phase:Math.random()*Math.PI*2,planet:p});
+    }
+    // Power Star
+    if(pd.hasStar){
+      starItems.push({x:p.x,y:p.y-p.r-30,collected:false,big:true,planet:p});
+    }
+  }
+
+  // Small star bits scattered
+  for(let i=0;i<15;i++){
+    const pi=Math.floor(Math.random()*planets.length);
+    const p=planets[pi];
+    const a=Math.random()*Math.PI*2;
+    starItems.push({x:p.x+Math.cos(a)*(p.r+25+Math.random()*30),
+      y:p.y+Math.sin(a)*(p.r+25+Math.random()*30),collected:false,big:false,planet:p});
+  }
+
+  totalStars=starItems.length;
+  starsCollected=0;coins=0;
+
+  genLaunchStars();
+
+  // Place Mario on first planet
+  const fp=planets[0];
+  mario.x=fp.x;mario.y=fp.y-fp.r-20;
+  mario.vx=0;mario.vy=0;mario.onGround=false;
+  mario.currentPlanet=fp;mario.dead=false;mario.flashTime=0;
+  mario.floatTime=0;mario.invincibleTime=0;mario.phaseTime=0;
+
+  document.getElementById('hud-total').textContent=totalStars;
+  document.getElementById('hud-galaxy').textContent=g.name;
+}
+
+// ─── PHYSICS ───
+const GRAVITY=300;
+const JUMP_FORCE=280;
+const MOVE_SPEED=120;
+const MAX_FALL=400;
+
+function getClosestPlanet(x,y){
+  let closest=null,minD=Infinity;
+  for(const p of planets){
+    const d=Math.hypot(x-p.x,y-p.y)-p.r;
+    if(d<minD){minD=d;closest=p}
+  }
+  return{planet:closest,dist:minD};
+}
+
+function updateMario(dt){
+  if(mario.dead)return;
+  const costume=COSTUMES[selectedCostume];
+
+  // Timers
+  if(mario.flashTime>0)mario.flashTime-=dt;
+  if(mario.invincibleTime>0)mario.invincibleTime-=dt;
+  if(mario.floatTime>0)mario.floatTime-=dt;
+
+  // Find gravity source
+  const{planet:gp,dist:gDist}=getClosestPlanet(mario.x,mario.y);
+  const gAngle=Math.atan2(gp.y-mario.y,gp.x-mario.x);
+
+  // Movement (tangent to gravity)
+  const tangentX=-Math.sin(gAngle);
+  const tangentY=Math.cos(gAngle);
+
+  let moveInput=0;
+  if(keys.ArrowLeft||keys.KeyA)moveInput=-1;
+  if(keys.ArrowRight||keys.KeyD)moveInput=1;
+
+  const speed=MOVE_SPEED*(costume.special==='superjump'?1.2:1);
+  mario.vx+=tangentX*moveInput*speed*dt*8;
+  mario.vy+=tangentY*moveInput*speed*dt*8;
+
+  if(moveInput!==0)mario.facingRight=moveInput>0;
+
+  // Gravity
+  let gForce=GRAVITY;
+  if(costume.special==='float'&&!mario.onGround&&mario.floatTime>0)gForce*=.3;
+  mario.vx+=Math.cos(gAngle)*gForce*dt;
+  mario.vy+=Math.sin(gAngle)*gForce*dt;
+
+  // Jump
+  const jumpKey=keys.Space||keys.ArrowUp||keys.KeyW;
+  if(jumpKey&&mario.onGround){
+    let jf=JUMP_FORCE;
+    if(costume.special==='superjump')jf*=1.6;
+    mario.vx-=Math.cos(gAngle)*jf;
+    mario.vy-=Math.sin(gAngle)*jf;
+    mario.onGround=false;
+    mario.jumping=true;
+    mario.floatTime=costume.special==='float'?1.5:0;
+    spawnParticles(mario.x,mario.y,'#ffffff',5,50);
+  }
+  if(!jumpKey)mario.jumping=false;
+
+  // Float (bee costume)
+  if(costume.special==='float'&&jumpKey&&!mario.onGround&&mario.floatTime>0){
+    // Reduce fall
+  }
+
+  // Friction
+  const frict=mario.onGround?.85:.98;
+  mario.vx*=frict;mario.vy*=frict;
+
+  // Cap speed
+  const spd=Math.hypot(mario.vx,mario.vy);
+  if(spd>MAX_FALL){mario.vx*=MAX_FALL/spd;mario.vy*=MAX_FALL/spd}
+
+  mario.x+=mario.vx*dt;mario.y+=mario.vy*dt;
+
+  // Collision with planets
+  mario.onGround=false;
+  for(const p of planets){
+    const dx=mario.x-p.x,dy=mario.y-p.y;
+    const d=Math.hypot(dx,dy);
+    if(d<p.r+16){
+      const nx=dx/d,ny=dy/d;
+      mario.x=p.x+nx*(p.r+16);
+      mario.y=p.y+ny*(p.r+16);
+      // Kill velocity into surface
+      const dot=mario.vx*nx+mario.vy*ny;
+      if(dot<0){mario.vx-=nx*dot;mario.vy-=ny*dot}
+      mario.onGround=true;
+      mario.currentPlanet=p;
+    }
+  }
+
+  // Cloud platforms
+  for(const cl of cloudPlatforms){
+    const dx=mario.x-cl.x,dy=mario.y-cl.y;
+    const d=Math.hypot(dx,dy);
+    if(d<25&&mario.vy>0&&dy<0){
+      mario.y=cl.y-20;
+      mario.vy=-50;
+      mario.onGround=true;
+    }
+  }
+
+  // Launch stars
+  for(const ls of launchStars){
+    const d=Math.hypot(mario.x-ls.x,mario.y-ls.y);
+    if(d<25){
+      // Launch toward target planet
+      const tp=planets[ls.targetPlanet];
+      const ang=Math.atan2(tp.y-mario.y,tp.x-mario.x);
+      mario.vx=Math.cos(ang)*350;
+      mario.vy=Math.sin(ang)*350;
+      mario.onGround=false;
+      spawnParticles(ls.x,ls.y,'#ffaa00',15,80);
+      shakeTime=.15;
+    }
+  }
+
+  // Special ability
+  if(keys.KeyE&&!mario._eCooldown){
+    mario._eCooldown=true;
+    setTimeout(()=>mario._eCooldown=false,300);
+
+    if(costume.special==='fireball'){
+      const dir=mario.facingRight?1:-1;
+      const a=mario.currentPlanet?Math.atan2(mario.y-mario.currentPlanet.y,mario.x-mario.currentPlanet.x):(-Math.PI/2);
+      const tx=-Math.sin(a)*dir;
+      const ty=Math.cos(a)*dir;
+      projectiles.push({x:mario.x+tx*20,y:mario.y+ty*20,vx:tx*300-Math.cos(a)*50,vy:ty*300-Math.sin(a)*50,type:'fireball',life:2});
+      spawnParticles(mario.x,mario.y,'#ff4400',5,40);
+    }
+    if(costume.special==='iceball'){
+      const dir=mario.facingRight?1:-1;
+      const a=mario.currentPlanet?Math.atan2(mario.y-mario.currentPlanet.y,mario.x-mario.currentPlanet.x):(-Math.PI/2);
+      const tx=-Math.sin(a)*dir;
+      const ty=Math.cos(a)*dir;
+      projectiles.push({x:mario.x+tx*20,y:mario.y+ty*20,vx:tx*250-Math.cos(a)*50,vy:ty*250-Math.sin(a)*50,type:'iceball',life:2});
+      spawnParticles(mario.x,mario.y,'#88ddff',5,40);
+    }
+    if(costume.special==='rocksmash'){
+      shakeTime=.2;
+      spawnParticles(mario.x,mario.y,'#886644',10,60);
+      // Damage nearby enemies
+      for(const e of enemies){
+        if(e.hp<=0)continue;
+        const d=Math.hypot(e.x-mario.x,e.y-mario.y);
+        if(d<80){hitEnemy(e,3)}
+      }
+    }
+    if(costume.special==='cloudcreate'){
+      const a=mario.currentPlanet?Math.atan2(mario.y-mario.currentPlanet.y,mario.x-mario.currentPlanet.x):(-Math.PI/2);
+      cloudPlatforms.push({x:mario.x-Math.cos(a)*40,y:mario.y-Math.sin(a)*40,life:5});
+      spawnParticles(mario.x,mario.y,'#ffffff',8,30);
+    }
+  }
+
+  // Collect items
+  for(const s of starItems){
+    if(s.collected)continue;
+    if(Math.hypot(mario.x-s.x,mario.y-s.y)<(s.big?30:20)){
+      s.collected=true;starsCollected++;
+      spawnParticles(s.x,s.y,'#ffd700',15,80);
+      if(s.big){
+        // Check if planet star
+        for(const p of planets){
+          if(p.hasStar&&Math.hypot(s.x-p.x,s.y-(p.y-p.r-30))<5)p.starCollected=true;
+        }
+      }
+      document.getElementById('hud-stars').textContent=starsCollected;
+    }
+  }
+  for(const c of coinItems){
+    if(c.collected)continue;
+    if(Math.hypot(mario.x-c.x,mario.y-c.y)<18){
+      c.collected=true;coins++;
+      spawnParticles(c.x,c.y,'#ffdd00',8,50);
+      document.getElementById('hud-coins').textContent=coins;
+      if(coins%50===0&&lives<9){lives++;document.getElementById('hud-lives').textContent=lives}
+    }
+  }
+
+  // Enemy collision
+  for(const e of enemies){
+    if(e.hp<=0)continue;
+    const d=Math.hypot(mario.x-e.x,mario.y-e.y);
+    const hitRange=e.type==='boss'?40:18;
+    if(d<hitRange){
+      if(costume.special==='phase'){
+        // Phase through
+      }else if(mario.invincibleTime>0||costume.special==='invincible'){
+        hitEnemy(e,e.type==='boss'?2:5);
+      }else{
+        // Check if stomping
+        const toEnemy=Math.atan2(e.y-mario.y,e.x-mario.x);
+        const gravDir=e.planet?Math.atan2(e.y-e.planet.y,e.x-e.planet.x):0;
+        const stompAngle=Math.abs(angleDiff(toEnemy,gravDir));
+        if(stompAngle>Math.PI*.5&&!mario.onGround){
+          // Stomp!
+          hitEnemy(e,e.type==='boss'?1:1);
+          mario.vy=-150*Math.sin(Math.atan2(mario.y-e.y,mario.x-e.x));
+          mario.vx=-150*Math.cos(Math.atan2(mario.y-e.y,mario.x-e.x));
+          spawnParticles(e.x,e.y,'#ffaa00',8,40);
+        }else{
+          // Take damage
+          hurtMario();
+        }
+      }
+    }
+  }
+
+  // Fall off screen check
+  if(mario.x<-200||mario.x>W+200||mario.y<-200||mario.y>H+200){
+    hurtMario();
+  }
+
+  // Win condition
+  const g=GALAXIES[currentGalaxy];
+  if(starsCollected>=g.starGoal){
+    if(!boss||boss.hp<=0){
+      state='win';
+      showWin();
+    }
+  }
+}
+
+function angleDiff(a,b){
+  let d=a-b;
+  while(d>Math.PI)d-=Math.PI*2;
+  while(d<-Math.PI)d+=Math.PI*2;
+  return d;
+}
+
+function hitEnemy(e,dmg){
+  e.hp-=dmg;
+  shakeTime=.1;
+  spawnParticles(e.x,e.y,e.type==='boss'?'#ff4400':'#ffaa00',10,60);
+  if(e.hp<=0){
+    spawnParticles(e.x,e.y,'#ffffff',20,80);
+    if(e.type==='boss'){
+      // Drop extra stars
+      for(let i=0;i<5;i++){
+        starItems.push({x:e.x+Math.random()*60-30,y:e.y-40+Math.random()*40-20,collected:false,big:false,planet:e.planet});
+        totalStars++;
+      }
+      document.getElementById('hud-total').textContent=totalStars;
+    }
+  }
+  if(e.frozen>0)e.frozen=0;
+}
+
+function hurtMario(){
+  if(mario.flashTime>0||mario.invincibleTime>0||COSTUMES[selectedCostume].special==='invincible')return;
+  lives--;
+  document.getElementById('hud-lives').textContent=lives;
+  if(lives<=0){
+    mario.dead=true;
+    state='dead';
+    showDeath();
+  }else{
+    mario.flashTime=2;
+    // Knockback
+    if(mario.currentPlanet){
+      const a=Math.atan2(mario.y-mario.currentPlanet.y,mario.x-mario.currentPlanet.x);
+      mario.vx=Math.cos(a)*150;
+      mario.vy=Math.sin(a)*150;
+    }
+    shakeTime=.2;
+    spawnParticles(mario.x,mario.y,'#ff4444',10,60);
+  }
+}
+
+// ─── ENEMY AI ───
+function updateEnemies(dt){
+  for(const e of enemies){
+    if(e.hp<=0)continue;
+    if(e.frozen>0){e.frozen-=dt;continue}
+    if(e.stunned>0){e.stunned-=dt;continue}
+
+    if(e.type==='boss'){
+      // Boss AI
+      e.attackTimer-=dt;
+      if(e.attackTimer<=0){
+        e.attackTimer=2+Math.random()*2;
+        // Fire at Mario
+        const a=Math.atan2(mario.y-e.y,mario.x-e.x);
+        projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*200,vy:Math.sin(a)*200,type:'fireball',life:3,enemy:true});
+        spawnParticles(e.x,e.y,'#ff4400',8,50);
+      }
+      // Move toward Mario slowly
+      const toMario=Math.atan2(mario.y-e.y,mario.x-e.x);
+      e.x+=Math.cos(toMario)*30*dt;
+      e.y+=Math.sin(toMario)*30*dt;
+    }else{
+      // Patrol on planet surface
+      if(!e.planet)continue;
+      e.angle+=e.dir*e.speed*dt;
+      const dist=e.planet.r+12;
+      e.x=e.planet.x+Math.cos(e.angle)*dist;
+      e.y=e.planet.y+Math.sin(e.angle)*dist;
+    }
+  }
+}
+
+// ─── PROJECTILE UPDATE ───
+function updateProjectiles(dt){
+  for(let i=projectiles.length-1;i>=0;i--){
+    const p=projectiles[i];
+    p.x+=p.vx*dt;p.y+=p.vy*dt;
+    p.life-=dt;
+
+    // Gravity toward nearest planet
+    const{planet:gp}=getClosestPlanet(p.x,p.y);
+    const a=Math.atan2(gp.y-p.y,gp.x-p.x);
+    p.vx+=Math.cos(a)*100*dt;
+    p.vy+=Math.sin(a)*100*dt;
+
+    if(p.life<=0){projectiles.splice(i,1);continue}
+
+    // Hit planet
+    for(const pl of planets){
+      if(Math.hypot(p.x-pl.x,p.y-pl.y)<pl.r){
+        spawnParticles(p.x,p.y,p.type==='fireball'?'#ff4400':'#88ddff',5,30);
+        projectiles.splice(i,1);break;
+      }
+    }
+
+    if(p.enemy){
+      // Hit Mario
+      if(Math.hypot(p.x-mario.x,p.y-mario.y)<20){
+        hurtMario();
+        projectiles.splice(i,1);
+      }
+    }else{
+      // Hit enemies
+      for(const e of enemies){
+        if(e.hp<=0)continue;
+        if(Math.hypot(p.x-e.x,p.y-e.y)<20){
+          hitEnemy(e,p.type==='fireball'?2:1);
+          if(p.type==='iceball')e.frozen=3;
+          projectiles.splice(i,1);break;
+        }
+      }
+    }
+  }
+}
+
+// ─── CLOUD PLATFORM UPDATE ───
+function updateClouds(dt){
+  for(let i=cloudPlatforms.length-1;i>=0;i--){
+    cloudPlatforms[i].life-=dt;
+    if(cloudPlatforms[i].life<=0)cloudPlatforms.splice(i,1);
+  }
+}
+
+// ─── CAMERA ───
+function updateCamera(){
+  const tx=mario.x-W/2;
+  const ty=mario.y-H/2;
+  cam.x+=(tx-cam.x)*.08;
+  cam.y+=(ty-cam.y)*.08;
+}
+
+// ─── DRAW BACKGROUND ───
+function drawBackground(){
+  const g=GALAXIES[currentGalaxy];
+  const grad=ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,g.bg1);grad.addColorStop(1,g.bg2);
+  ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
+
+  // Stars
+  const t=Date.now()*.001;
+  for(const s of bgStars){
+    const sx=((s.x-cam.x*.1)%W+W)%W;
+    const sy=((s.y-cam.y*.1)%H+H)%H;
+    const twinkle=Math.sin(t*s.speed+s.twinkle)*.5+.5;
+    ctx.globalAlpha=(.3+twinkle*.7)*s.b;
+    ctx.fillStyle='#ffffff';
+    ctx.beginPath();ctx.arc(sx,sy,s.s,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // Nebula effect
+  ctx.globalAlpha=.04;
+  for(let i=0;i<3;i++){
+    const nx=((200+i*300-cam.x*.05)%W+W)%W;
+    const ny=((150+i*200-cam.y*.05)%H+H)%H;
+    const ng=ctx.createRadialGradient(nx,ny,0,nx,ny,150);
+    ng.addColorStop(0,['#ff4488','#4488ff','#44ff88'][i]);ng.addColorStop(1,'transparent');
+    ctx.fillStyle=ng;ctx.fillRect(0,0,W,H);
+  }
+  ctx.globalAlpha=1;
+}
+
+// ─── UI SCREENS ───
+function showGalaxySelect(){
+  hideAll();
+  document.getElementById('galaxy-select').classList.remove('hidden');
+  const grid=document.getElementById('galaxy-grid');
+  grid.innerHTML='';
+  GALAXIES.forEach((g,i)=>{
+    const card=document.createElement('div');
+    card.className='galaxy-card'+(i===currentGalaxy?' selected':'');
+    card.innerHTML=`<div class="galaxy-name">${g.name}</div><div class="galaxy-desc">${g.desc}</div><div class="galaxy-desc" style="margin-top:4px">&#9733; ${g.starGoal} stars needed</div>`;
+    card.onclick=()=>{
+      currentGalaxy=i;
+      loadGalaxy(i);
+      state='playing';
+      hideAll();
+      document.getElementById('hud').classList.remove('hidden');
+    };
+    grid.appendChild(card);
+  });
+}
+function closeGalaxySelect(){hideAll();document.getElementById('menu').classList.remove('hidden')}
+
+function showCostumeSelect(){
+  hideAll();
+  document.getElementById('costume-select').classList.remove('hidden');
+  const grid=document.getElementById('costume-grid');
+  grid.innerHTML='';
+  COSTUMES.forEach((c,i)=>{
+    const card=document.createElement('div');
+    card.className='costume-card'+(i===selectedCostume?' selected':'');
+    const preview=document.createElement('div');
+    preview.className='costume-preview';
+    preview.style.background=`linear-gradient(135deg,${c.hat},${c.overalls})`;
+    card.appendChild(preview);
+    card.innerHTML+=`<div class="costume-name">${c.name}</div><div class="costume-desc">${c.desc}</div>`;
+    card.onclick=()=>{
+      selectedCostume=i;
+      document.querySelectorAll('.costume-card').forEach(el=>el.classList.remove('selected'));
+      card.classList.add('selected');
+    };
+    grid.appendChild(card);
+  });
+}
+function closeCostumeSelect(){hideAll();document.getElementById('menu').classList.remove('hidden')}
+
+function showDeath(){
+  document.getElementById('death-screen').classList.remove('hidden');
+  document.getElementById('death-msg').textContent=lives>0?`Lives remaining: ${lives}`:'Game Over!';
+}
+function showWin(){
+  document.getElementById('win-screen').classList.remove('hidden');
+  document.getElementById('win-msg').textContent=`${GALAXIES[currentGalaxy].name} Complete!`;
+  document.getElementById('win-stats').textContent=`Stars: ${starsCollected}/${totalStars} | Coins: ${coins}`;
+}
+
+function respawn(){
+  hideAll();
+  if(lives<=0){lives=5;document.getElementById('hud-lives').textContent=lives}
+  loadGalaxy(currentGalaxy);
+  state='playing';
+  document.getElementById('hud').classList.remove('hidden');
+}
+function backToMenu(){
+  hideAll();state='menu';
+  document.getElementById('menu').classList.remove('hidden');
+}
+function hideAll(){
+  ['menu','costume-select','galaxy-select','death-screen','win-screen','hud'].forEach(id=>
+    document.getElementById(id).classList.add('hidden'));
+}
+
+// ─── GAME LOOP ───
+let lastTime=0;
+function gameLoop(time){
+  const dt=Math.min((time-lastTime)/1000,.05);
+  lastTime=time;
+
+  ctx.clearRect(0,0,W,H);
+
+  if(state==='playing'){
+    updateMario(dt);
+    updateEnemies(dt);
+    updateProjectiles(dt);
+    updateParticles(dt);
+    updateClouds(dt);
+    updateCamera();
+  }
+
+  // Draw
+  drawBackground();
+
+  if(state==='playing'||state==='dead'||state==='win'){
+    // Screen shake
+    if(shakeTime>0){
+      shakeTime-=1/60;
+      ctx.save();
+      ctx.translate(Math.random()*8-4,Math.random()*8-4);
+    }
+
+    // Draw connection lines between planets (faint)
+    ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=1;
+    for(let i=0;i<planets.length-1;i++){
+      ctx.beginPath();
+      ctx.moveTo(planets[i].x-cam.x,planets[i].y-cam.y);
+      ctx.lineTo(planets[i+1].x-cam.x,planets[i+1].y-cam.y);
+      ctx.stroke();
+    }
+
+    planets.forEach(drawPlanet);
+    drawLaunchStars();
+    drawCloudPlatforms();
+    coinItems.forEach(drawCoin);
+    starItems.forEach(drawStar);
+    enemies.forEach(e=>{if(e.hp>0)drawEnemy(e)});
+    drawProjectiles();
+    drawMario();
+    drawParticles();
+
+    if(shakeTime>0)ctx.restore();
+  }
+
+  // Menu star field animation
+  if(state==='menu'){
+    const t=Date.now()*.001;
+    ctx.globalAlpha=.6;
+    for(let i=0;i<5;i++){
+      const x=W/2+Math.cos(t*.3+i*1.2)*200;
+      const y=H/2+Math.sin(t*.4+i*1.5)*100-60;
+      ctx.fillStyle='#ffd700';
+      drawStarShape(ctx,x,y,8,3,5);ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>

@@ -142,6 +142,18 @@ params:
           name: Play Game
           link: /games/stick-war-legacy/
 
+      - title: "Super Mario Galaxy"
+        content: "Explore spherical planets with real gravity! 6 galaxies, 10 costumes (Fire, Ice, Bee, Cloud, Rainbow & more), launch stars, boss fights, and cosmic adventure."
+        image: "/images/games/super-mario-galaxy.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Platformer"
+          - "10 Costumes"
+        featured:
+          name: Play Game
+          link: /games/super-mario-galaxy/
+
       - title: "Super Mario"
         content: "Classic side-scrolling platformer! Run, jump, stomp goombas, collect coins, and reach the flag. Multiple levels with pipes and power-ups."
         image: "/images/games/mario.svg"

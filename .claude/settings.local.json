@@ -29,7 +29,8 @@
       "Bash(git push:*)",
       "Bash(grep -r \"Flappy\\\\|flappy\\\\|FLAPPY\" /home/petru/code/games --include=*.html --include=*.js --include=*.md)",
       "Bash(xdg-open /home/petru/code/games/static/games/simon-says/index.html)",
-      "Bash(xdg-open /home/petru/code/games/public/games/mortal-combat/index.html)"
+      "Bash(xdg-open /home/petru/code/games/public/games/mortal-combat/index.html)",
+      "Bash(xdg-open /home/petru/code/games/static/games/super-mario-galaxy/game.html)"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",
