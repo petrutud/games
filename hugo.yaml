@@ -154,13 +154,15 @@ params:
           name: Play Game
           link: /games/super-mario-galaxy/
 
-      - title: "Super Mario"
-        content: "Classic side-scrolling platformer! Run, jump, stomp goombas, collect coins, and reach the flag. Multiple levels with pipes and power-ups."
+      - title: "Super Mario Ultimate Adventure"
+        content: "Epic story-driven adventure! 43 worlds, 43 bosses, 10 power-ups, skill tree, character switching (Mario & Luigi), branching choices, 3 endings. From Grasslands to Omega Bowser!"
         image: "/images/games/mario.svg"
         badges:
           - "HTML5"
           - "Canvas"
           - "Platformer"
+          - "43 Levels"
+          - "RPG"
         featured:
           name: Play Game
           link: /games/mario/
@@ -286,12 +288,12 @@ params:
           link: /games/strike-force-heroes/
 
       - title: "Chess"
-        content: "A fully-featured chess game with move validation, castling, en passant, and check/checkmate detection."
+        content: "A fully-featured chess game with move validation, castling, en passant, pawn promotion, and check/checkmate detection. Play against a friend locally!"
         image: "/images/games/chess.svg"
         badges:
           - "HTML5"
           - "JavaScript"
-          - "Canvas"
+          - "Board Game"
         featured:
           name: Play Game
           link: /games/chess/

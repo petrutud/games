@@ -30,7 +30,16 @@
       "Bash(grep -r \"Flappy\\\\|flappy\\\\|FLAPPY\" /home/petru/code/games --include=*.html --include=*.js --include=*.md)",
       "Bash(xdg-open /home/petru/code/games/static/games/simon-says/index.html)",
       "Bash(xdg-open /home/petru/code/games/public/games/mortal-combat/index.html)",
-      "Bash(xdg-open /home/petru/code/games/static/games/super-mario-galaxy/game.html)"
+      "Bash(xdg-open /home/petru/code/games/static/games/super-mario-galaxy/game.html)",
+      "Bash(python3 -m http.server 8080)",
+      "Bash(echo \"Server started on port 8080, PID: $!\")",
+      "Bash(python3 -c ':*)",
+      "Bash(node -c /home/petru/code/games/static/games/mario/game.html)",
+      "Bash(node -e ':*)",
+      "Bash(xdg-open http://localhost:8080/static/games/mario/game.html)",
+      "Bash(google-chrome http://localhost:8080/static/games/mario/game.html)",
+      "Bash(firefox http://localhost:8080/static/games/mario/game.html)",
+      "Bash(ls /home/petru/code/games/static/images/games/mario* /home/petru/code/games/static/images/games/chess*)"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",
