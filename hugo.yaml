@@ -167,6 +167,18 @@ params:
           name: Play Game
           link: /games/mario/
 
+      - title: "Super Mario Classic"
+        content: "The original side-scrolling platformer! Run, jump, stomp goombas, collect coins, and reach the flag. Simple and fun — the way Mario was meant to be played."
+        image: "/images/games/mario-classic.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Platformer"
+          - "Classic"
+        featured:
+          name: Play Game
+          link: /games/mario-classic/
+
       - title: "Inch"
         content: "A tiny Metroidvania inside a human house. Play as Pip, craft tools from everyday objects, fight bugs, and uncover a family's story."
         image: "/images/games/inch.svg"
