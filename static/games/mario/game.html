@@ -108,7 +108,7 @@ function loadGame(){
     if(!raw)return false;
     const d=JSON.parse(raw);
     G.stars=d.stars||0;G.coins=d.coins||0;G.lives=d.lives||5;
-    G.rescued=d.rescued||{luigi:false,peach:false,daisy:false,rosalina:false,egadd:false,toads:0};
+    G.rescued=d.rescued||{luigi:false,peach:false,daisy:false,rosalina:false,egadd:false,toad:false,toadsworth:false,yoshi:false,diddy:false,pauline:false,dk:false,lumas:false,kamek:false,toads:0};
     G.completed=d.completed||[];
     G.helpedBJ=d.helpedBJ||false;
     G.skills=d.skills||{atk:0,def:0,spd:0,spc:0};
@@ -161,7 +161,7 @@ function sfxStar(){playTone(1047,.08);setTimeout(()=>playTone(1319,.08),60);setT
 const G={
   state:'TITLE',      // TITLE,CUTSCENE,WORLD_MAP,PLAYING,BOSS,DIALOGUE,SKILL_TREE,ENDING,PAUSE
   stars:0, coins:0, lives:5,
-  rescued:{luigi:false,peach:false,daisy:false,rosalina:false,egadd:false,toads:0},
+  rescued:{luigi:false,peach:false,daisy:false,rosalina:false,egadd:false,toad:false,toadsworth:false,yoshi:false,diddy:false,pauline:false,dk:false,lumas:false,kamek:false,toads:0},
   completed:[],
   biome:null,
   helpedBJ:false,
@@ -273,8 +273,8 @@ const BIOMES=[
    sky:'#6ec6ff',ground:'#3a8',groundDark:'#2a7040',platCol:'#8B5E3C',
    boss:'goombaKing',bossName:'Goomba King',
    enemies:['goomba','koopa'],levelLen:120,
-   rescue:null,starReq:0,
-   desc:'A peaceful meadow... but something stirs.'},
+   rescue:'toad',starReq:0,
+   desc:'A peaceful meadow... but Toad needs help!'},
   {id:'mushForest',name:'Mushroom Forest',icon:'🍄',
    sky:'#50a068',ground:'#386830',groundDark:'#285020',platCol:'#7B5E4C',
    boss:'toadWarrior',bossName:'Toad Warrior',
@@ -292,8 +292,8 @@ const BIOMES=[
    sky:'#f0c860',ground:'#d4a830',groundDark:'#b08820',platCol:'#c8a060',
    boss:'templeGuardian',bossName:'Stone Guardian',
    enemies:['pokey','buzzy'],levelLen:130,
-   rescue:null,starReq:3,
-   desc:'Ancient temples hide deadly secrets.'},
+   rescue:'toadsworth',starReq:3,
+   desc:'Ancient temples hide Toadsworth in their deadly secrets.'},
   {id:'sandCanyon',name:'Sandstorm Canyon',icon:'🌪️',
    sky:'#d8b050',ground:'#c09028',groundDark:'#a07818',platCol:'#b89050',
    boss:'sandWorm',bossName:'Sand Worm',
@@ -342,8 +342,8 @@ const BIOMES=[
    sky:'#58a040',ground:'#306828',groundDark:'#205018',platCol:'#6B4226',
    boss:'piranhaTitan',bossName:'Piranha Titan',
    enemies:['piranha','wiggly'],levelLen:140,
-   rescue:null,starReq:11,
-   desc:'Dense jungle with ravenous plants.'},
+   rescue:'yoshi',starReq:11,
+   desc:'Dense jungle where Yoshi has been captured!'},
   {id:'swamp',name:'Swamp Bog',icon:'🐸',
    sky:'#406830',ground:'#385828',groundDark:'#284818',platCol:'#506040',
    boss:'poisonFrog',bossName:'Poison Frog King',
@@ -354,8 +354,8 @@ const BIOMES=[
    sky:'#60a848',ground:'#48783C',groundDark:'#38682C',platCol:'#8B7040',
    boss:'monkeyKing',bossName:'Monkey King',
    enemies:['koopa','paratroopa'],levelLen:120,
-   rescue:null,starReq:13,
-   desc:'High above the canopy, barrel-chucking chaos.'},
+   rescue:'diddy',starReq:13,
+   desc:'High above the canopy, Diddy Kong is trapped by the chaos.'},
   {id:'bamboo',name:'Bamboo Forest',icon:'🎋',
    sky:'#68a860',ground:'#407838',groundDark:'#306028',platCol:'#90a868',
    boss:'ninjaKoopa',bossName:'Ninja Koopa',
@@ -398,8 +398,8 @@ const BIOMES=[
    sky:'#4060c0',ground:'#d0a0d0',groundDark:'#b080b0',platCol:'#e0c0e0',
    boss:'starRider',bossName:'Star Rider',
    enemies:['paratroopa','starbug'],levelLen:110,
-   rescue:null,starReq:20,
-   desc:'A dazzling track across the heavens.'},
+   rescue:'pauline',starReq:20,
+   desc:'A dazzling track across the heavens — Pauline is stranded here!'},
   {id:'stormFort',name:'Storm Fortress',icon:'🏰',
    sky:'#404858',ground:'#586070',groundDark:'#485060',platCol:'#788090',
    boss:'lightningLord',bossName:'Lightning Lord',
@@ -417,8 +417,8 @@ const BIOMES=[
    sky:'#889098',ground:'#707880',groundDark:'#505860',platCol:'#909898',
    boss:'rockTitan',bossName:'Rock Titan',
    enemies:['monty','thwomp'],levelLen:100,
-   rescue:null,starReq:23,
-   desc:'Treacherous rocky cliffs.'},
+   rescue:'dk',starReq:23,
+   desc:'Treacherous rocky cliffs where Donkey Kong is held!'},
   {id:'volcano',name:'Volcanic Trail',icon:'🌋',
    sky:'#603020',ground:'#504030',groundDark:'#403020',platCol:'#686058',
    boss:'fireGolem',bossName:'Fire Golem',
@@ -460,8 +460,8 @@ const BIOMES=[
    sky:'#180828',ground:'#302848',groundDark:'#201838',platCol:'#484060',
    boss:'cosmicSquid',bossName:'Cosmic Squid',
    enemies:['starbug','ufo'],levelLen:125,
-   rescue:null,starReq:30,
-   desc:'Swirling cosmic energy and alien tentacles.'},
+   rescue:'lumas',starReq:30,
+   desc:'Swirling cosmic energy — the Lumas are scattered here!'},
   // ── WORLD 9: GHOST ARC ──
   {id:'ghost',name:'Ghost World',icon:'👻',
    sky:'#201028',ground:'#382048',groundDark:'#281838',platCol:'#504068',
@@ -492,8 +492,8 @@ const BIOMES=[
    sky:'#181018',ground:'#302028',groundDark:'#201018',platCol:'#483040',
    boss:'dryBowser',bossName:'Dry Bowser',
    enemies:['dryBones','magikoopa'],levelLen:140,
-   rescue:null,starReq:35,
-   desc:'The skeletal domain of Dry Bowser.'},
+   rescue:'kamek',starReq:35,
+   desc:'The skeletal domain — Kamek seeks redemption from Dry Bowser.'},
   {id:'boneBridge',name:'Bone Bridge',icon:'🦴',
    sky:'#201018',ground:'#382830',groundDark:'#281820',platCol:'#504048',
    boss:'boneDragon',bossName:'Bone Dragon',
@@ -1927,6 +1927,14 @@ function proceedAfterLevel(){
     if(biome.rescue==='luigi'){showCutscene('rescueLuigi');return}
     if(biome.rescue==='daisy'){showCutscene('rescueDaisy');return}
     if(biome.rescue==='rosalina'){showCutscene('rescueRosalina');return}
+    if(biome.rescue==='toad'){showCutscene('rescueToad');return}
+    if(biome.rescue==='toadsworth'){showCutscene('rescueToadsworth');return}
+    if(biome.rescue==='yoshi'){showCutscene('rescueYoshi');return}
+    if(biome.rescue==='diddy'){showCutscene('rescueDiddy');return}
+    if(biome.rescue==='pauline'){showCutscene('rescuePauline');return}
+    if(biome.rescue==='dk'){showCutscene('rescueDK');return}
+    if(biome.rescue==='lumas'){showCutscene('rescueLumas');return}
+    if(biome.rescue==='kamek'){showCutscene('rescueKamek');return}
     if(biome.rescue==='peach'){
       determineEnding();
       return;
@@ -1954,14 +1962,19 @@ function proceedAfterLevel(){
 }
 
 function determineEnding(){
-  const allRescued=G.rescued.luigi&&G.rescued.peach&&G.rescued.daisy&&G.rescued.rosalina&&G.rescued.egadd;
-  if(allRescued&&G.shadowDefeats>=2&&G.stars>=BIOMES.length){
+  const r=G.rescued;
+  const coreRescued=r.luigi&&r.peach&&r.daisy&&r.rosalina&&r.egadd;
+  const allAllies=coreRescued&&r.toad&&r.toadsworth&&r.yoshi&&r.diddy&&r.pauline&&r.dk&&r.lumas&&r.kamek;
+  if(coreRescued&&G.shadowDefeats>=2&&G.stars>=BIOMES.length){
     G.ending='secret';
-  }else if(allRescued){
+  }else if(allAllies){
+    G.ending='hero';
+  }else if(coreRescued){
     G.ending='hero';
   }else{
     G.ending='balanced';
   }
+  G.allAlliesSaved=allAllies;
   showCutscene('finale');
 }
 
@@ -2569,6 +2582,46 @@ const CUTSCENES={
     {bg:'#402860',text:'Here — take my Poltergust device! It will help against ghosts!',speaker:'E. Gadd',dur:4},
     {bg:'#483070',text:'Professor E. Gadd rescued! Ghost-catching device obtained!',speaker:'',dur:3.5}
   ],
+  rescueToad:[
+    {bg:'#3a8040',text:'Mario! You came back for me!',speaker:'Toad',dur:3},
+    {bg:'#4a9050',text:'Take this — a Super Mushroom blessing! Your max health is up!',speaker:'Toad',dur:3.5},
+    {bg:'#60a060',text:'Toad rescued! Maximum HP increased!',speaker:'',dur:3}
+  ],
+  rescueToadsworth:[
+    {bg:'#c8a060',text:'Master Mario! Bless my mushrooms, you found me!',speaker:'Toadsworth',dur:3.5},
+    {bg:'#d4b070',text:'In gratitude, accept this royal coin pouch — coins will multiply for you!',speaker:'Toadsworth',dur:4},
+    {bg:'#e0c080',text:'Toadsworth rescued! Coin gains increased by 25%!',speaker:'',dur:3}
+  ],
+  rescueYoshi:[
+    {bg:'#306828',text:'Yoshi! Yoshi!',speaker:'Yoshi',dur:2.5},
+    {bg:'#408040',text:'Yoshi is happy to see Mario! Yoshi gives Mario the Egg of Power!',speaker:'',dur:4},
+    {bg:'#50a050',text:'Yoshi rescued! Jump power increased!',speaker:'',dur:3}
+  ],
+  rescueDiddy:[
+    {bg:'#48783C',text:'Whoa! Thanks Mario! Those Koopas had me cornered!',speaker:'Diddy Kong',dur:3.5},
+    {bg:'#58885C',text:'Take this Banana Boost — you\'ll move way faster!',speaker:'Diddy Kong',dur:3.5},
+    {bg:'#68987C',text:'Diddy Kong rescued! Speed slightly increased!',speaker:'',dur:3}
+  ],
+  rescuePauline:[
+    {bg:'#d0a0d0',text:'Mario! My hero! You always come through!',speaker:'Pauline',dur:3.5},
+    {bg:'#e0b0e0',text:'My song will guide you — Power Stars will shine brighter!',speaker:'Pauline',dur:4},
+    {bg:'#f0c0f0',text:'Pauline rescued! Star bonus increased by 20%!',speaker:'',dur:3}
+  ],
+  rescueDK:[
+    {bg:'#707880',text:'OOOH-OH-OH-OH! Mario, my friend!',speaker:'Donkey Kong',dur:3},
+    {bg:'#808890',text:'Take some of my mighty strength! Punch like a Kong!',speaker:'Donkey Kong',dur:3.5},
+    {bg:'#90a0a0',text:'Donkey Kong rescued! Damage increased!',speaker:'',dur:3}
+  ],
+  rescueLumas:[
+    {bg:'#302848',text:'You found us! Thank you, brave Mario!',speaker:'Lumas',dur:3},
+    {bg:'#403868',text:'We will become a starshield around you — your defense rises!',speaker:'Lumas',dur:3.5},
+    {bg:'#504880',text:'The Lumas rescued! Defense increased!',speaker:'',dur:3}
+  ],
+  rescueKamek:[
+    {bg:'#302028',text:'I... I have seen the error of serving Bowser. Thank you for sparing me.',speaker:'Kamek',dur:4},
+    {bg:'#403040',text:'Take this magic — your special attacks will recharge faster!',speaker:'Kamek',dur:3.5},
+    {bg:'#504058',text:'Kamek joins the cause! Special cooldown reduced!',speaker:'',dur:3}
+  ],
   bjHelp:[
     {bg:'#080818',text:'Thanks... I know my dad has gone too far.',speaker:'Bowser Jr.',dur:3.5},
     {bg:'#101028',text:'The artifact is driving him insane. I\'ll weaken his defenses for you.',speaker:'Bowser Jr.',dur:4},
@@ -2625,7 +2678,7 @@ function updateCutscene(dt){
         // Restart
         deleteSave();
         Object.assign(G,{state:'TITLE',stars:0,coins:0,lives:5,
-          rescued:{luigi:false,peach:false,daisy:false,rosalina:false,egadd:false,toads:0},
+          rescued:{luigi:false,peach:false,daisy:false,rosalina:false,egadd:false,toad:false,toadsworth:false,yoshi:false,diddy:false,pauline:false,dk:false,lumas:false,kamek:false,toads:0},
           completed:[],skillPts:0,skills:{atk:0,def:0,spd:0,spc:0},
           ending:null,shadowDefeats:0,titleSel:0});
         M.ghostDevice=false;
@@ -2974,6 +3027,15 @@ function applyRescueBonuses(){
   if(G.rescued.luigi)M.defMult=1.15;
   if(G.rescued.daisy)M.spdMult=1.15;
   if(G.rescued.rosalina)M.dmgMult=1.15;
+  // New ally bonuses (stack with the originals)
+  if(G.rescued.toad){M.maxHp=Math.max(M.maxHp,5);}
+  if(G.rescued.toadsworth){G.coinMult=1.25;}
+  if(G.rescued.yoshi){M.jumpMult=1.20;}
+  if(G.rescued.diddy){M.spdMult=(M.spdMult||1)*1.08;}
+  if(G.rescued.pauline){G.starMult=1.20;}
+  if(G.rescued.dk){M.dmgMult=(M.dmgMult||1)*1.12;}
+  if(G.rescued.lumas){M.defMult=(M.defMult||1)*1.08;}
+  if(G.rescued.kamek){M.specCdMult=0.85;}
   if(G.helpedBJ)M.dmgMult*=1.1;
   applySkills();
 }
@@ -3123,11 +3185,22 @@ function drawEnding(){
   ctx.fillStyle='#4a2800';ctx.fillRect(W/2-15,300,30,60);
   // Characters
   const chars=[];
-  chars.push({x:W/2-100,col:'#e02020',name:'Mario'});
-  if(G.rescued.luigi)chars.push({x:W/2-60,col:'#20a020',name:'Luigi'});
-  if(G.rescued.peach)chars.push({x:W/2+20,col:'#f080a0',name:'Peach'});
-  if(G.rescued.daisy)chars.push({x:W/2+60,col:'#f0a020',name:'Daisy'});
-  if(G.rescued.rosalina)chars.push({x:W/2+100,col:'#60c8e8',name:'Rosalina'});
+  chars.push({col:'#e02020',name:'Mario'});
+  if(G.rescued.luigi)chars.push({col:'#20a020',name:'Luigi'});
+  if(G.rescued.peach)chars.push({col:'#f080a0',name:'Peach'});
+  if(G.rescued.daisy)chars.push({col:'#f0a020',name:'Daisy'});
+  if(G.rescued.rosalina)chars.push({col:'#60c8e8',name:'Rosalina'});
+  if(G.rescued.toad)chars.push({col:'#e03030',name:'Toad'});
+  if(G.rescued.toadsworth)chars.push({col:'#c8a060',name:'Toadsworth'});
+  if(G.rescued.yoshi)chars.push({col:'#40b040',name:'Yoshi'});
+  if(G.rescued.diddy)chars.push({col:'#a05020',name:'Diddy'});
+  if(G.rescued.pauline)chars.push({col:'#d040d0',name:'Pauline'});
+  if(G.rescued.dk)chars.push({col:'#704020',name:'DK'});
+  if(G.rescued.lumas)chars.push({col:'#f0e040',name:'Lumas'});
+  if(G.rescued.kamek)chars.push({col:'#5040a0',name:'Kamek'});
+  // Spread characters evenly across the castle front
+  const startX=W/2-(chars.length-1)*22;
+  chars.forEach((c,i)=>{c.x=startX+i*44;});
   chars.forEach(c=>{
     const bob=Math.sin(G.endTimer*2+c.x*.05)*3;
     ctx.fillStyle=c.col;ctx.fillRect(c.x,340+bob,24,32);

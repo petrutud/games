@@ -39,7 +39,11 @@
       "Bash(xdg-open http://localhost:8080/static/games/mario/game.html)",
       "Bash(google-chrome http://localhost:8080/static/games/mario/game.html)",
       "Bash(firefox http://localhost:8080/static/games/mario/game.html)",
-      "Bash(ls /home/petru/code/games/static/images/games/mario* /home/petru/code/games/static/images/games/chess*)"
+      "Bash(ls /home/petru/code/games/static/images/games/mario* /home/petru/code/games/static/images/games/chess*)",
+      "Bash(grep -E \"\\\\.\\(html|js\\)$\")",
+      "Bash(grep -l \"touchstart\\\\|touchend\" /home/petru/code/games/project1/*.html)",
+      "Bash(ls -d /home/petru/code/games/project1/snake* /home/petru/code/games/project1/space-shooter* /home/petru/code/games/project1/stick-fight*)",
+      "Bash(echo \"Exit: $?\")"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",

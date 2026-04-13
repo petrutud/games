@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Mario Classic — Petru Tudorica</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600&family=Roboto:wght@400;500&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh; background: #000; color: #e0e0e0;
+    font-family: 'Inter', sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .site-nav {
+    background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
+    padding: 10px 24px; display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,0.06); z-index: 500; position: relative; flex-shrink: 0;
+  }
+  .site-nav a { color: #ccc; text-decoration: none; font-family: 'Roboto', sans-serif; font-size: 14px; transition: color 0.2s; }
+  .site-nav a:hover { color: #fff; }
+  .site-nav .brand { display: flex; align-items: center; gap: 10px; font-weight: 500; font-size: 16px; }
+  .site-nav .brand img { width: 28px; height: 28px; }
+  .site-nav .nav-links { display: flex; gap: 20px; align-items: center; }
+  .site-nav .nav-links a:hover { color: #e04040; }
+  .game-frame { flex: 1; width: 100%; border: none; }
+  .site-footer {
+    text-align: center; padding: 10px; color: rgba(255,255,255,0.2); font-size: 11px;
+    font-family: 'Roboto', sans-serif; flex-shrink: 0; border-top: 1px solid rgba(255,255,255,0.06);
+  }
+</style>
+</head>
+<body>
+<nav class="site-nav">
+  <a href="/" class="brand"><img src="/favicon.svg" alt="Home"> Petru Tudorica</a>
+  <div class="nav-links"><a href="/#projects">Games</a></div>
+</nav>
+<iframe src="game.html" class="game-frame" allow="autoplay" allowfullscreen></iframe>
+<footer class="site-footer">&copy; 2026 Petru Tudorica &middot; All Rights Reserved</footer>
+</body>
+</html>
