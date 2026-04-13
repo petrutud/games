@@ -43,7 +43,8 @@
       "Bash(grep -E \"\\\\.\\(html|js\\)$\")",
       "Bash(grep -l \"touchstart\\\\|touchend\" /home/petru/code/games/project1/*.html)",
       "Bash(ls -d /home/petru/code/games/project1/snake* /home/petru/code/games/project1/space-shooter* /home/petru/code/games/project1/stick-fight*)",
-      "Bash(echo \"Exit: $?\")"
+      "Bash(echo \"Exit: $?\")",
+      "Bash(node --check /tmp/mario_check.js)"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",
