@@ -3087,9 +3087,9 @@ const CUTSCENES={
     {bg:'#2040a0',text:'TRUE PEACE is restored! The secret ending is achieved!',speaker:'',dur:4}
   ],
   gameOver:[
-    {bg:'#000',text:'Game Over...',speaker:'',dur:3},
-    {bg:'#100808',text:'The Mushroom Kingdom falls into darkness...',speaker:'',dur:3},
-    {bg:'#000',text:'But heroes never truly give up. Try again!',speaker:'',dur:3}
+    {bg:'#000',text:'You ran out of lives...',speaker:'',dur:2.5},
+    {bg:'#100808',text:'But your progress is safe! Stars, rescues, and worlds cleared are kept.',speaker:'',dur:3.5},
+    {bg:'#082040',text:'Take a breath. You\'re refilled to 5 lives — head back to the World Map!',speaker:'',dur:3}
   ]
 };
 
@@ -3111,13 +3111,12 @@ function updateCutscene(dt){
       if(G.cutscene==='opening'){
         G.state='WORLD_MAP';
       }else if(G.cutscene==='gameOver'){
-        // Restart
-        deleteSave();
-        Object.assign(G,{state:'TITLE',stars:0,coins:0,lives:5,
-          rescued:{luigi:false,peach:false,daisy:false,rosalina:false,egadd:false,toad:false,toadsworth:false,yoshi:false,diddy:false,pauline:false,dk:false,lumas:false,kamek:false,toads:0},
-          completed:[],skillPts:0,skills:{atk:0,def:0,spd:0,spc:0},
-          ending:null,shadowDefeats:0,titleSel:0});
-        M.ghostDevice=false;
+        // Continue — keep ALL progress (stars, coins, rescued, completed, skills).
+        // Just refill lives and return to the world map.
+        G.lives=5;
+        G.state='WORLD_MAP';
+        boss=null;shadowMario=null;
+        saveGame();
       }else if(G.cutscene==='finale'){
         if(G.ending==='secret'){
           showCutscene('secretEnding');
