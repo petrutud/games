@@ -43,6 +43,7 @@ canvas{display:block;z-index:1}
       <button class="ctrl-btn" id="play-btn">&#9654;</button>
       <span id="time-display">0:00 / 0:00</span>
       <span id="title-display">The Super Mario Bros. Movie</span>
+      <button class="ctrl-btn" id="voice-btn" title="Toggle Voice Acting">&#128266;</button>
       <button class="ctrl-btn" id="fs-btn">&#x26F6;</button>
     </div>
   </div>
@@ -284,6 +285,67 @@ function updateMusic(sceneIdx){
   }
 }
 
+// ===== VOICE ACTING SYSTEM =====
+const voiceMgr = {
+  enabled: true,
+  available: !!(window.speechSynthesis),
+  voices: [],
+  englishVoice: null,
+  lastText: '',
+  lastSpeaker: '',
+  charVoices: {
+    'Narrator':     { pitch: 1.0, rate: 0.88, volume: 1.0 },
+    'Mario':        { pitch: 1.35, rate: 1.05, volume: 1.0 },
+    'Luigi':        { pitch: 1.4, rate: 0.9, volume: 0.95 },
+    'Peach':        { pitch: 1.7, rate: 0.95, volume: 0.95 },
+    'Bowser':       { pitch: 0.4, rate: 0.75, volume: 1.0 },
+    'Toad':         { pitch: 1.9, rate: 1.25, volume: 0.9 },
+    'Donkey Kong':  { pitch: 0.6, rate: 0.9, volume: 1.0 },
+    'DK':           { pitch: 0.6, rate: 0.9, volume: 1.0 },
+    'Cranky Kong':  { pitch: 0.7, rate: 0.8, volume: 0.95 },
+    'Kamek':        { pitch: 1.5, rate: 1.1, volume: 0.9 }
+  },
+  init: function(){
+    if(!this.available) return;
+    const loadVoices = () => {
+      this.voices = speechSynthesis.getVoices();
+      this.englishVoice = this.voices.find(v => v.lang.startsWith('en')) || null;
+    };
+    loadVoices();
+    if(speechSynthesis.onvoiceschanged !== undefined){
+      speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  },
+  speak: function(text, speaker){
+    if(!this.available || !this.enabled) return;
+    if(text === this.lastText && speaker === this.lastSpeaker) return;
+    this.lastText = text;
+    this.lastSpeaker = speaker;
+    try { speechSynthesis.cancel(); } catch(e){}
+    const cleanText = text.replace(/^\*\s*/, '').replace(/\s*\*$/, '').replace(/\*/g, '');
+    const utter = new SpeechSynthesisUtterance(cleanText);
+    if(this.englishVoice) utter.voice = this.englishVoice;
+    utter.lang = 'en-US';
+    const config = this.charVoices[speaker] || this.charVoices['Narrator'];
+    utter.pitch = config.pitch;
+    utter.rate = config.rate;
+    utter.volume = config.volume;
+    try { speechSynthesis.speak(utter); } catch(e){}
+  },
+  stop: function(){
+    this.lastText = '';
+    this.lastSpeaker = '';
+    if(!this.available) return;
+    try { speechSynthesis.cancel(); } catch(e){}
+  },
+  toggle: function(){
+    this.enabled = !this.enabled;
+    if(!this.enabled) this.stop();
+    document.getElementById('voice-btn').innerHTML = this.enabled ? '\u{1F50A}' : '\u{1F507}';
+  }
+};
+voiceMgr.init();
+
 // ===== DRAWING UTILITIES =====
 function drawText(text, x, y, size, color='#fff', align='center', outline=true){
   ctx.save();
@@ -313,6 +375,10 @@ function drawDialogue(speaker, text, color='#fff'){
     drawText(text, W/2, y+2, 22, '#fff', 'center');
   }
   ctx.restore();
+  // Trigger voice acting for this dialogue
+  if(playing){
+    voiceMgr.speak(text, speaker || 'Narrator');
+  }
 }
 
 function easeInOut(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2}
@@ -2461,6 +2527,7 @@ function render(timestamp){
     if(globalTime>=totalDuration){
       globalTime=totalDuration;
       playing=false;
+      voiceMgr.stop();
       updatePlayBtn();
     }
   }
@@ -2468,9 +2535,10 @@ function render(timestamp){
   const sc=getSceneAtTime(globalTime);
   sceneTime=sc.sceneTime;
 
-  // Handle scene change for music
+  // Handle scene change for music and voice
   if(sc.index!==currentScene){
     currentScene=sc.index;
+    voiceMgr.stop();
     updateMusic(currentScene);
   }
   currentScene=sc.index;
@@ -2534,6 +2602,7 @@ function togglePlay(){
   initAudio();
   playing=!playing;
   if(playing && globalTime>=totalDuration) globalTime=0;
+  if(!playing) voiceMgr.stop();
   updatePlayBtn();
   updateMusic(currentScene);
   // Show controls briefly
@@ -2569,12 +2638,17 @@ resize();
 // Controls
 document.getElementById('play-btn').addEventListener('click',togglePlay);
 
+document.getElementById('voice-btn').addEventListener('click',function(){
+  voiceMgr.toggle();
+});
+
 document.getElementById('progress-container').addEventListener('click',function(e){
   const rect=this.getBoundingClientRect();
   const pct=(e.clientX-rect.left)/rect.width;
   globalTime=Math.max(0,Math.min(totalDuration,pct*totalDuration));
   const sc=getSceneAtTime(globalTime);
   currentScene=sc.index;
+  voiceMgr.stop();
   initAudio();
   updateMusic(currentScene);
 });
@@ -2596,12 +2670,14 @@ document.addEventListener('keydown',function(e){
     globalTime=Math.min(totalDuration,globalTime+5);
     const sc=getSceneAtTime(globalTime);
     currentScene=sc.index;
+    voiceMgr.stop();
     updateMusic(currentScene);
   }
   if(e.code==='ArrowLeft'){
     globalTime=Math.max(0,globalTime-5);
     const sc=getSceneAtTime(globalTime);
     currentScene=sc.index;
+    voiceMgr.stop();
     updateMusic(currentScene);
   }
   if(e.code==='KeyF'){

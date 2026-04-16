@@ -1,0 +1,2576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Under the Boardwalk - A StreamFlix Original</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;color:#fff;cursor:default;user-select:none}
+#cinema{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100vw;height:100vh}
+#letterbox-top,#letterbox-bottom{background:#000;width:100%;flex-shrink:0}
+#screen-wrap{position:relative;width:100%;flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
+canvas{display:block}
+#subtitle{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);text-align:center;font-size:clamp(14px,2.2vw,26px);text-shadow:2px 2px 6px rgba(0,0,0,.9),0 0 12px rgba(0,0,0,.7);padding:6px 18px;border-radius:6px;background:rgba(0,0,0,.45);max-width:80%;pointer-events:none;opacity:0;transition:opacity .3s}
+#subtitle.show{opacity:1}
+#controls{position:absolute;bottom:0;left:0;width:100%;background:linear-gradient(transparent,rgba(0,0,0,.85));padding:8px 16px 10px;display:flex;align-items:center;gap:10px;opacity:0;transition:opacity .3s}
+#cinema:hover #controls,#controls.locked{opacity:1}
+#controls button{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px 8px;border-radius:4px;transition:background .2s}
+#controls button:hover{background:rgba(255,255,255,.15)}
+#progress-wrap{flex:1;height:6px;background:rgba(255,255,255,.2);border-radius:3px;cursor:pointer;position:relative}
+#progress-bar{height:100%;background:linear-gradient(90deg,#f7a44c,#f06292);border-radius:3px;width:0%;transition:width .1s linear;pointer-events:none}
+#time{font-size:13px;color:#ccc;min-width:90px;text-align:center}
+#back-btn{position:absolute;top:12px;left:16px;background:rgba(0,0,0,.5);border:none;color:#fff;font-size:15px;padding:6px 14px;border-radius:20px;cursor:pointer;opacity:0;transition:opacity .3s;z-index:10;text-decoration:none;display:flex;align-items:center;gap:6px}
+#cinema:hover #back-btn{opacity:1}
+#back-btn:hover{background:rgba(255,255,255,.15)}
+#loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:22px;color:#7ec8e3;z-index:20}
+</style>
+</head>
+<body>
+<div id="cinema">
+<div id="letterbox-top"></div>
+<div id="screen-wrap">
+<canvas id="c"></canvas>
+<div id="subtitle"></div>
+<a id="back-btn" href="/games/streamflix/">&#9664; Back</a>
+<div id="controls" class="locked">
+<button id="btn-play" title="Play/Pause">&#9654;</button>
+<div id="progress-wrap"><div id="progress-bar"></div></div>
+<span id="time">0:00 / 0:00</span>
+<button id="btn-voice" title="Toggle Voice">&#128266;</button>
+<button id="btn-fs" title="Fullscreen">&#x26F6;</button>
+</div>
+<div id="loading">Loading...</div>
+</div>
+<div id="letterbox-bottom"></div>
+</div>
+
+<script>
+// ============ CORE SETUP ============
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const sub = document.getElementById('subtitle');
+const progBar = document.getElementById('progress-bar');
+const progWrap = document.getElementById('progress-wrap');
+const timeEl = document.getElementById('time');
+const btnPlay = document.getElementById('btn-play');
+const btnVoice = document.getElementById('btn-voice');
+const btnFs = document.getElementById('btn-fs');
+const loading = document.getElementById('loading');
+const lbTop = document.getElementById('letterbox-top');
+const lbBottom = document.getElementById('letterbox-bottom');
+
+let W = 960, H = 540; // 16:9 internal resolution
+let playing = false, voiceOn = true, currentTime = 0, totalDuration = 0;
+let currentScene = 0, sceneTime = 0;
+let fadeAlpha = 0, fadeDir = 0; // for transitions
+let globalAnimFrame = 0;
+
+// Audio context
+let audioCtx = null, masterGain = null;
+
+function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.25;
+    masterGain.connect(audioCtx.destination);
+}
+
+// ============ RESIZE ============
+function resize() {
+    const ww = window.innerWidth, wh = window.innerHeight;
+    const aspect = 16/9;
+    let cw = ww, ch = ww / aspect;
+    if (ch > wh * 0.82) { ch = wh * 0.82; cw = ch * aspect; }
+    canvas.width = W; canvas.height = H;
+    canvas.style.width = cw + 'px';
+    canvas.style.height = ch + 'px';
+    const barH = (wh - ch) / 2;
+    lbTop.style.height = Math.max(0, barH) + 'px';
+    lbBottom.style.height = Math.max(0, barH) + 'px';
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ============ COLORS ============
+const COLORS = {
+    narrator: '#ffd700',
+    shelly: '#ff8c00',
+    coral: '#ff69b4',
+    captain: '#dc143c',
+    sandy: '#f0e68c',
+    gill: '#00ced1',
+    mayor: '#8b0000',
+    steve: '#f0f0f0',
+    pearl: '#9370db',
+    turtle: '#2e8b57'
+};
+
+// ============ MUSIC SYSTEM ============
+let currentMusicNodes = [];
+let musicInterval = null;
+
+function stopMusic() {
+    currentMusicNodes.forEach(n => { try { n.stop(); } catch(e){} });
+    currentMusicNodes = [];
+    if (musicInterval) { clearInterval(musicInterval); musicInterval = null; }
+}
+
+function playNote(freq, time, dur, type='sine', vol=0.12) {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(0, time);
+    g.gain.linearRampToValueAtTime(vol, time + 0.05);
+    g.gain.linearRampToValueAtTime(vol * 0.7, time + dur * 0.7);
+    g.gain.linearRampToValueAtTime(0, time + dur);
+    osc.connect(g);
+    g.connect(masterGain);
+    osc.start(time);
+    osc.stop(time + dur);
+    currentMusicNodes.push(osc);
+}
+
+function playWaveSound(time, dur) {
+    if (!audioCtx) return;
+    const bufSize = audioCtx.sampleRate * dur;
+    const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) {
+        const t = i / audioCtx.sampleRate;
+        data[i] = (Math.sin(t * 0.8) * 0.3 + Math.random() * 0.15) * Math.sin(Math.PI * t / dur) * 0.15;
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const g = audioCtx.createGain();
+    g.gain.value = 0.3;
+    src.connect(g);
+    g.connect(masterGain);
+    src.start(time);
+    currentMusicNodes.push(src);
+}
+
+function musicTropical() {
+    if (!audioCtx) return;
+    stopMusic();
+    const notes = [392, 440, 494, 523, 587, 659, 587, 523, 494, 440, 392, 349];
+    const bass = [196, 220, 247, 262];
+    let beat = 0;
+    function loop() {
+        if (!playing || !audioCtx) return;
+        const t = audioCtx.currentTime;
+        for (let i = 0; i < 4; i++) {
+            const n = notes[(beat + i) % notes.length];
+            playNote(n, t + i * 0.35, 0.3, 'triangle', 0.06);
+        }
+        playNote(bass[beat % bass.length], t, 1.2, 'sine', 0.08);
+        playWaveSound(t, 1.4);
+        // Ukulele-style plucks
+        for (let i = 0; i < 3; i++) {
+            playNote(notes[(beat+i+2) % notes.length] * 2, t + i * 0.18 + 0.05, 0.15, 'triangle', 0.04);
+        }
+        beat++;
+    }
+    loop();
+    musicInterval = setInterval(loop, 1400);
+}
+
+function musicMysterious() {
+    if (!audioCtx) return;
+    stopMusic();
+    const notes = [220, 233, 262, 277, 294, 262, 233, 220];
+    let beat = 0;
+    function loop() {
+        if (!playing || !audioCtx) return;
+        const t = audioCtx.currentTime;
+        playNote(notes[beat % notes.length], t, 1.8, 'sine', 0.06);
+        playNote(notes[(beat+3) % notes.length] * 0.5, t + 0.5, 1.5, 'sine', 0.05);
+        playWaveSound(t, 2.0);
+        // Eerie high overtone
+        playNote(notes[beat % notes.length] * 3, t + 0.2, 1.0, 'sine', 0.015);
+        beat++;
+    }
+    loop();
+    musicInterval = setInterval(loop, 2000);
+}
+
+function musicTense() {
+    if (!audioCtx) return;
+    stopMusic();
+    let beat = 0;
+    function loop() {
+        if (!playing || !audioCtx) return;
+        const t = audioCtx.currentTime;
+        playNote(110 + (beat % 3) * 10, t, 0.3, 'sawtooth', 0.04);
+        playNote(165, t + 0.15, 0.15, 'square', 0.03);
+        playNote(82, t, 0.6, 'sine', 0.07);
+        // Percussion-like
+        playNote(55, t + 0.3, 0.1, 'square', 0.05);
+        beat++;
+    }
+    loop();
+    musicInterval = setInterval(loop, 600);
+}
+
+function musicEmotional() {
+    if (!audioCtx) return;
+    stopMusic();
+    const melody = [330, 392, 440, 494, 523, 494, 440, 392, 370, 330, 294, 330];
+    let beat = 0;
+    function loop() {
+        if (!playing || !audioCtx) return;
+        const t = audioCtx.currentTime;
+        playNote(melody[beat % melody.length], t, 1.5, 'sine', 0.07);
+        playNote(melody[beat % melody.length] * 0.5, t + 0.3, 1.2, 'triangle', 0.05);
+        playNote(melody[(beat+4) % melody.length] * 0.75, t + 0.6, 1.0, 'sine', 0.04);
+        playWaveSound(t, 1.8);
+        beat++;
+    }
+    loop();
+    musicInterval = setInterval(loop, 1800);
+}
+
+function musicTriumphant() {
+    if (!audioCtx) return;
+    stopMusic();
+    const fanfare = [523, 587, 659, 784, 659, 784, 880, 784, 659, 587, 523, 587];
+    const bass = [262, 294, 330, 349, 392, 349, 330, 294];
+    let beat = 0;
+    function loop() {
+        if (!playing || !audioCtx) return;
+        const t = audioCtx.currentTime;
+        playNote(fanfare[beat % fanfare.length], t, 0.4, 'triangle', 0.07);
+        playNote(fanfare[(beat+2) % fanfare.length], t + 0.2, 0.3, 'triangle', 0.05);
+        playNote(bass[beat % bass.length], t, 0.8, 'sine', 0.08);
+        // Celebration sparkle
+        playNote(fanfare[beat % fanfare.length] * 2, t + 0.1, 0.15, 'sine', 0.025);
+        beat++;
+    }
+    loop();
+    musicInterval = setInterval(loop, 800);
+}
+
+// ============ SPEECH SYSTEM ============
+let speechQueue = [];
+let currentUtterance = null;
+
+const VOICE_PROFILES = {
+    narrator: { pitch: 1.0, rate: 0.88 },
+    shelly: { pitch: 1.4, rate: 1.0 },
+    coral: { pitch: 1.7, rate: 1.1 },
+    captain: { pitch: 0.5, rate: 0.8 },
+    sandy: { pitch: 1.6, rate: 0.85 },
+    gill: { pitch: 1.3, rate: 1.3 },
+    mayor: { pitch: 0.7, rate: 0.75 },
+    steve: { pitch: 1.1, rate: 1.2 },
+    pearl: { pitch: 1.5, rate: 0.9 },
+    turtle: { pitch: 0.6, rate: 0.7 }
+};
+
+function speak(text, character) {
+    if (!voiceOn || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const profile = VOICE_PROFILES[character] || VOICE_PROFILES.narrator;
+    u.pitch = profile.pitch;
+    u.rate = profile.rate;
+    u.volume = 0.9;
+    // Try to get an English voice
+    const voices = window.speechSynthesis.getVoices();
+    const enVoice = voices.find(v => v.lang.startsWith('en'));
+    if (enVoice) u.voice = enVoice;
+    window.speechSynthesis.speak(u);
+    currentUtterance = u;
+}
+
+function stopSpeech() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+}
+
+// ============ PARTICLE SYSTEMS ============
+class Particle {
+    constructor(x, y, opts = {}) {
+        this.x = x; this.y = y;
+        this.vx = opts.vx || (Math.random() - 0.5) * 2;
+        this.vy = opts.vy || -Math.random() * 2 - 0.5;
+        this.life = opts.life || 60;
+        this.maxLife = this.life;
+        this.size = opts.size || 3;
+        this.color = opts.color || '#fff';
+        this.type = opts.type || 'circle'; // circle, bubble, sparkle, sand
+    }
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life--;
+        if (this.type === 'bubble') { this.vx += Math.sin(this.y * 0.05) * 0.1; this.vy -= 0.02; }
+        if (this.type === 'sand') { this.vy += 0.05; this.vx *= 0.99; }
+    }
+    draw() {
+        const alpha = Math.max(0, this.life / this.maxLife);
+        ctx.globalAlpha = alpha;
+        if (this.type === 'bubble') {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(this.x - this.size * 0.3, this.y - this.size * 0.3, this.size * 0.2, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+        } else if (this.type === 'sparkle') {
+            ctx.fillStyle = this.color;
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.life * 0.1);
+            for (let i = 0; i < 4; i++) {
+                ctx.fillRect(-0.5, -this.size, 1, this.size * 2);
+                ctx.rotate(Math.PI / 4);
+            }
+            ctx.restore();
+        } else {
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size * alpha, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    }
+}
+
+let particles = [];
+function emitBubbles(x, y, count = 5) {
+    for (let i = 0; i < count; i++) {
+        particles.push(new Particle(x + (Math.random()-0.5)*40, y, {
+            type: 'bubble', size: 2 + Math.random()*4, life: 80 + Math.random()*40,
+            vx: (Math.random()-0.5)*0.8, vy: -0.5 - Math.random()*1.5, color: 'rgba(150,220,255,0.7)'
+        }));
+    }
+}
+function emitSparkles(x, y, count = 8, color = '#ffd700') {
+    for (let i = 0; i < count; i++) {
+        particles.push(new Particle(x + (Math.random()-0.5)*30, y + (Math.random()-0.5)*30, {
+            type: 'sparkle', size: 2 + Math.random()*3, life: 40 + Math.random()*30,
+            vx: (Math.random()-0.5)*3, vy: (Math.random()-0.5)*3, color
+        }));
+    }
+}
+function emitSand(x, y, count = 10) {
+    for (let i = 0; i < count; i++) {
+        particles.push(new Particle(x + (Math.random()-0.5)*20, y, {
+            type: 'sand', size: 1 + Math.random()*2, life: 30 + Math.random()*20,
+            vx: (Math.random()-0.5)*4, vy: -Math.random()*3, color: '#deb887'
+        }));
+    }
+}
+function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update();
+        if (particles[i].life <= 0) particles.splice(i, 1);
+    }
+}
+function drawParticles() {
+    particles.forEach(p => p.draw());
+}
+
+// ============ DRAWING HELPERS ============
+function drawGradientRect(x, y, w, h, c1, c2, vertical = true) {
+    const g = vertical ? ctx.createLinearGradient(x, y, x, y + h) : ctx.createLinearGradient(x, y, x + w, y);
+    g.addColorStop(0, c1); g.addColorStop(1, c2);
+    ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+}
+
+function drawOceanBg(t, depth = 0) {
+    // depth 0 = surface, 1 = mid, 2 = deep
+    const colors = [
+        ['#1a8fba', '#0d5f80'],
+        ['#0d5f80', '#063d52'],
+        ['#041e2e', '#010d15']
+    ];
+    const [c1, c2] = colors[Math.min(depth, 2)];
+    drawGradientRect(0, 0, W, H, c1, c2);
+    // Light rays
+    if (depth < 2) {
+        ctx.globalAlpha = 0.06 + Math.sin(t * 0.01) * 0.02;
+        for (let i = 0; i < 5; i++) {
+            const x = (W * (i + 1) / 6) + Math.sin(t * 0.005 + i) * 30;
+            ctx.beginPath();
+            ctx.moveTo(x - 20, 0);
+            ctx.lineTo(x + 40, H);
+            ctx.lineTo(x - 40, H);
+            ctx.closePath();
+            ctx.fillStyle = '#ffffcc';
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    }
+}
+
+function drawWaterSurface(t, y = 30) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= W; x += 5) {
+        ctx.lineTo(x, y + Math.sin(x * 0.02 + t * 0.03) * 8 + Math.sin(x * 0.01 + t * 0.02) * 4);
+    }
+    ctx.lineTo(W, 0); ctx.lineTo(0, 0); ctx.closePath();
+    ctx.fillStyle = 'rgba(135,206,235,0.3)';
+    ctx.fill();
+}
+
+function drawSandFloor(y, t) {
+    ctx.fillStyle = '#c2a366';
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= W; x += 10) {
+        ctx.lineTo(x, y + Math.sin(x * 0.03 + t * 0.005) * 5);
+    }
+    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+    ctx.fill();
+    // Sand texture dots
+    ctx.fillStyle = '#b89a5a';
+    for (let i = 0; i < 30; i++) {
+        const sx = (i * 37 + t * 0.1) % W;
+        const sy = y + 10 + (i * 13) % 40;
+        ctx.beginPath(); ctx.arc(sx, sy, 1, 0, Math.PI * 2); ctx.fill();
+    }
+}
+
+function drawBoardwalkAbove(t) {
+    // Wooden planks from below
+    const planksY = 20;
+    for (let i = 0; i < 12; i++) {
+        const px = i * 85 - (t * 0.3) % 85;
+        ctx.fillStyle = i % 2 === 0 ? '#5c3a1e' : '#6b4423';
+        ctx.fillRect(px, planksY, 80, 25);
+        // Wood grain
+        ctx.strokeStyle = '#4a2e16';
+        ctx.lineWidth = 0.5;
+        for (let g = 0; g < 3; g++) {
+            ctx.beginPath();
+            ctx.moveTo(px, planksY + 5 + g * 7);
+            ctx.lineTo(px + 80, planksY + 5 + g * 7 + Math.sin(g) * 2);
+            ctx.stroke();
+        }
+        // Light through cracks
+        if (i % 3 === 0) {
+            ctx.fillStyle = 'rgba(255,255,220,0.4)';
+            ctx.fillRect(px + 80, planksY, 5, 25);
+            // Light beam
+            ctx.beginPath();
+            ctx.moveTo(px + 80, planksY + 25);
+            ctx.lineTo(px + 60, planksY + 200);
+            ctx.lineTo(px + 100, planksY + 200);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(255,255,200,0.06)';
+            ctx.fill();
+        }
+    }
+    // Boardwalk support pillars
+    for (let i = 0; i < 3; i++) {
+        const px = 150 + i * 300;
+        ctx.fillStyle = '#4a3018';
+        ctx.fillRect(px, planksY + 25, 12, H - planksY);
+        ctx.fillStyle = '#3d2612';
+        ctx.fillRect(px + 2, planksY + 25, 2, H - planksY);
+    }
+}
+
+function drawSeaweed(x, y, h, t, color = '#2d7a3a') {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let i = 0; i < h; i += 5) {
+        ctx.lineTo(x + Math.sin((y - i) * 0.05 + t * 0.02) * 12, y - i);
+    }
+    ctx.stroke();
+    // Leaves
+    for (let i = 10; i < h; i += 15) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        const lx = x + Math.sin((y - i) * 0.05 + t * 0.02) * 12;
+        ctx.ellipse(lx + 6, y - i, 8, 3, Math.sin(t * 0.02 + i) * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+function drawCoral_bg(x, y, t) {
+    // Background coral decoration
+    const colors = ['#ff6b6b', '#ff8e8e', '#e74c3c', '#ff4757'];
+    for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.beginPath();
+        const bx = x + i * 15;
+        const by = y;
+        ctx.moveTo(bx, by);
+        for (let a = 0; a < Math.PI; a += 0.3) {
+            const r = 12 + Math.sin(a * 3 + t * 0.01) * 4;
+            ctx.lineTo(bx + Math.cos(a) * r * (i + 1) * 0.5, by - Math.sin(a) * r);
+        }
+        ctx.closePath();
+        ctx.fill();
+    }
+}
+
+// ============ CHARACTER DRAWING ============
+function drawShelly(x, y, scale = 1, anim = 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    // Body (orange)
+    ctx.fillStyle = '#e67e22';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 16, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Shell on back (spiral)
+    ctx.fillStyle = '#c19a6b';
+    ctx.beginPath();
+    ctx.arc(-5, -8, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#a0764a';
+    ctx.beginPath();
+    ctx.arc(-5, -8, 10, 0, Math.PI * 2);
+    ctx.fill();
+    // Spiral detail
+    ctx.strokeStyle = '#8b6339';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let a = 0; a < Math.PI * 3; a += 0.2) {
+        const r = 2 + a * 1.5;
+        ctx.lineTo(-5 + Math.cos(a) * r, -8 + Math.sin(a) * r);
+    }
+    ctx.stroke();
+    // Eye stalks
+    const eyeAnim = Math.sin(anim * 0.1) * 2;
+    ctx.strokeStyle = '#e67e22';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(6, -4); ctx.lineTo(10, -14 + eyeAnim); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(12, -4); ctx.lineTo(16, -14 + eyeAnim); ctx.stroke();
+    // Eyes
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(10, -15 + eyeAnim, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(16, -15 + eyeAnim, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.arc(11, -15 + eyeAnim, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(17, -15 + eyeAnim, 2, 0, Math.PI * 2); ctx.fill();
+    // Claws
+    ctx.fillStyle = '#d35400';
+    const clawAnim = Math.sin(anim * 0.15) * 5;
+    // Left claw
+    ctx.beginPath();
+    ctx.ellipse(-14, 6 + clawAnim, 6, 4, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(-18, 3 + clawAnim, 4, 3, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Right claw
+    ctx.beginPath();
+    ctx.ellipse(14, 6 - clawAnim, 6, 4, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(18, 3 - clawAnim, 4, 3, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Legs
+    ctx.strokeStyle = '#d35400';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i++) {
+        const lx = -8 + i * 8;
+        const la = Math.sin(anim * 0.2 + i) * 3;
+        ctx.beginPath(); ctx.moveTo(lx, 8); ctx.lineTo(lx - 4, 14 + la); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(lx, 8); ctx.lineTo(lx + 4, 14 - la); ctx.stroke();
+    }
+    // Mouth
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(13, -4, 3, 0, Math.PI);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawCoralChar(x, y, scale = 1, anim = 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    const bounce = Math.sin(anim * 0.15) * 3;
+    ctx.translate(0, bounce);
+    // Star body
+    ctx.fillStyle = '#ff69b4';
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+        const angle = (i * Math.PI * 2) / 5 - Math.PI / 2;
+        const nextAngle = ((i + 0.5) * Math.PI * 2) / 5 - Math.PI / 2;
+        const armWiggle = Math.sin(anim * 0.1 + i) * 0.1;
+        ctx.lineTo(Math.cos(angle + armWiggle) * 22, Math.sin(angle + armWiggle) * 22);
+        ctx.lineTo(Math.cos(nextAngle) * 9, Math.sin(nextAngle) * 9);
+    }
+    ctx.closePath();
+    ctx.fill();
+    // Lighter center
+    ctx.fillStyle = '#ff85c8';
+    ctx.beginPath();
+    ctx.arc(0, 0, 9, 0, Math.PI * 2);
+    ctx.fill();
+    // Eyes (big sparkly)
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(-5, -3, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(5, -3, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.arc(-4, -3, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(6, -3, 2.5, 0, Math.PI * 2); ctx.fill();
+    // Sparkle in eyes
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(-3, -4, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(7, -4, 1, 0, Math.PI * 2); ctx.fill();
+    // Big smile
+    ctx.strokeStyle = '#c0396b';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 1, 5, 0.1, Math.PI - 0.1);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawCaptainClaws(x, y, scale = 1, anim = 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    // Body
+    ctx.fillStyle = '#c0392b';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 22, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Head
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath();
+    ctx.ellipse(0, -16, 14, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Eye patch
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.ellipse(-6, -18, 5, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-11, -18); ctx.lineTo(6, -24); ctx.stroke();
+    // Good eye
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(6, -18, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.arc(7, -18, 2, 0, Math.PI * 2); ctx.fill();
+    // Captain hat
+    ctx.fillStyle = '#1a1a3a';
+    ctx.fillRect(-10, -30, 20, 6);
+    ctx.fillStyle = '#222255';
+    ctx.beginPath();
+    ctx.moveTo(-14, -30);
+    ctx.lineTo(0, -38);
+    ctx.lineTo(14, -30);
+    ctx.closePath();
+    ctx.fill();
+    // Gold badge on hat
+    ctx.fillStyle = '#ffd700';
+    ctx.beginPath(); ctx.arc(0, -32, 3, 0, Math.PI * 2); ctx.fill();
+    // Big claws
+    ctx.fillStyle = '#c0392b';
+    const clawAnim = Math.sin(anim * 0.08) * 4;
+    ctx.beginPath();
+    ctx.ellipse(-26, 4 + clawAnim, 12, 8, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(26, 4 - clawAnim, 12, 8, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    // Whiskers/antennae (gray)
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 1;
+    const wa = Math.sin(anim * 0.05) * 5;
+    ctx.beginPath(); ctx.moveTo(-4, -26); ctx.quadraticCurveTo(-15, -40 + wa, -20, -42 + wa); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(4, -26); ctx.quadraticCurveTo(15, -40 - wa, 20, -42 - wa); ctx.stroke();
+    ctx.restore();
+}
+
+function drawSandy(x, y, scale = 1, anim = 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    const tremble = Math.sin(anim * 0.3) * 1;
+    ctx.translate(tremble, 0);
+    // Flat round body
+    ctx.fillStyle = '#f0e68c';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 16, 14, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Flower pattern on sand dollar
+    ctx.strokeStyle = '#d4c860';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 5; i++) {
+        const a = (i * Math.PI * 2) / 5 - Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * 10, Math.sin(a) * 10);
+        ctx.stroke();
+    }
+    // Shy eyes
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.ellipse(-4, -3, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(4, -3, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
+    // Worried mouth
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 4, 3, Math.PI, 0);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawGill(x, y, scale = 1, anim = 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    const swimAnim = Math.sin(anim * 0.2) * 3;
+    ctx.translate(0, swimAnim);
+    // Body
+    ctx.fillStyle = '#20b2aa';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 20, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Tail
+    ctx.fillStyle = '#1a9090';
+    ctx.beginPath();
+    ctx.moveTo(-18, 0);
+    ctx.lineTo(-30, -10 + Math.sin(anim * 0.3) * 3);
+    ctx.lineTo(-30, 10 + Math.sin(anim * 0.3) * 3);
+    ctx.closePath();
+    ctx.fill();
+    // Top fin
+    ctx.fillStyle = '#178080';
+    ctx.beginPath();
+    ctx.moveTo(-5, -8);
+    ctx.lineTo(0, -16);
+    ctx.lineTo(8, -8);
+    ctx.closePath();
+    ctx.fill();
+    // Sunglasses
+    ctx.fillStyle = '#111';
+    ctx.fillRect(6, -5, 8, 5);
+    ctx.fillRect(15, -5, 8, 5);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(14, -4, 2, 3);
+    // Mouth (grin)
+    ctx.strokeStyle = '#0d6b6b';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(16, 3, 4, 0, Math.PI * 0.7);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawMayor(x, y, scale = 1, anim = 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    // Fat body
+    ctx.fillStyle = '#8b0000';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 28, 22, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Head
+    ctx.fillStyle = '#a00000';
+    ctx.beginPath();
+    ctx.ellipse(0, -20, 16, 14, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Gold chain/medallion
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, -8, 12, 0.3, Math.PI - 0.3);
+    ctx.stroke();
+    ctx.fillStyle = '#ffd700';
+    ctx.beginPath();
+    ctx.arc(0, 2, 5, 0, Math.PI * 2);
+    ctx.fill();
+    // Smug eyes
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(-6, -22, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(6, -22, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.arc(-5, -22, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(7, -22, 2, 0, Math.PI * 2); ctx.fill();
+    // Smug expression (half-lid eyes)
+    ctx.fillStyle = '#a00000';
+    ctx.fillRect(-10, -26, 14, 3);
+    ctx.fillRect(2, -26, 10, 3);
+    // Cigar (twig)
+    ctx.fillStyle = '#5c3a1e';
+    ctx.save();
+    ctx.translate(12, -15);
+    ctx.rotate(0.3);
+    ctx.fillRect(0, 0, 14, 3);
+    // Smoke
+    ctx.fillStyle = 'rgba(200,200,200,0.3)';
+    ctx.beginPath();
+    ctx.arc(15, -2 + Math.sin(anim * 0.05) * 3, 3 + Math.sin(anim * 0.1) * 1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    // Big claws
+    ctx.fillStyle = '#8b0000';
+    ctx.beginPath();
+    ctx.ellipse(-30, 8, 10, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(30, 8, 10, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawSeagullSteve(x, y, scale = 1, anim = 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    const wingAnim = Math.sin(anim * 0.2) * 15;
+    // Body
+    ctx.fillStyle = '#f0f0f0';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 22, 14, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Head
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(18, -10, 10, 0, Math.PI * 2);
+    ctx.fill();
+    // Mean eyes
+    ctx.fillStyle = '#ff0';
+    ctx.beginPath(); ctx.arc(22, -12, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(23, -12, 2, 0, Math.PI * 2); ctx.fill();
+    // Angry eyebrow
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(18, -17); ctx.lineTo(26, -15); ctx.stroke();
+    // Orange beak
+    ctx.fillStyle = '#ff6600';
+    ctx.beginPath();
+    ctx.moveTo(26, -10);
+    ctx.lineTo(36, -8);
+    ctx.lineTo(26, -6);
+    ctx.closePath();
+    ctx.fill();
+    // Wings
+    ctx.fillStyle = '#ddd';
+    ctx.beginPath();
+    ctx.moveTo(-5, -5);
+    ctx.lineTo(-25, -20 + wingAnim);
+    ctx.lineTo(-15, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-5, 5);
+    ctx.lineTo(-25, 20 - wingAnim);
+    ctx.lineTo(-15, 5);
+    ctx.closePath();
+    ctx.fill();
+    // Tail
+    ctx.fillStyle = '#ccc';
+    ctx.beginPath();
+    ctx.moveTo(-20, 0);
+    ctx.lineTo(-32, -8);
+    ctx.lineTo(-32, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawPearl(x, y, scale = 1, anim = 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    // Tentacles
+    ctx.strokeStyle = '#7b4ec2';
+    ctx.lineWidth = 4;
+    for (let i = 0; i < 8; i++) {
+        const angle = (i * Math.PI * 2) / 8 + Math.PI * 0.15;
+        ctx.beginPath();
+        const sx = Math.cos(angle) * 12;
+        const sy = Math.sin(angle) * 12 + 8;
+        ctx.moveTo(sx, sy);
+        const wave = Math.sin(anim * 0.1 + i * 0.8) * 8;
+        ctx.quadraticCurveTo(
+            sx + Math.cos(angle) * 15 + wave,
+            sy + Math.sin(angle) * 15,
+            sx + Math.cos(angle) * 25 + wave * 0.5,
+            sy + Math.sin(angle) * 25
+        );
+        ctx.stroke();
+    }
+    // Head/body
+    ctx.fillStyle = '#9370db';
+    ctx.beginPath();
+    ctx.ellipse(0, -2, 18, 20, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Face
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(-6, -6, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(6, -6, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.arc(-5, -6, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(7, -6, 2, 0, Math.PI * 2); ctx.fill();
+    // Elegant smile
+    ctx.strokeStyle = '#5b3a8a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0.2, Math.PI - 0.2);
+    ctx.stroke();
+    // Beret
+    ctx.fillStyle = '#c0392b';
+    ctx.beginPath();
+    ctx.ellipse(2, -20, 12, 5, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath();
+    ctx.arc(8, -22, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // Paint splotches
+    const splotchColors = ['#e74c3c', '#3498db', '#f1c40f', '#2ecc71'];
+    for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = splotchColors[i];
+        ctx.beginPath();
+        ctx.arc(-12 + i * 6 + Math.sin(i) * 3, 8 + Math.cos(i) * 4, 2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
+}
+
+function drawTurtle(x, y, scale = 1, anim = 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    // Shell
+    ctx.fillStyle = '#2e7d32';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 40, 30, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Shell pattern
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(0, 0, 25, 18, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, 0, 12, 8, 0, 0, Math.PI * 2); ctx.stroke();
+    for (let i = 0; i < 6; i++) {
+        const a = (i * Math.PI) / 3;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * 12, Math.sin(a) * 8);
+        ctx.lineTo(Math.cos(a) * 25, Math.sin(a) * 18);
+        ctx.stroke();
+    }
+    // Head
+    ctx.fillStyle = '#388e3c';
+    ctx.beginPath();
+    ctx.ellipse(38, -5 + Math.sin(anim * 0.05) * 2, 14, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Wise old eyes
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(42, -8, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#4a148c';
+    ctx.beginPath(); ctx.arc(43, -8, 2.5, 0, Math.PI * 2); ctx.fill();
+    // Flippers
+    ctx.fillStyle = '#388e3c';
+    const flipAnim = Math.sin(anim * 0.08) * 5;
+    ctx.beginPath(); ctx.ellipse(-20, 25 + flipAnim, 15, 6, 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(20, 25 - flipAnim, 15, 6, -0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-25, -20 + flipAnim, 12, 5, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(25, -20 - flipAnim, 12, 5, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+}
+
+function drawFish(x, y, color, size, anim, dir = 1) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(dir, 1);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, size, size * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Tail
+    ctx.beginPath();
+    ctx.moveTo(-size, 0);
+    ctx.lineTo(-size - size * 0.5, -size * 0.4 + Math.sin(anim * 0.3) * 2);
+    ctx.lineTo(-size - size * 0.5, size * 0.4 + Math.sin(anim * 0.3) * 2);
+    ctx.closePath();
+    ctx.fill();
+    // Eye
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(size * 0.4, -size * 0.15, size * 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(size * 0.45, -size * 0.15, size * 0.1, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+}
+
+function drawAnemone(x, y, color, size, anim) {
+    ctx.fillStyle = color;
+    // Base
+    ctx.beginPath();
+    ctx.ellipse(x, y, size * 0.8, size * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Tentacles
+    for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI - Math.PI * 0.1;
+        const wave = Math.sin(anim * 0.03 + i * 0.7) * 5;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(angle) * size * 0.3, y - size * 0.1);
+        ctx.quadraticCurveTo(
+            x + Math.cos(angle) * size * 0.6 + wave,
+            y - size * 0.7,
+            x + Math.cos(angle) * size * 0.5 + wave * 1.5,
+            y - size
+        );
+        ctx.stroke();
+        // Tip
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(x + Math.cos(angle) * size * 0.5 + wave * 1.5, y - size, 2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+// ============ SUBTITLE SYSTEM ============
+let currentSub = { text: '', color: '#fff', show: false };
+
+function showSubtitle(text, color = '#fff') {
+    currentSub = { text, color, show: true };
+    sub.textContent = text;
+    sub.style.color = color;
+    sub.classList.add('show');
+}
+
+function hideSubtitle() {
+    currentSub.show = false;
+    sub.classList.remove('show');
+}
+
+// ============ SCENE DEFINITIONS ============
+const scenes = [];
+
+// Helper: timing within scene
+function sceneAt(elapsed, start, end) {
+    return elapsed >= start && elapsed < end;
+}
+function sceneProg(elapsed, start, end) {
+    return Math.max(0, Math.min(1, (elapsed - start) / (end - start)));
+}
+
+// SCENE 0: TITLE (15s)
+scenes.push({
+    duration: 15,
+    musicStart: musicTropical,
+    dialogues: [
+        { time: 1, text: 'STREAMFLIX PRESENTS', color: COLORS.narrator, char: null },
+        { time: 5, text: 'UNDER THE BOARDWALK', color: '#ffd700', char: null },
+        { time: 10, text: 'A tale of courage beneath the waves...', color: COLORS.narrator, char: 'narrator', speech: 'A tale of courage beneath the waves.' }
+    ],
+    render(t, dt) {
+        // Ocean background
+        drawGradientRect(0, 0, W, H, '#0077be', '#004477');
+        // Waves
+        for (let w = 0; w < 3; w++) {
+            ctx.fillStyle = `rgba(0,100,180,${0.2 + w * 0.1})`;
+            ctx.beginPath();
+            ctx.moveTo(0, H * 0.4 + w * 40);
+            for (let x = 0; x <= W; x += 8) {
+                ctx.lineTo(x, H * 0.4 + w * 40 + Math.sin(x * 0.015 + t * 0.03 + w) * 15);
+            }
+            ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+            ctx.fill();
+        }
+        // Sandy bottom
+        drawSandFloor(H * 0.8, t);
+        // Swimming fish
+        for (let i = 0; i < 6; i++) {
+            const fx = ((t * (0.5 + i * 0.2) + i * 200) % (W + 100)) - 50;
+            const fy = H * 0.3 + i * 50 + Math.sin(t * 0.02 + i) * 20;
+            drawFish(fx, fy, ['#ff6b6b','#4ecdc4','#ffe66d','#a8e6cf','#ff8b94','#6c5ce7'][i], 10 + i * 2, t, 1);
+        }
+        // Bubbles
+        if (t % 20 === 0) emitBubbles(Math.random() * W, H * 0.7, 3);
+        // Title text - "STREAMFLIX PRESENTS"
+        if (sceneAt(t, 30, 240)) {
+            const alpha = Math.min(1, sceneProg(t, 30, 90)) * (t < 200 ? 1 : 1 - sceneProg(t, 200, 240));
+            ctx.globalAlpha = alpha;
+            ctx.font = 'bold 28px "Segoe UI", Arial';
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            ctx.fillText('STREAMFLIX PRESENTS', W / 2, H * 0.25);
+            ctx.globalAlpha = 1;
+        }
+        // Main title
+        if (t > 180) {
+            const alpha = Math.min(1, sceneProg(t, 180, 300));
+            ctx.globalAlpha = alpha;
+            ctx.font = 'bold 56px "Segoe UI", Arial';
+            ctx.fillStyle = '#ffd700';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#000';
+            ctx.shadowBlur = 15;
+            const titleY = H * 0.45 + Math.sin(t * 0.02) * 5;
+            ctx.fillText('UNDER THE', W / 2, titleY - 30);
+            ctx.fillText('BOARDWALK', W / 2, titleY + 30);
+            ctx.shadowBlur = 0;
+            // Shell decorations
+            for (let i = 0; i < 6; i++) {
+                const sx = W * 0.25 + i * (W * 0.1);
+                const sy = titleY + 55 + Math.sin(t * 0.03 + i) * 3;
+                ctx.fillStyle = ['#c19a6b','#ff69b4','#ffd700','#20b2aa','#ff8c00','#9370db'][i];
+                ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+        }
+        drawParticles();
+    }
+});
+
+// SCENE 1: HOME (15s)
+scenes.push({
+    duration: 15,
+    musicStart: musicTropical,
+    dialogues: [
+        { time: 1, text: 'Narrator: "Under the old wooden boardwalk of Seaside Shore lived a community of creatures who called this place home."', color: COLORS.narrator, char: 'narrator', speech: 'Under the old wooden boardwalk of Seaside Shore lived a community of creatures who called this place home.' },
+        { time: 7, text: 'Shelly: "Good morning, Boardwalk Bay!"', color: COLORS.shelly, char: 'shelly', speech: 'Good morning, Boardwalk Bay!' }
+    ],
+    render(t, dt) {
+        drawOceanBg(t, 0);
+        drawBoardwalkAbove(t);
+        drawSandFloor(H * 0.75, t);
+        // Seaweed
+        drawSeaweed(100, H * 0.75, 80, t, '#2d7a3a');
+        drawSeaweed(700, H * 0.75, 60, t, '#348a42');
+        drawSeaweed(850, H * 0.75, 70, t, '#267032');
+        // Anemones as neighbors
+        drawAnemone(200, H * 0.73, '#e74c3c', 25, t);
+        drawAnemone(650, H * 0.73, '#ff69b4', 20, t);
+        drawAnemone(400, H * 0.74, '#e67e22', 22, t);
+        // Shell home
+        ctx.fillStyle = '#c19a6b';
+        ctx.beginPath();
+        ctx.arc(350, H * 0.68, 25, Math.PI, 0);
+        ctx.fill();
+        ctx.fillStyle = '#a0764a';
+        ctx.beginPath();
+        ctx.arc(350, H * 0.68, 18, Math.PI, 0);
+        ctx.fill();
+        // Door
+        ctx.fillStyle = '#5c3a1e';
+        ctx.fillRect(344, H * 0.62, 12, 16);
+        // Shelly emerging
+        const shellyX = 350 + Math.min(80, t * 0.5);
+        const shellyY = H * 0.68;
+        if (t > 60) {
+            drawShelly(shellyX, shellyY, 1.2, t);
+        }
+        // Neighbor crabs scuttling
+        if (t > 100) {
+            drawShelly(550, H * 0.72, 0.7, t + 20);
+            drawShelly(180, H * 0.72, 0.6, t + 40);
+        }
+        // Small fish swimming by
+        drawFish(((t * 0.8) % (W + 60)) - 30, 200, '#4ecdc4', 8, t);
+        drawFish(((t * 0.6 + 200) % (W + 60)) - 30, 250, '#ff8b94', 6, t);
+        emitBubbles(Math.random() * W, H * 0.75, 1);
+        drawParticles();
+    }
+});
+
+// SCENE 2: BEST FRIENDS (15s)
+scenes.push({
+    duration: 15,
+    dialogues: [
+        { time: 1, text: 'Coral: "Shelly! Shelly! Guess what? I found a REALLY cool piece of sea glass!"', color: COLORS.coral, char: 'coral', speech: 'Shelly! Shelly! Guess what? I found a really cool piece of sea glass!' },
+        { time: 7, text: 'Gill: "Move it, slowpokes! Big news at Town Square!"', color: COLORS.gill, char: 'gill', speech: 'Move it, slowpokes! Big news at Town Square!' },
+        { time: 11, text: 'Shelly: "Let\'s go see what\'s happening!"', color: COLORS.shelly, char: 'shelly', speech: "Let's go see what's happening!" }
+    ],
+    render(t, dt) {
+        drawOceanBg(t, 0);
+        // Tide pool area - colorful rocks
+        drawSandFloor(H * 0.7, t);
+        // Rocks
+        const rockColors = ['#666', '#777', '#555', '#888'];
+        for (let i = 0; i < 6; i++) {
+            ctx.fillStyle = rockColors[i % rockColors.length];
+            ctx.beginPath();
+            ctx.ellipse(80 + i * 150, H * 0.68 + (i % 2) * 10, 30 + i * 5, 15 + i * 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Tide pools (reflective circles)
+        for (let i = 0; i < 3; i++) {
+            ctx.fillStyle = 'rgba(100,180,255,0.4)';
+            ctx.beginPath();
+            ctx.ellipse(200 + i * 250, H * 0.72, 40, 12, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Seaweed
+        drawSeaweed(50, H * 0.7, 50, t);
+        drawSeaweed(W - 80, H * 0.7, 60, t);
+        // Sea glass (glowing piece)
+        ctx.fillStyle = 'rgba(100,255,200,0.8)';
+        ctx.beginPath();
+        ctx.moveTo(350, H * 0.65);
+        ctx.lineTo(360, H * 0.62);
+        ctx.lineTo(365, H * 0.66);
+        ctx.lineTo(355, H * 0.68);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(150,255,220,0.5)';
+        ctx.beginPath();
+        ctx.arc(357, H * 0.65, 8, 0, Math.PI * 2);
+        ctx.fill();
+        // Characters
+        const shellyX = 300;
+        drawShelly(shellyX, H * 0.65, 1.2, t);
+        drawCoralChar(380, H * 0.62, 1.2, t);
+        // Gill zooms past
+        if (t > 300) {
+            const gillX = W + 50 - (t - 300) * 2.5;
+            if (gillX > -50 && gillX < W + 50) {
+                drawGill(gillX, H * 0.45, 1.3, t);
+            }
+        }
+        // Anemones decorating tide pool
+        drawAnemone(600, H * 0.68, '#ff6b6b', 18, t);
+        emitBubbles(300, H * 0.7, 1);
+        drawParticles();
+    }
+});
+
+// SCENE 3: BAD NEWS (18s)
+scenes.push({
+    duration: 18,
+    musicStart: musicTense,
+    dialogues: [
+        { time: 1, text: 'The Mayor: "Citizens! I have... difficult news. The humans are planning to demolish our boardwalk."', color: COLORS.mayor, char: 'mayor', speech: 'Citizens! I have... difficult news. The humans are planning to demolish our boardwalk.' },
+        { time: 7, text: 'The Mayor: "They want to build a concrete pier. We have one week."', color: COLORS.mayor, char: 'mayor', speech: 'They want to build a concrete pier. We have one week.' },
+        { time: 11, text: 'Sandy: "What... what will happen to us?"', color: COLORS.sandy, char: 'sandy', speech: 'What... what will happen to us?' },
+        { time: 14, text: 'Captain Claws: "We\'ll lose everything. This boardwalk has been our home for a hundred years."', color: COLORS.captain, char: 'captain', speech: "We'll lose everything. This boardwalk has been our home for a hundred years." }
+    ],
+    render(t, dt) {
+        drawOceanBg(t, 0);
+        drawBoardwalkAbove(t);
+        drawSandFloor(H * 0.78, t);
+        // Town Square - bigger area
+        // Central rock podium
+        ctx.fillStyle = '#666';
+        ctx.beginPath();
+        ctx.ellipse(W / 2, H * 0.65, 50, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#555';
+        ctx.fillRect(W / 2 - 50, H * 0.65, 100, 30);
+        // Mayor on rock
+        drawMayor(W / 2, H * 0.55, 1.0, t);
+        // Crowd
+        drawShelly(200, H * 0.72, 1.0, t);
+        drawCoralChar(250, H * 0.70, 1.0, t);
+        drawGill(320, H * 0.60, 0.9, t);
+        drawSandy(150, H * 0.74, 1.0, t);
+        drawCaptainClaws(680, H * 0.68, 0.9, t);
+        // Background crowd (small crabs)
+        for (let i = 0; i < 5; i++) {
+            drawShelly(400 + i * 40, H * 0.74, 0.5, t + i * 10);
+        }
+        // Worried atmosphere - darker tint
+        ctx.fillStyle = 'rgba(0,0,30,0.15)';
+        ctx.fillRect(0, 0, W, H);
+        // Anemones
+        drawAnemone(80, H * 0.76, '#e74c3c', 18, t);
+        drawAnemone(800, H * 0.76, '#ff69b4', 15, t);
+        drawParticles();
+    }
+});
+
+// SCENE 4: SHELLY'S PROMISE (15s)
+scenes.push({
+    duration: 15,
+    dialogues: [
+        { time: 1, text: 'Shelly: "We can\'t just give up! There HAS to be a way to save our home!"', color: COLORS.shelly, char: 'shelly', speech: "We can't just give up! There HAS to be a way to save our home!" },
+        { time: 5, text: 'The Mayor: "And what would a tiny hermit crab do against the humans?"', color: COLORS.mayor, char: 'mayor', speech: 'And what would a tiny hermit crab do against the humans?' },
+        { time: 8, text: 'Shelly: "I don\'t know yet. But I\'ll find a way."', color: COLORS.shelly, char: 'shelly', speech: "I don't know yet. But I'll find a way." },
+        { time: 10.5, text: 'Coral: "I believe in you, Shelly! I\'m coming too!"', color: COLORS.coral, char: 'coral', speech: "I believe in you, Shelly! I'm coming too!" },
+        { time: 13, text: 'Captain Claws: "The brave ones are always the small ones."', color: COLORS.captain, char: 'captain', speech: 'The brave ones are always the small ones.' }
+    ],
+    render(t, dt) {
+        drawOceanBg(t, 0);
+        drawBoardwalkAbove(t);
+        drawSandFloor(H * 0.78, t);
+        // Shelly on rock (hero pose)
+        ctx.fillStyle = '#666';
+        ctx.beginPath();
+        ctx.ellipse(W / 2, H * 0.65, 30, 12, 0, 0, Math.PI * 2);
+        ctx.fill();
+        drawShelly(W / 2, H * 0.58, 1.5, t);
+        // Light shining on Shelly
+        ctx.fillStyle = 'rgba(255,255,200,0.06)';
+        ctx.beginPath();
+        ctx.moveTo(W / 2 - 10, 0);
+        ctx.lineTo(W / 2 - 80, H);
+        ctx.lineTo(W / 2 + 80, H);
+        ctx.lineTo(W / 2 + 10, 0);
+        ctx.closePath();
+        ctx.fill();
+        // Others watching
+        drawMayor(150, H * 0.68, 0.8, t);
+        drawCoralChar(550, H * 0.66, 1.1, t);
+        drawCaptainClaws(700, H * 0.68, 0.9, t);
+        drawGill(620, H * 0.55, 0.8, t);
+        drawSandy(250, H * 0.74, 0.9, t);
+        // Sparkle effect when Shelly speaks
+        if (t > 60 && t % 15 === 0) {
+            emitSparkles(W / 2, H * 0.55, 3, '#ffd700');
+        }
+        drawParticles();
+    }
+});
+
+// SCENE 5: THE JOURNEY BEGINS (15s)
+scenes.push({
+    duration: 15,
+    musicStart: musicEmotional,
+    dialogues: [
+        { time: 1, text: 'Captain Claws: "It lies in the Deep Grotto, past the Kelp Forest and beyond the Drop-Off."', color: COLORS.captain, char: 'captain', speech: 'It lies in the Deep Grotto, past the Kelp Forest and beyond the Drop-Off.' },
+        { time: 7, text: 'Narrator: "And so, four unlikely heroes set off to find the legendary Golden Pearl."', color: COLORS.narrator, char: 'narrator', speech: 'And so, four unlikely heroes set off to find the legendary Golden Pearl.' },
+        { time: 12, text: 'Sandy: "W-wait for me!"', color: COLORS.sandy, char: 'sandy', speech: 'Wait for me!' }
+    ],
+    render(t, dt) {
+        // Beautiful ocean panorama
+        drawGradientRect(0, 0, W, H * 0.3, '#ff7e5f', '#feb47b'); // Sunset sky
+        drawGradientRect(0, H * 0.3, W, H * 0.7, '#0077be', '#004477');
+        // Sun
+        ctx.fillStyle = '#ffd700';
+        ctx.beginPath();
+        ctx.arc(W * 0.8, H * 0.15, 40, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,215,0,0.2)';
+        ctx.beginPath();
+        ctx.arc(W * 0.8, H * 0.15, 60 + Math.sin(t * 0.02) * 5, 0, Math.PI * 2);
+        ctx.fill();
+        // Ocean waves
+        for (let w = 0; w < 3; w++) {
+            ctx.fillStyle = `rgba(0,${80 + w * 20},${150 + w * 20},0.5)`;
+            ctx.beginPath();
+            ctx.moveTo(0, H * 0.3 + w * 15);
+            for (let x = 0; x <= W; x += 8) {
+                ctx.lineTo(x, H * 0.3 + w * 15 + Math.sin(x * 0.01 + t * 0.02 + w) * 8);
+            }
+            ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+            ctx.fill();
+        }
+        drawSandFloor(H * 0.8, t);
+        // Characters walking along the shoreline
+        const groupX = 100 + t * 0.6;
+        drawShelly(groupX, H * 0.75, 1.0, t);
+        drawCoralChar(groupX + 50, H * 0.72, 1.0, t);
+        drawGill(groupX + 30, H * 0.60, 0.9, t);
+        // Sandy trailing behind
+        if (t > 500) {
+            drawSandy(groupX - 60, H * 0.76, 0.9, t);
+        }
+        // Captain Claws waving goodbye from behind
+        drawCaptainClaws(80, H * 0.72, 0.7, t);
+        // Seagulls in distance
+        for (let i = 0; i < 3; i++) {
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            const bx = 100 + i * 200 + Math.sin(t * 0.01 + i) * 20;
+            const by = 60 + i * 20;
+            ctx.beginPath();
+            ctx.moveTo(bx - 8, by); ctx.quadraticCurveTo(bx, by - 6, bx + 8, by);
+            ctx.stroke();
+        }
+        emitBubbles(groupX + 20, H * 0.8, 1);
+        drawParticles();
+    }
+});
+
+// SCENE 6: KELP FOREST (15s)
+scenes.push({
+    duration: 15,
+    musicStart: musicMysterious,
+    dialogues: [
+        { time: 1, text: 'Gill: "Stay close, this place is like a maze!"', color: COLORS.gill, char: 'gill', speech: 'Stay close, this place is like a maze!' },
+        { time: 7, text: 'Coral: "Oooh, pretty!"', color: COLORS.coral, char: 'coral', speech: 'Oooh, pretty!' },
+        { time: 9, text: 'Shelly: "Don\'t touch them!"', color: COLORS.shelly, char: 'shelly', speech: "Don't touch them!" }
+    ],
+    render(t, dt) {
+        drawOceanBg(t, 1);
+        // Dense kelp forest
+        for (let i = 0; i < 15; i++) {
+            const kx = i * 70 + Math.sin(i) * 20 - 30;
+            drawSeaweed(kx, H, 200 + Math.sin(i * 2) * 80, t, i % 2 ? '#1a6b2a' : '#2d7a3a');
+        }
+        // Light shafts filtering through
+        for (let i = 0; i < 4; i++) {
+            ctx.globalAlpha = 0.08 + Math.sin(t * 0.01 + i * 2) * 0.03;
+            ctx.fillStyle = '#ffffaa';
+            ctx.beginPath();
+            ctx.moveTo(100 + i * 220, 0);
+            ctx.lineTo(60 + i * 220, H);
+            ctx.lineTo(140 + i * 220, H);
+            ctx.closePath();
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+        // Glowing jellyfish
+        for (let i = 0; i < 4; i++) {
+            const jx = 150 + i * 200 + Math.sin(t * 0.01 + i * 3) * 30;
+            const jy = 150 + Math.sin(t * 0.015 + i * 2) * 40;
+            ctx.fillStyle = `rgba(${180+i*20}, 200, 255, 0.5)`;
+            ctx.beginPath();
+            ctx.ellipse(jx, jy, 12, 8, 0, 0, Math.PI);
+            ctx.fill();
+            // Tentacles
+            ctx.strokeStyle = `rgba(${180+i*20}, 200, 255, 0.3)`;
+            ctx.lineWidth = 1;
+            for (let j = 0; j < 4; j++) {
+                ctx.beginPath();
+                ctx.moveTo(jx - 6 + j * 4, jy);
+                ctx.quadraticCurveTo(jx - 6 + j * 4 + Math.sin(t * 0.03 + j) * 5, jy + 20, jx - 6 + j * 4, jy + 30);
+                ctx.stroke();
+            }
+            // Glow
+            ctx.fillStyle = `rgba(${180+i*20}, 220, 255, 0.15)`;
+            ctx.beginPath();
+            ctx.arc(jx, jy, 20, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Characters navigating
+        drawShelly(300 + Math.sin(t * 0.02) * 20, H * 0.6, 1.0, t);
+        drawCoralChar(400, H * 0.55, 1.0, t);
+        drawGill(250, H * 0.45, 0.9, t);
+        drawSandy(350, H * 0.65, 0.8, t);
+        drawSandFloor(H * 0.85, t);
+        emitBubbles(Math.random() * W, H * 0.85, 2);
+        drawParticles();
+    }
+});
+
+// SCENE 7: SEAGULL ATTACK (15s)
+scenes.push({
+    duration: 15,
+    musicStart: musicTense,
+    dialogues: [
+        { time: 1, text: 'Seagull Steve: "Well well well, little snacks on a field trip!"', color: COLORS.steve, char: 'steve', speech: 'Well well well, little snacks on a field trip!' },
+        { time: 6, text: 'Steve: "AGHH! This isn\'t over, crab cake!"', color: COLORS.steve, char: 'steve', speech: 'AGHH! This isn\'t over, crab cake!' },
+        { time: 9, text: 'Sandy: "Did... did I do that?"', color: COLORS.sandy, char: 'sandy', speech: 'Did... did I do that?' },
+        { time: 12, text: 'Shelly: "Sandy, that was AMAZING!"', color: COLORS.shelly, char: 'shelly', speech: 'Sandy, that was amazing!' }
+    ],
+    render(t, dt) {
+        // Shallow water near surface
+        drawGradientRect(0, 0, W, H * 0.2, '#87ceeb', '#4fb4d8');
+        drawOceanBg(t, 0);
+        drawWaterSurface(t, 40);
+        drawSandFloor(H * 0.8, t);
+        // Seagull swooping
+        const stevePhase = t / (15 * 60);
+        let steveX, steveY, steveScale;
+        if (stevePhase < 0.4) {
+            // Swooping in
+            steveX = W + 50 - stevePhase * W * 2;
+            steveY = 50 + stevePhase * 200;
+            steveScale = 0.8 + stevePhase;
+        } else if (stevePhase < 0.6) {
+            // Getting sand in eyes - shaking
+            steveX = 400 + Math.sin(t * 0.5) * 30;
+            steveY = 200 + Math.sin(t * 0.7) * 20;
+            steveScale = 1.2;
+        } else {
+            // Flying away
+            steveX = 400 - (stevePhase - 0.6) * W * 3;
+            steveY = 200 - (stevePhase - 0.6) * 300;
+            steveScale = 1.2 - (stevePhase - 0.6) * 2;
+        }
+        if (steveScale > 0.1) drawSeagullSteve(steveX, steveY, Math.max(0.1, steveScale), t);
+        // Sand cloud when Sandy defends
+        if (t > 250 && t < 400) {
+            for (let i = 0; i < 20; i++) {
+                ctx.fillStyle = `rgba(210,180,140,${0.3 + Math.random() * 0.3})`;
+                ctx.beginPath();
+                ctx.arc(
+                    350 + Math.random() * 150,
+                    200 + Math.random() * 100,
+                    5 + Math.random() * 15,
+                    0, Math.PI * 2
+                );
+                ctx.fill();
+            }
+        }
+        // Characters scattered/hiding
+        if (stevePhase < 0.5) {
+            // Running/hiding
+            drawShelly(200 + Math.sin(t * 0.1) * 10, H * 0.7, 0.8, t);
+            drawCoralChar(150, H * 0.78, 0.7, t); // flattened against rock
+            drawGill(W - 100, H * 0.5, 1.0, t); // darting away
+        }
+        drawSandy(350, H * 0.73, 1.2, t); // Sandy stands her ground!
+        if (stevePhase > 0.6) {
+            // Celebration positions
+            drawShelly(300, H * 0.7, 1.1, t);
+            drawCoralChar(380, H * 0.67, 1.1, t);
+            drawGill(450, H * 0.55, 1.0, t);
+            if (t % 10 === 0) emitSparkles(350, H * 0.7, 3, '#f0e68c');
+        }
+        emitBubbles(Math.random() * W, H * 0.8, 1);
+        if (t > 250 && t < 350 && t % 5 === 0) emitSand(350, H * 0.75, 5);
+        drawParticles();
+    }
+});
+
+// SCENE 8: PEARL THE OCTOPUS (15s)
+scenes.push({
+    duration: 15,
+    musicStart: musicEmotional,
+    dialogues: [
+        { time: 1, text: 'Pearl: "Oh, visitors! What do you think of my latest piece?"', color: COLORS.pearl, char: 'pearl', speech: 'Oh, visitors! What do you think of my latest piece?' },
+        { time: 5.5, text: 'Shelly: "It\'s beautiful, but we need help. We\'re looking for the Golden Pearl."', color: COLORS.shelly, char: 'shelly', speech: "It's beautiful, but we need help. We're looking for the Golden Pearl." },
+        { time: 10, text: 'Pearl: "The Golden Pearl? I know the way through the Crystal Caverns. I\'ll guide you."', color: COLORS.pearl, char: 'pearl', speech: "The Golden Pearl? I know the way through the Crystal Caverns. I'll guide you." }
+    ],
+    render(t, dt) {
+        // Underwater cave
+        drawOceanBg(t, 1);
+        // Cave walls
+        ctx.fillStyle = '#2a1a0a';
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        for (let y = 0; y <= H; y += 20) {
+            ctx.lineTo(40 + Math.sin(y * 0.03) * 20, y);
+        }
+        ctx.lineTo(0, H);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(W, 0);
+        for (let y = 0; y <= H; y += 20) {
+            ctx.lineTo(W - 40 - Math.sin(y * 0.03 + 1) * 20, y);
+        }
+        ctx.lineTo(W, H);
+        ctx.closePath();
+        ctx.fill();
+        // Ink paintings on walls
+        const paintColors = ['#e74c3c', '#3498db', '#f1c40f', '#2ecc71', '#9b59b6'];
+        for (let i = 0; i < 5; i++) {
+            ctx.fillStyle = paintColors[i];
+            ctx.globalAlpha = 0.4;
+            // Abstract sea creature shapes
+            ctx.beginPath();
+            const px = 80 + i * 170;
+            const py = 100 + Math.sin(i * 2) * 50;
+            ctx.arc(px, py, 20 + i * 3, 0, Math.PI * 2);
+            ctx.fill();
+            // Mural details
+            ctx.beginPath();
+            for (let j = 0; j < 5; j++) {
+                ctx.arc(px + Math.cos(j) * 15, py + Math.sin(j) * 15, 5, 0, Math.PI * 2);
+            }
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+        drawSandFloor(H * 0.8, t);
+        // Pearl in her studio
+        drawPearl(W * 0.6, H * 0.55, 1.3, t);
+        // Easel
+        ctx.fillStyle = '#5c3a1e';
+        ctx.fillRect(W * 0.72, H * 0.35, 3, 80);
+        ctx.fillRect(W * 0.68, H * 0.35, 3, 80);
+        ctx.fillRect(W * 0.65, H * 0.35, 12, 50);
+        // Canvas on easel with art
+        ctx.fillStyle = '#f5f5dc';
+        ctx.fillRect(W * 0.66, H * 0.3, 40, 30);
+        ctx.fillStyle = '#3498db';
+        ctx.beginPath(); ctx.arc(W * 0.69, H * 0.35, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#e74c3c';
+        ctx.beginPath(); ctx.arc(W * 0.7, H * 0.38, 4, 0, Math.PI * 2); ctx.fill();
+        // Visitors
+        drawShelly(200, H * 0.7, 1.0, t);
+        drawCoralChar(270, H * 0.67, 1.0, t);
+        drawGill(150, H * 0.55, 0.9, t);
+        drawSandy(240, H * 0.74, 0.9, t);
+        emitBubbles(W * 0.5, H * 0.8, 1);
+        drawParticles();
+    }
+});
+
+// SCENE 9: CRYSTAL CAVERNS (15s)
+scenes.push({
+    duration: 15,
+    musicStart: musicMysterious,
+    dialogues: [
+        { time: 1, text: 'Pearl: "These crystals have been growing for thousands of years."', color: COLORS.pearl, char: 'pearl', speech: 'These crystals have been growing for thousands of years.' },
+        { time: 7, text: 'Shelly: "It\'s the most beautiful thing I\'ve ever seen."', color: COLORS.shelly, char: 'shelly', speech: "It's the most beautiful thing I've ever seen." },
+        { time: 11, text: 'Narrator: "The Crystal Caverns sang with ancient light, each crystal humming a different note."', color: COLORS.narrator, char: 'narrator', speech: 'The Crystal Caverns sang with ancient light, each crystal humming a different note.' }
+    ],
+    render(t, dt) {
+        // Dark cave background
+        drawGradientRect(0, 0, W, H, '#0a0a2e', '#050510');
+        // Glowing crystals
+        const crystalColors = ['#4488ff', '#aa44ff', '#44ffaa', '#ff44aa', '#44aaff', '#ffaa44'];
+        for (let i = 0; i < 20; i++) {
+            const cx = (i * 53 + 30) % W;
+            const cy = 50 + (i * 37) % (H - 100);
+            const csize = 15 + (i * 7) % 30;
+            const color = crystalColors[i % crystalColors.length];
+            const glow = 0.3 + Math.sin(t * 0.02 + i * 1.5) * 0.2;
+            // Crystal glow
+            ctx.fillStyle = color;
+            ctx.globalAlpha = glow * 0.3;
+            ctx.beginPath();
+            ctx.arc(cx, cy, csize * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            // Crystal shape
+            ctx.globalAlpha = glow;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - csize);
+            ctx.lineTo(cx + csize * 0.4, cy - csize * 0.3);
+            ctx.lineTo(cx + csize * 0.3, cy + csize * 0.5);
+            ctx.lineTo(cx - csize * 0.3, cy + csize * 0.5);
+            ctx.lineTo(cx - csize * 0.4, cy - csize * 0.3);
+            ctx.closePath();
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+        // Reflections on cave floor
+        ctx.fillStyle = 'rgba(100,100,200,0.1)';
+        ctx.fillRect(0, H * 0.8, W, H * 0.2);
+        // Characters walking through
+        const groupOffset = Math.min(W * 0.5, t * 0.3);
+        drawShelly(150 + groupOffset * 0.3, H * 0.72, 1.0, t);
+        drawCoralChar(200 + groupOffset * 0.3, H * 0.69, 1.0, t);
+        drawPearl(280 + groupOffset * 0.3, H * 0.62, 1.0, t);
+        drawGill(230 + groupOffset * 0.3, H * 0.55, 0.9, t);
+        drawSandy(170 + groupOffset * 0.3, H * 0.75, 0.8, t);
+        // Musical note particles when passing crystals
+        if (t % 30 === 0) {
+            const ci = Math.floor(Math.random() * 20);
+            const cx = (ci * 53 + 30) % W;
+            const cy = 50 + (ci * 37) % (H - 100);
+            emitSparkles(cx, cy, 3, crystalColors[ci % crystalColors.length]);
+        }
+        drawParticles();
+    }
+});
+
+// SCENE 10: THE DROP-OFF (15s)
+scenes.push({
+    duration: 15,
+    musicStart: musicTense,
+    dialogues: [
+        { time: 1, text: 'Shelly: "The Deep Grotto is... down there?"', color: COLORS.shelly, char: 'shelly', speech: 'The Deep Grotto is... down there?' },
+        { time: 5, text: 'Gill: "I\'ve never gone that deep before."', color: COLORS.gill, char: 'gill', speech: "I've never gone that deep before." },
+        { time: 8, text: 'Coral: "We\'ve come this far. We can\'t stop now."', color: COLORS.coral, char: 'coral', speech: "We've come this far. We can't stop now." },
+        { time: 11, text: 'Shelly: "Together. We go together."', color: COLORS.shelly, char: 'shelly', speech: 'Together. We go together.' }
+    ],
+    render(t, dt) {
+        // Edge of drop-off - dramatic
+        drawOceanBg(t, 1);
+        // Ocean floor that drops away
+        ctx.fillStyle = '#2a5a3a';
+        ctx.beginPath();
+        ctx.moveTo(0, H * 0.6);
+        ctx.lineTo(W * 0.5, H * 0.6);
+        ctx.lineTo(W * 0.55, H * 0.7);
+        ctx.lineTo(W * 0.6, H);
+        ctx.lineTo(0, H);
+        ctx.closePath();
+        ctx.fill();
+        // The drop - deep dark water
+        ctx.fillStyle = '#010d15';
+        ctx.beginPath();
+        ctx.moveTo(W * 0.55, H * 0.7);
+        ctx.lineTo(W * 0.6, H);
+        ctx.lineTo(W, H);
+        ctx.lineTo(W, H * 0.5);
+        ctx.closePath();
+        ctx.fill();
+        // Edge detail
+        ctx.fillStyle = '#3a6a4a';
+        for (let i = 0; i < 5; i++) {
+            ctx.beginPath();
+            ctx.ellipse(W * 0.5 - 50 + i * 25, H * 0.58, 15, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Tiny bioluminescent dots in the deep
+        for (let i = 0; i < 30; i++) {
+            ctx.fillStyle = `rgba(${100+Math.random()*100}, ${200+Math.random()*55}, 255, ${0.2 + Math.sin(t*0.02+i)*0.2})`;
+            ctx.beginPath();
+            ctx.arc(W * 0.6 + Math.random() * W * 0.4, H * 0.5 + Math.random() * H * 0.5, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Characters at the edge
+        const descentProgress = Math.max(0, (t - 500) / 400);
+        const baseY = H * 0.52;
+        drawShelly(W * 0.4, baseY + descentProgress * 80, 1.1, t);
+        drawCoralChar(W * 0.35, baseY - 5 + descentProgress * 60, 1.0, t);
+        drawPearl(W * 0.45, baseY + 10 + descentProgress * 70, 1.0, t);
+        drawGill(W * 0.38, baseY - 15 + descentProgress * 50, 0.9, t);
+        drawSandy(W * 0.33, baseY + 5 + descentProgress * 65, 0.8, t);
+        // Pearl's glow in the dark
+        if (descentProgress > 0) {
+            ctx.fillStyle = `rgba(147,112,219,${0.1 + descentProgress * 0.15})`;
+            ctx.beginPath();
+            ctx.arc(W * 0.45, baseY + 10 + descentProgress * 70, 50, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        drawSeaweed(100, H * 0.6, 60, t);
+        drawSeaweed(W * 0.3, H * 0.6, 40, t);
+        emitBubbles(W * 0.4, baseY + descentProgress * 80, 2);
+        drawParticles();
+    }
+});
+
+// SCENE 11: THE DEEP (15s)
+scenes.push({
+    duration: 15,
+    musicStart: musicMysterious,
+    dialogues: [
+        { time: 1, text: 'Narrator: "In the deepest waters, where light fears to reach, ancient mysteries await."', color: COLORS.narrator, char: 'narrator', speech: 'In the deepest waters, where light fears to reach, ancient mysteries await.' },
+        { time: 8, text: 'Coral: "I can see something... glowing symbols on that cave!"', color: COLORS.coral, char: 'coral', speech: 'I can see something... glowing symbols on that cave!' }
+    ],
+    render(t, dt) {
+        // Very dark deep water
+        drawOceanBg(t, 2);
+        // Bioluminescent creatures
+        for (let i = 0; i < 15; i++) {
+            const bx = (i * 73 + t * 0.2) % W;
+            const by = 100 + (i * 41) % (H - 200);
+            const bcolor = `rgba(${50+i*15},${180+i*5},${230+i*2},${0.3 + Math.sin(t*0.015+i)*0.2})`;
+            ctx.fillStyle = bcolor;
+            ctx.beginPath();
+            ctx.arc(bx, by, 3 + Math.sin(t * 0.02 + i) * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            // Glow
+            ctx.fillStyle = bcolor.replace(/[\d.]+\)/, '0.1)');
+            ctx.beginPath();
+            ctx.arc(bx, by, 10, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Anglerfish in distance
+        ctx.fillStyle = 'rgba(20,20,40,0.8)';
+        const anglerX = 700 + Math.sin(t * 0.01) * 30;
+        const anglerY = 200;
+        ctx.beginPath();
+        ctx.ellipse(anglerX, anglerY, 25, 18, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Angler light
+        ctx.fillStyle = `rgba(200,255,100,${0.5 + Math.sin(t*0.05)*0.3})`;
+        ctx.beginPath();
+        ctx.arc(anglerX + 20, anglerY - 20, 5, 0, Math.PI * 2);
+        ctx.fill();
+        // Giant whale shadow
+        const whalePhase = (t % 600) / 600;
+        if (whalePhase > 0.2 && whalePhase < 0.8) {
+            ctx.fillStyle = 'rgba(10,10,30,0.4)';
+            const wx = -200 + whalePhase * (W + 400);
+            ctx.beginPath();
+            ctx.ellipse(wx, 60, 150, 40, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Whale tail
+            ctx.beginPath();
+            ctx.moveTo(wx - 140, 60);
+            ctx.lineTo(wx - 180, 30);
+            ctx.lineTo(wx - 180, 90);
+            ctx.closePath();
+            ctx.fill();
+        }
+        // Deep Grotto entrance
+        ctx.fillStyle = '#1a0a00';
+        ctx.beginPath();
+        ctx.arc(W * 0.7, H * 0.75, 60, Math.PI, 0);
+        ctx.lineTo(W * 0.7 + 60, H);
+        ctx.lineTo(W * 0.7 - 60, H);
+        ctx.closePath();
+        ctx.fill();
+        // Glowing symbols on cave entrance
+        const symbolColors = ['#00ffaa', '#00aaff', '#ffaa00'];
+        for (let i = 0; i < 8; i++) {
+            const sx = W * 0.7 - 40 + (i % 4) * 25;
+            const sy = H * 0.68 + Math.floor(i / 4) * 20;
+            ctx.fillStyle = symbolColors[i % symbolColors.length];
+            ctx.globalAlpha = 0.4 + Math.sin(t * 0.03 + i) * 0.3;
+            ctx.font = '14px monospace';
+            ctx.fillText(['~','*','o','=','~','*','o','='][i], sx, sy);
+            ctx.globalAlpha = 1;
+        }
+        // Characters huddled close, Pearl glowing
+        const cx = W * 0.4;
+        ctx.fillStyle = 'rgba(147,112,219,0.15)';
+        ctx.beginPath();
+        ctx.arc(cx + 40, H * 0.6, 60, 0, Math.PI * 2);
+        ctx.fill();
+        drawShelly(cx, H * 0.65, 1.0, t);
+        drawCoralChar(cx + 30, H * 0.62, 0.9, t);
+        drawPearl(cx + 50, H * 0.58, 1.1, t);
+        drawGill(cx + 10, H * 0.52, 0.8, t);
+        drawSandy(cx + 20, H * 0.68, 0.8, t);
+        emitBubbles(cx + 20, H * 0.65, 1);
+        drawParticles();
+    }
+});
+
+// SCENE 12: THE GUARDIAN (18s)
+scenes.push({
+    duration: 18,
+    musicStart: musicEmotional,
+    dialogues: [
+        { time: 1, text: 'Turtle: "Who disturbs my slumber? For what reason do you seek the Golden Pearl?"', color: COLORS.turtle, char: 'turtle', speech: 'Who disturbs my slumber? For what reason do you seek the Golden Pearl?' },
+        { time: 7, text: 'Shelly: "Our home is being destroyed. The boardwalk - it\'s all we have. Please..."', color: COLORS.shelly, char: 'shelly', speech: "Our home is being destroyed. The boardwalk, it's all we have. Please..." },
+        { time: 12, text: 'Turtle: "Many have come seeking the Pearl for selfish wishes. Why should I trust you?"', color: COLORS.turtle, char: 'turtle', speech: 'Many have come seeking the Pearl for selfish wishes. Why should I trust you?' },
+        { time: 16, text: 'Shelly: "Because I\'m not asking for myself. I\'m asking for everyone."', color: COLORS.shelly, char: 'shelly', speech: "Because I'm not asking for myself. I'm asking for everyone." }
+    ],
+    render(t, dt) {
+        // Ancient grotto interior
+        drawGradientRect(0, 0, W, H, '#0a1520', '#050a10');
+        // Glowing cave walls
+        for (let i = 0; i < 12; i++) {
+            ctx.fillStyle = `rgba(0,${150+i*8},${100+i*10},${0.05 + Math.sin(t*0.01+i)*0.03})`;
+            ctx.beginPath();
+            ctx.arc((i * 83) % W, (i * 47) % H, 40 + Math.sin(t * 0.02 + i) * 10, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Ancient turtle guardian
+        drawTurtle(W * 0.6, H * 0.45, 2.0, t);
+        // Golden Pearl on pedestal (glowing)
+        const pearlGlow = 0.5 + Math.sin(t * 0.03) * 0.3;
+        ctx.fillStyle = `rgba(255,215,0,${pearlGlow * 0.2})`;
+        ctx.beginPath();
+        ctx.arc(W * 0.6, H * 0.2, 40 + Math.sin(t * 0.02) * 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = `rgba(255,215,0,${pearlGlow})`;
+        ctx.beginPath();
+        ctx.arc(W * 0.6, H * 0.2, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = `rgba(255,255,200,${pearlGlow * 0.8})`;
+        ctx.beginPath();
+        ctx.arc(W * 0.6 - 3, H * 0.2 - 3, 4, 0, Math.PI * 2);
+        ctx.fill();
+        // Stone pedestal
+        ctx.fillStyle = '#3a3a3a';
+        ctx.beginPath();
+        ctx.moveTo(W * 0.55, H * 0.25);
+        ctx.lineTo(W * 0.65, H * 0.25);
+        ctx.lineTo(W * 0.63, H * 0.3);
+        ctx.lineTo(W * 0.57, H * 0.3);
+        ctx.closePath();
+        ctx.fill();
+        // Characters - Shelly steps forward
+        const shellyForward = Math.min(100, t * 0.2);
+        drawShelly(W * 0.2 + shellyForward, H * 0.7, 1.2, t);
+        drawCoralChar(W * 0.15, H * 0.67, 0.9, t);
+        drawPearl(W * 0.22, H * 0.6, 0.9, t);
+        drawGill(W * 0.18, H * 0.55, 0.8, t);
+        drawSandy(W * 0.12, H * 0.72, 0.8, t);
+        if (t % 20 === 0) emitSparkles(W * 0.6, H * 0.2, 2, '#ffd700');
+        drawParticles();
+    }
+});
+
+// SCENE 13: THE TEST (15s)
+scenes.push({
+    duration: 15,
+    musicStart: musicEmotional,
+    dialogues: [
+        { time: 1, text: 'Turtle: "Then you must pass the test. The Pearl shows your true heart."', color: COLORS.turtle, char: 'turtle', speech: 'Then you must pass the test. The Pearl shows your true heart.' },
+        { time: 5, text: 'Voice: "You could wish for anything. Power. Beauty. A perfect shell."', color: '#ffffff', char: 'narrator', speech: 'You could wish for anything. Power. Beauty. A perfect shell.' },
+        { time: 10, text: 'Shelly: "No. I wish to save my home."', color: COLORS.shelly, char: 'shelly', speech: 'No. I wish to save my home.' }
+    ],
+    render(t, dt) {
+        // Vision sequence - swirling golden light
+        drawGradientRect(0, 0, W, H, '#1a0a00', '#0a0520');
+        // Golden swirls
+        for (let i = 0; i < 8; i++) {
+            const angle = t * 0.01 + i * (Math.PI / 4);
+            const r = 100 + Math.sin(t * 0.015 + i) * 50;
+            ctx.fillStyle = `rgba(255,215,0,${0.05 + Math.sin(t*0.02+i)*0.03})`;
+            ctx.beginPath();
+            ctx.arc(W/2 + Math.cos(angle) * r, H/2 + Math.sin(angle) * r, 30, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Shelly in center, surrounded by golden light
+        ctx.fillStyle = `rgba(255,215,0,${0.1 + Math.sin(t*0.03)*0.05})`;
+        ctx.beginPath();
+        ctx.arc(W/2, H/2, 80 + Math.sin(t * 0.02) * 10, 0, Math.PI * 2);
+        ctx.fill();
+        drawShelly(W/2, H/2, 1.5, t);
+        // Vision of big beautiful shell (temptation) - fades in then shatters
+        const visionPhase = t / (15 * 60);
+        if (visionPhase > 0.2 && visionPhase < 0.7) {
+            const vAlpha = visionPhase < 0.5 ? (visionPhase - 0.2) * 3 : (0.7 - visionPhase) * 3;
+            ctx.globalAlpha = Math.min(1, vAlpha);
+            // Beautiful shell vision
+            ctx.fillStyle = '#ffd700';
+            ctx.beginPath();
+            ctx.arc(W * 0.75, H * 0.35, 35, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffec8b';
+            ctx.beginPath();
+            for (let a = 0; a < Math.PI * 4; a += 0.15) {
+                const sr = 5 + a * 3;
+                ctx.lineTo(W * 0.75 + Math.cos(a) * sr, H * 0.35 + Math.sin(a) * sr);
+            }
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+        }
+        // Shatter effect when Shelly says no
+        if (visionPhase > 0.65) {
+            for (let i = 0; i < 12; i++) {
+                const shatterT = (visionPhase - 0.65) * 10;
+                ctx.fillStyle = `rgba(255,215,0,${Math.max(0, 0.8 - shatterT)})`;
+                ctx.beginPath();
+                ctx.arc(
+                    W * 0.75 + Math.cos(i * 0.5) * shatterT * 100,
+                    H * 0.35 + Math.sin(i * 0.5) * shatterT * 80,
+                    5, 0, Math.PI * 2
+                );
+                ctx.fill();
+            }
+        }
+        if (t % 8 === 0) emitSparkles(W/2, H/2, 2, '#ffd700');
+        drawParticles();
+    }
+});
+
+// SCENE 14: THE GOLDEN PEARL (12s)
+scenes.push({
+    duration: 12,
+    musicStart: musicTriumphant,
+    dialogues: [
+        { time: 0.5, text: 'Turtle: "You have a pure heart, little one. The Pearl is yours."', color: COLORS.turtle, char: 'turtle', speech: 'You have a pure heart, little one. The Pearl is yours.' },
+        { time: 5, text: 'Shelly: "Thank you."', color: COLORS.shelly, char: 'shelly', speech: 'Thank you.' },
+        { time: 7.5, text: 'Turtle: "Use it wisely. You have until the next sunrise."', color: COLORS.turtle, char: 'turtle', speech: 'Use it wisely. You have until the next sunrise.' }
+    ],
+    render(t, dt) {
+        drawGradientRect(0, 0, W, H, '#0a1520', '#050a10');
+        // Cave glow
+        for (let i = 0; i < 6; i++) {
+            ctx.fillStyle = `rgba(0,${150+i*15},${100+i*10},${0.04})`;
+            ctx.beginPath();
+            ctx.arc((i * 160) % W, (i * 90) % H, 50, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Turtle smiling
+        drawTurtle(W * 0.65, H * 0.55, 1.8, t);
+        // Golden Pearl floating to Shelly
+        const pearlFloat = Math.min(1, t / (12 * 30));
+        const pearlX = W * 0.6 + (W * 0.3 - W * 0.6) * pearlFloat;
+        const pearlY = H * 0.2 + (H * 0.55 - H * 0.2) * pearlFloat;
+        // Pearl glow
+        ctx.fillStyle = `rgba(255,215,0,0.2)`;
+        ctx.beginPath();
+        ctx.arc(pearlX, pearlY, 35 + Math.sin(t * 0.03) * 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffd700';
+        ctx.beginPath();
+        ctx.arc(pearlX, pearlY, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff8dc';
+        ctx.beginPath();
+        ctx.arc(pearlX - 4, pearlY - 4, 5, 0, Math.PI * 2);
+        ctx.fill();
+        // Shelly receiving the pearl
+        drawShelly(W * 0.3, H * 0.65, 1.3, t);
+        // Others watching in awe
+        drawCoralChar(W * 0.15, H * 0.62, 1.0, t);
+        drawPearl(W * 0.2, H * 0.55, 0.9, t);
+        drawGill(W * 0.12, H * 0.5, 0.8, t);
+        drawSandy(W * 0.1, H * 0.68, 0.8, t);
+        if (t % 6 === 0) emitSparkles(pearlX, pearlY, 4, '#ffd700');
+        drawParticles();
+    }
+});
+
+// SCENE 15: RACE HOME (15s)
+scenes.push({
+    duration: 15,
+    musicStart: musicTense,
+    dialogues: [
+        { time: 0.5, text: 'Narrator: "With the Golden Pearl in hand, they raced against time to save their home!"', color: COLORS.narrator, char: 'narrator', speech: 'With the Golden Pearl in hand, they raced against time to save their home!' },
+        { time: 6, text: 'Coral: "They\'re back!"', color: COLORS.coral, char: 'coral', speech: "They're back!" },
+        { time: 9, text: 'Sandy: "I\'ve got this!"', color: COLORS.sandy, char: 'sandy', speech: "I've got this!" }
+    ],
+    render(t, dt) {
+        // Speed montage - scrolling backgrounds
+        const phase = t / (15 * 60);
+        if (phase < 0.33) {
+            // Deep
+            drawOceanBg(t * 3, 2);
+        } else if (phase < 0.66) {
+            // Caverns
+            drawGradientRect(0, 0, W, H, '#0a0a2e', '#050510');
+            const crystalColors = ['#4488ff', '#aa44ff', '#44ffaa'];
+            for (let i = 0; i < 10; i++) {
+                const cx = ((i * 100 - t * 2) % (W + 100));
+                ctx.fillStyle = crystalColors[i % 3];
+                ctx.globalAlpha = 0.4;
+                ctx.beginPath();
+                ctx.moveTo(cx, 100 + i * 30);
+                ctx.lineTo(cx + 10, 80 + i * 30);
+                ctx.lineTo(cx + 20, 100 + i * 30);
+                ctx.closePath();
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+        } else {
+            // Kelp forest rushing past
+            drawOceanBg(t * 3, 1);
+            for (let i = 0; i < 8; i++) {
+                drawSeaweed(((i * 130 - t * 3) % (W + 200)) - 50, H, 180, t * 2, '#2d7a3a');
+            }
+        }
+        // Characters zooming
+        const groupX = W * 0.4;
+        const bounce = Math.sin(t * 0.15) * 5;
+        drawShelly(groupX, H * 0.55 + bounce, 1.2, t * 2);
+        drawCoralChar(groupX + 40, H * 0.5 + bounce, 1.0, t * 2);
+        drawPearl(groupX - 20, H * 0.48, 1.1, t * 2);
+        drawGill(groupX + 80, H * 0.45, 1.0, t * 2);
+        drawSandy(groupX + 20, H * 0.6 + bounce, 0.9, t * 2);
+        // Golden Pearl glow on Shelly
+        ctx.fillStyle = 'rgba(255,215,0,0.15)';
+        ctx.beginPath();
+        ctx.arc(groupX, H * 0.52, 30, 0, Math.PI * 2);
+        ctx.fill();
+        // Seagulls chasing (later in scene)
+        if (phase > 0.5) {
+            for (let i = 0; i < 3; i++) {
+                drawSeagullSteve(W - 80 + i * 40, 100 + i * 30 + Math.sin(t * 0.1 + i) * 20, 0.7, t);
+            }
+            // Sand cloud
+            if (phase > 0.7) {
+                for (let i = 0; i < 15; i++) {
+                    ctx.fillStyle = `rgba(210,180,140,${0.2 + Math.random()*0.2})`;
+                    ctx.beginPath();
+                    ctx.arc(
+                        groupX + 50 + Math.random() * 200,
+                        H * 0.4 + Math.random() * 100,
+                        8 + Math.random() * 12,
+                        0, Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+            }
+        }
+        // Speed lines
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 10; i++) {
+            const ly = Math.random() * H;
+            ctx.beginPath();
+            ctx.moveTo(0, ly);
+            ctx.lineTo(W * 0.3, ly + (Math.random()-0.5)*20);
+            ctx.stroke();
+        }
+        emitBubbles(groupX, H * 0.6, 2);
+        drawParticles();
+    }
+});
+
+// SCENE 16: THE WISH (15s)
+scenes.push({
+    duration: 15,
+    musicStart: musicEmotional,
+    dialogues: [
+        { time: 1, text: 'Narrator: "They arrived at Boardwalk Bay just as dawn broke. Construction machines loomed in the distance."', color: COLORS.narrator, char: 'narrator', speech: 'They arrived at Boardwalk Bay just as dawn broke. Construction machines loomed in the distance.' },
+        { time: 7, text: 'Shelly: "I wish... for the humans to see how special this place is! To see what lives under their boardwalk!"', color: COLORS.shelly, char: 'shelly', speech: 'I wish, for the humans to see how special this place is! To see what lives under their boardwalk!' }
+    ],
+    render(t, dt) {
+        // Dawn sky
+        drawGradientRect(0, 0, W, H * 0.2, '#ff6b6b', '#ffd93d');
+        drawOceanBg(t, 0);
+        drawBoardwalkAbove(t);
+        drawSandFloor(H * 0.78, t);
+        // Construction machines in distance (silhouettes)
+        ctx.fillStyle = '#333';
+        // Crane
+        ctx.fillRect(W - 100, H * 0.1, 8, H * 0.4);
+        ctx.fillRect(W - 130, H * 0.1, 60, 5);
+        ctx.fillRect(W - 70, H * 0.1, 3, 30);
+        // Bulldozer
+        ctx.fillRect(W - 200, H * 0.45, 50, 20);
+        ctx.fillRect(W - 210, H * 0.42, 15, 25);
+        ctx.beginPath();
+        ctx.arc(W - 190, H * 0.47, 10, 0, Math.PI * 2);
+        ctx.fill();
+        // Community gathered
+        for (let i = 0; i < 8; i++) {
+            drawShelly(100 + i * 35, H * 0.74, 0.5, t + i * 15);
+        }
+        drawCoralChar(300, H * 0.7, 0.9, t);
+        drawCaptainClaws(400, H * 0.68, 0.8, t);
+        drawMayor(500, H * 0.68, 0.7, t);
+        drawPearl(350, H * 0.62, 0.8, t);
+        drawGill(280, H * 0.58, 0.7, t);
+        drawSandy(250, H * 0.74, 0.8, t);
+        // Shelly holding up the Golden Pearl (center)
+        drawShelly(W * 0.4, H * 0.65, 1.5, t);
+        // The wish - golden explosion of light
+        const wishPhase = Math.max(0, (t - 400) / 500);
+        if (wishPhase > 0) {
+            const radius = wishPhase * 500;
+            ctx.fillStyle = `rgba(255,215,0,${Math.max(0, 0.4 - wishPhase * 0.3)})`;
+            ctx.beginPath();
+            ctx.arc(W * 0.4, H * 0.55, radius, 0, Math.PI * 2);
+            ctx.fill();
+            // Sparkles everywhere
+            if (t % 3 === 0) {
+                emitSparkles(Math.random() * W, Math.random() * H, 5, '#ffd700');
+            }
+            // Golden Pearl
+            ctx.fillStyle = '#ffd700';
+            ctx.beginPath();
+            ctx.arc(W * 0.4, H * 0.55, 15 - wishPhase * 10, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // Pearl above Shelly before wish
+            ctx.fillStyle = `rgba(255,215,0,${0.3 + Math.sin(t*0.05)*0.1})`;
+            ctx.beginPath();
+            ctx.arc(W * 0.4, H * 0.5, 25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffd700';
+            ctx.beginPath();
+            ctx.arc(W * 0.4, H * 0.5, 12, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        drawParticles();
+    }
+});
+
+// SCENE 17: THE HUMANS SEE (15s)
+scenes.push({
+    duration: 15,
+    musicStart: musicTriumphant,
+    dialogues: [
+        { time: 1, text: 'Narrator: "The golden light reached the surface, and for the first time, the humans could see."', color: COLORS.narrator, char: 'narrator', speech: 'The golden light reached the surface, and for the first time, the humans could see.' },
+        { time: 7, text: '"This is an incredible ecosystem! It must be protected!"', color: '#90ee90', char: 'narrator', speech: 'This is an incredible ecosystem! It must be protected!' },
+        { time: 12, text: 'Narrator: "The construction crew stopped their machines."', color: COLORS.narrator, char: 'narrator', speech: 'The construction crew stopped their machines.' }
+    ],
+    render(t, dt) {
+        // Above the boardwalk - human perspective
+        drawGradientRect(0, 0, W, H * 0.5, '#87ceeb', '#e0f0ff');
+        // Boardwalk from above
+        ctx.fillStyle = '#6b4423';
+        ctx.fillRect(0, H * 0.5, W, 30);
+        // Planks
+        for (let i = 0; i < 12; i++) {
+            ctx.strokeStyle = '#4a2e16';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(i * 85, H * 0.5);
+            ctx.lineTo(i * 85, H * 0.5 + 30);
+            ctx.stroke();
+        }
+        // Below boardwalk (underwater view through cracks)
+        drawGradientRect(0, H * 0.5 + 30, W, H * 0.5 - 30, '#0077be', '#004477');
+        // Golden glow from below
+        ctx.fillStyle = `rgba(255,215,0,${0.1 + Math.sin(t*0.03)*0.05})`;
+        ctx.fillRect(0, H * 0.5, W, H * 0.5);
+        // Humans on boardwalk (stick figures)
+        for (let i = 0; i < 7; i++) {
+            const hx = 80 + i * 120;
+            const hy = H * 0.42;
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            // Body
+            ctx.beginPath(); ctx.moveTo(hx, hy - 20); ctx.lineTo(hx, hy); ctx.stroke();
+            // Head
+            ctx.beginPath(); ctx.arc(hx, hy - 25, 5, 0, Math.PI * 2); ctx.stroke();
+            // Arms (pointing down excitedly)
+            ctx.beginPath(); ctx.moveTo(hx, hy - 12); ctx.lineTo(hx - 8, hy - 5 + Math.sin(t*0.1+i)*3); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(hx, hy - 12); ctx.lineTo(hx + 8, hy - 5 + Math.sin(t*0.1+i+1)*3); ctx.stroke();
+            // Legs
+            ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx - 5, hy + 10); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + 5, hy + 10); ctx.stroke();
+        }
+        // Camera flashes
+        if (t % 40 < 3) {
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.beginPath();
+            ctx.arc(200 + (t * 3) % 500, H * 0.4, 8, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Magical creatures visible below
+        drawSandFloor(H * 0.85, t);
+        drawShelly(300, H * 0.78, 0.8, t);
+        drawCoralChar(350, H * 0.76, 0.8, t);
+        drawCaptainClaws(450, H * 0.76, 0.7, t);
+        drawPearl(500, H * 0.72, 0.7, t);
+        // Anemones
+        drawAnemone(200, H * 0.83, '#ff6b6b', 15, t);
+        drawAnemone(600, H * 0.83, '#ff69b4', 12, t);
+        // Construction machines stopping (silhouette retreating)
+        const retreatX = W - 80 + Math.min(100, t * 0.15);
+        ctx.fillStyle = '#555';
+        ctx.fillRect(retreatX, H * 0.3, 40, 15);
+        ctx.fillRect(retreatX + 10, H * 0.25, 8, 20);
+        // News van
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(50, H * 0.38, 30, 15);
+        ctx.fillStyle = '#e74c3c';
+        ctx.font = '6px Arial';
+        ctx.fillText('NEWS', 55, H * 0.39 + 9);
+        // Satellite dish
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(65, H * 0.38); ctx.lineTo(65, H * 0.33); ctx.stroke();
+        ctx.beginPath(); ctx.arc(65, H * 0.32, 5, Math.PI, 0); ctx.stroke();
+        emitSparkles(Math.random() * W, H * 0.6, 1, '#ffd700');
+        drawParticles();
+    }
+});
+
+// SCENE 18: SAVED! (15s)
+scenes.push({
+    duration: 15,
+    musicStart: musicTriumphant,
+    dialogues: [
+        { time: 1, text: 'Narrator: "The boardwalk was declared a protected marine habitat!"', color: COLORS.narrator, char: 'narrator', speech: 'The boardwalk was declared a protected marine habitat!' },
+        { time: 5, text: 'The Mayor: "As I always said, this boardwalk is special!"', color: COLORS.mayor, char: 'mayor', speech: 'As I always said, this boardwalk is special!' },
+        { time: 8, text: 'Captain Claws: "You said no such thing."', color: COLORS.captain, char: 'captain', speech: 'You said no such thing.' },
+        { time: 11, text: 'Gill: "We actually did it!"', color: COLORS.gill, char: 'gill', speech: 'We actually did it!' }
+    ],
+    render(t, dt) {
+        drawOceanBg(t, 0);
+        drawBoardwalkAbove(t);
+        drawSandFloor(H * 0.78, t);
+        // Celebration! Festive decorations
+        // Bunting/lights
+        for (let i = 0; i < 10; i++) {
+            const lx = i * 100 + 20;
+            const ly = 70 + Math.sin(lx * 0.02) * 10;
+            const colors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6b9d'];
+            ctx.fillStyle = colors[i % colors.length];
+            ctx.beginPath();
+            ctx.arc(lx, ly + Math.sin(t * 0.05 + i) * 3, 5, 0, Math.PI * 2);
+            ctx.fill();
+            // Glow
+            ctx.fillStyle = colors[i % colors.length].replace(')', ',0.2)').replace('rgb', 'rgba');
+            ctx.beginPath();
+            ctx.arc(lx, ly + Math.sin(t * 0.05 + i) * 3, 12, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Protected sign
+        ctx.fillStyle = '#228b22';
+        ctx.fillRect(W * 0.35, 85, 180, 35);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('PROTECTED ECOSYSTEM', W * 0.35 + 90, 100);
+        ctx.font = '9px Arial';
+        ctx.fillText('Boardwalk Bay Marine Habitat', W * 0.35 + 90, 113);
+        ctx.textAlign = 'left';
+        // Everyone celebrating
+        drawShelly(250, H * 0.68, 1.2, t);
+        drawCoralChar(310, H * 0.65, 1.1, t);
+        drawMayor(420, H * 0.66, 0.9, t);
+        drawCaptainClaws(520, H * 0.68, 0.9, t);
+        drawGill(380, H * 0.52, 1.0, t);
+        drawSandy(200, H * 0.72, 1.0, t);
+        drawPearl(600, H * 0.6, 1.0, t);
+        // Pearl painting a mural on a rock
+        ctx.fillStyle = '#777';
+        ctx.beginPath();
+        ctx.ellipse(650, H * 0.72, 30, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Mural on rock (colorful splatters)
+        const muralColors = ['#e74c3c', '#3498db', '#f1c40f', '#2ecc71', '#9b59b6'];
+        for (let i = 0; i < 8; i++) {
+            ctx.fillStyle = muralColors[i % muralColors.length];
+            ctx.beginPath();
+            ctx.arc(635 + Math.cos(i) * 12, H * 0.68 + Math.sin(i) * 8, 3 + Math.random() * 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Confetti / celebration particles
+        if (t % 8 === 0) {
+            emitSparkles(Math.random() * W, Math.random() * H * 0.5, 3,
+                ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff'][Math.floor(Math.random()*4)]);
+        }
+        // Background crabs celebrating
+        for (let i = 0; i < 4; i++) {
+            drawShelly(100 + i * 60, H * 0.75, 0.4, t + i * 20);
+        }
+        drawParticles();
+    }
+});
+
+// SCENE 19: ENDING (20s)
+scenes.push({
+    duration: 20,
+    musicStart: musicEmotional,
+    dialogues: [
+        { time: 1, text: 'Coral: "Do you think things will stay like this forever?"', color: COLORS.coral, char: 'coral', speech: 'Do you think things will stay like this forever?' },
+        { time: 5, text: 'Shelly: "I don\'t know. But I know that as long as we stick together, we\'ll be okay."', color: COLORS.shelly, char: 'shelly', speech: "I don't know. But I know that as long as we stick together, we'll be okay." },
+        { time: 10.5, text: 'Narrator: "And so, the little hermit crab who was too small to matter... saved everyone."', color: COLORS.narrator, char: 'narrator', speech: 'And so, the little hermit crab who was too small to matter... saved everyone.' },
+        { time: 16, text: 'THE END', color: '#ffd700', char: null },
+        { time: 18, text: 'A StreamFlix Original  |  Created by Petru', color: '#aaa', char: null }
+    ],
+    render(t, dt) {
+        const phase = t / (20 * 60);
+        // Beautiful sunset
+        const sunsetY = H * 0.3;
+        drawGradientRect(0, 0, W, sunsetY, '#ff6b35', '#ffd93d');
+        drawGradientRect(0, sunsetY, W, H - sunsetY, '#ff4500', '#800020');
+        // Sun setting
+        const sunY = H * 0.15 + phase * 80;
+        ctx.fillStyle = '#ffd700';
+        ctx.beginPath();
+        ctx.arc(W * 0.5, sunY, 45, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,215,0,0.15)';
+        ctx.beginPath();
+        ctx.arc(W * 0.5, sunY, 70 + Math.sin(t * 0.02) * 5, 0, Math.PI * 2);
+        ctx.fill();
+        // Ocean
+        drawGradientRect(0, H * 0.4, W, H * 0.6, 'rgba(0,50,100,0.6)', 'rgba(0,30,60,0.9)');
+        // Water reflection
+        for (let w = 0; w < 5; w++) {
+            ctx.fillStyle = `rgba(255,${150+w*20},0,${0.05 + w*0.02})`;
+            ctx.beginPath();
+            ctx.moveTo(0, H * 0.4 + w * 15);
+            for (let x = 0; x <= W; x += 10) {
+                ctx.lineTo(x, H * 0.4 + w * 15 + Math.sin(x * 0.01 + t * 0.015 + w) * 6);
+            }
+            ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+            ctx.fill();
+        }
+        // Boardwalk planks above (silhouette)
+        ctx.fillStyle = '#1a0a00';
+        ctx.fillRect(0, 15, W, 25);
+        for (let i = 0; i < 12; i++) {
+            ctx.fillRect(i * 85, 15, 80, 25);
+        }
+        // Light through cracks (sunset color)
+        for (let i = 0; i < 4; i++) {
+            ctx.fillStyle = 'rgba(255,180,50,0.08)';
+            ctx.beginPath();
+            ctx.moveTo(i * 250 + 80, 40);
+            ctx.lineTo(i * 250 + 50, H);
+            ctx.lineTo(i * 250 + 110, H);
+            ctx.closePath();
+            ctx.fill();
+        }
+        drawSandFloor(H * 0.8, t);
+        // People carefully visiting above (shadows through cracks)
+        for (let i = 0; i < 5; i++) {
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.beginPath();
+            ctx.ellipse(150 + i * 150, 28, 8, 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Shelly and Coral on their rock
+        ctx.fillStyle = '#555';
+        ctx.beginPath();
+        ctx.ellipse(W * 0.4, H * 0.72, 35, 15, 0, 0, Math.PI * 2);
+        ctx.fill();
+        drawShelly(W * 0.37, H * 0.65, 1.3, t);
+        drawCoralChar(W * 0.45, H * 0.63, 1.2, t);
+        // THE END text
+        if (phase > 0.75) {
+            const endAlpha = Math.min(1, (phase - 0.75) * 6);
+            ctx.globalAlpha = endAlpha;
+            ctx.font = 'bold 52px "Segoe UI", Arial';
+            ctx.fillStyle = '#ffd700';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#000';
+            ctx.shadowBlur = 10;
+            ctx.fillText('THE END', W / 2, H * 0.4);
+            ctx.shadowBlur = 0;
+            // Credits
+            if (phase > 0.85) {
+                ctx.font = '18px "Segoe UI", Arial';
+                ctx.fillStyle = '#ccc';
+                ctx.fillText('A StreamFlix Original', W / 2, H * 0.5);
+                ctx.fillText('Created by Petru', W / 2, H * 0.55);
+            }
+            ctx.textAlign = 'left';
+            ctx.globalAlpha = 1;
+        }
+        // Gentle sparkles
+        if (t % 15 === 0) emitSparkles(Math.random() * W, H * 0.7, 1, '#ffd700');
+        emitBubbles(Math.random() * W, H * 0.8, 1);
+        drawParticles();
+    }
+});
+
+// Calculate total duration
+totalDuration = scenes.reduce((sum, s) => sum + s.duration, 0);
+
+// ============ DIALOGUE SCHEDULING ============
+let activeDialogues = [];
+let lastDialogueIndex = -1;
+
+function checkDialogues() {
+    const scene = scenes[currentScene];
+    if (!scene || !scene.dialogues) return;
+    for (let i = 0; i < scene.dialogues.length; i++) {
+        const d = scene.dialogues[i];
+        const dTimeFrames = d.time * 60;
+        const dialogueKey = currentScene * 1000 + i;
+        if (sceneTime >= dTimeFrames && sceneTime < dTimeFrames + 10 && lastDialogueIndex !== dialogueKey) {
+            lastDialogueIndex = dialogueKey;
+            showSubtitle(d.text, d.color);
+            if (d.speech && d.char) {
+                speak(d.speech, d.char);
+            }
+        }
+    }
+    // Hide subtitle after last dialogue's time + some duration
+    const lastD = scene.dialogues[scene.dialogues.length - 1];
+    if (lastD && sceneTime > lastD.time * 60 + 240) {
+        // Keep showing last subtitle until scene ends
+    }
+}
+
+// ============ MAIN LOOP ============
+let lastTime = 0;
+
+function update(timestamp) {
+    if (!lastTime) lastTime = timestamp;
+    const dt = Math.min(33, timestamp - lastTime);
+    lastTime = timestamp;
+
+    if (playing) {
+        globalAnimFrame++;
+        sceneTime++;
+        currentTime += 1/60;
+
+        // Check scene transitions
+        const scene = scenes[currentScene];
+        if (scene && sceneTime >= scene.duration * 60) {
+            // Transition to next scene
+            if (currentScene < scenes.length - 1) {
+                currentScene++;
+                sceneTime = 0;
+                lastDialogueIndex = -1;
+                hideSubtitle();
+                fadeAlpha = 1;
+                particles = [];
+                // Start scene music
+                if (scenes[currentScene].musicStart) {
+                    scenes[currentScene].musicStart();
+                }
+            } else {
+                // Movie ended
+                playing = false;
+                btnPlay.innerHTML = '&#9654;';
+                stopMusic();
+            }
+        }
+
+        checkDialogues();
+    }
+
+    render();
+    requestAnimationFrame(update);
+}
+
+function render() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Render current scene
+    if (scenes[currentScene]) {
+        scenes[currentScene].render(sceneTime, 1);
+    }
+
+    // Fade transition
+    if (fadeAlpha > 0) {
+        ctx.fillStyle = `rgba(0,0,0,${fadeAlpha})`;
+        ctx.fillRect(0, 0, W, H);
+        fadeAlpha = Math.max(0, fadeAlpha - 0.016); // ~1.5s fade
+    }
+
+    updateParticles();
+
+    // Update progress bar
+    const elapsed = scenes.slice(0, currentScene).reduce((s, sc) => s + sc.duration, 0) + sceneTime / 60;
+    const prog = Math.min(100, (elapsed / totalDuration) * 100);
+    progBar.style.width = prog + '%';
+
+    // Update time display
+    const mins = Math.floor(elapsed / 60);
+    const secs = Math.floor(elapsed % 60);
+    const totalMins = Math.floor(totalDuration / 60);
+    const totalSecs = Math.floor(totalDuration % 60);
+    timeEl.textContent = `${mins}:${secs.toString().padStart(2,'0')} / ${totalMins}:${totalSecs.toString().padStart(2,'0')}`;
+}
+
+// ============ CONTROLS ============
+function togglePlay() {
+    initAudio();
+    if (!playing) {
+        playing = true;
+        btnPlay.innerHTML = '&#10074;&#10074;';
+        if (scenes[currentScene] && scenes[currentScene].musicStart) {
+            scenes[currentScene].musicStart();
+        }
+        loading.style.display = 'none';
+    } else {
+        playing = false;
+        btnPlay.innerHTML = '&#9654;';
+        stopMusic();
+        stopSpeech();
+    }
+}
+
+btnPlay.addEventListener('click', togglePlay);
+
+document.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+});
+
+// Voice toggle
+btnVoice.addEventListener('click', () => {
+    voiceOn = !voiceOn;
+    btnVoice.innerHTML = voiceOn ? '&#128266;' : '&#128264;';
+    if (!voiceOn) stopSpeech();
+});
+
+// Fullscreen
+btnFs.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().then(resize).catch(()=>{});
+    } else {
+        document.exitFullscreen().then(resize).catch(()=>{});
+    }
+});
+
+// Progress bar seeking
+progWrap.addEventListener('click', e => {
+    const rect = progWrap.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    const targetTime = pct * totalDuration;
+    // Find the right scene
+    let acc = 0;
+    for (let i = 0; i < scenes.length; i++) {
+        if (acc + scenes[i].duration > targetTime) {
+            currentScene = i;
+            sceneTime = Math.floor((targetTime - acc) * 60);
+            currentTime = targetTime;
+            lastDialogueIndex = -1;
+            hideSubtitle();
+            particles = [];
+            fadeAlpha = 0;
+            if (playing && scenes[i].musicStart) scenes[i].musicStart();
+            break;
+        }
+        acc += scenes[i].duration;
+    }
+});
+
+// Load voices
+if (window.speechSynthesis) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
+}
+
+// Start
+loading.textContent = 'Click ▶ to play';
+requestAnimationFrame(update);
+</script>
+</body>
+</html>

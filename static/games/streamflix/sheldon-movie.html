@@ -1,0 +1,2806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHELDON - A StreamFlix Original</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#fff;font-family:'Segoe UI',Arial,sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;user-select:none}
+#cinema{position:relative;width:100vw;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#letterbox-top,#letterbox-bottom{position:absolute;left:0;width:100%;background:#000;z-index:10;pointer-events:none}
+#letterbox-top{top:0;height:8vh}
+#letterbox-bottom{bottom:0;height:8vh}
+canvas{display:block;max-width:100vw;max-height:84vh;background:#000;z-index:1}
+#subtitle-bar{position:absolute;bottom:12vh;left:50%;transform:translateX(-50%);z-index:20;text-align:center;max-width:80%;pointer-events:none}
+#subtitle-speaker{font-size:clamp(12px,1.5vw,18px);font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:2px;text-shadow:0 0 10px rgba(0,0,0,0.9)}
+#subtitle-text{font-size:clamp(16px,2.2vw,26px);font-weight:400;text-shadow:0 2px 8px rgba(0,0,0,0.95),0 0 20px rgba(0,0,0,0.8);line-height:1.4;background:rgba(0,0,0,0.55);padding:6px 18px;border-radius:6px}
+#controls{position:absolute;bottom:1.5vh;left:50%;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:10px;background:rgba(0,0,0,0.7);padding:8px 18px;border-radius:30px;backdrop-filter:blur(6px)}
+#controls button{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px 8px;border-radius:4px;transition:background 0.2s}
+#controls button:hover{background:rgba(255,255,255,0.15)}
+#progress-wrap{width:clamp(200px,40vw,500px);height:6px;background:rgba(255,255,255,0.2);border-radius:3px;cursor:pointer;position:relative}
+#progress-fill{height:100%;background:linear-gradient(90deg,#4fc3f7,#29b6f6);border-radius:3px;width:0%;transition:width 0.3s linear;pointer-events:none}
+#time-display{font-size:12px;color:#aaa;min-width:90px;text-align:center;font-variant-numeric:tabular-nums}
+#back-btn{position:absolute;top:2vh;left:2vw;z-index:30;background:rgba(0,0,0,0.6);border:none;color:#fff;font-size:16px;padding:8px 16px;border-radius:20px;cursor:pointer;backdrop-filter:blur(4px);transition:background 0.2s}
+#back-btn:hover{background:rgba(255,255,255,0.15)}
+#loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:50;text-align:center}
+#loading h2{font-size:28px;margin-bottom:10px;color:#4fc3f7}
+#loading p{color:#888}
+</style>
+</head>
+<body>
+<div id="cinema">
+  <div id="letterbox-top"></div>
+  <canvas id="c"></canvas>
+  <div id="letterbox-bottom"></div>
+  <div id="subtitle-bar">
+    <div id="subtitle-speaker"></div>
+    <div id="subtitle-text"></div>
+  </div>
+  <div id="controls">
+    <button id="btn-play" title="Play/Pause">&#9654;</button>
+    <div id="progress-wrap"><div id="progress-fill"></div></div>
+    <span id="time-display">0:00 / 0:00</span>
+    <button id="btn-voice" title="Toggle Voice">&#128266;</button>
+    <button id="btn-fs" title="Fullscreen">&#x26F6;</button>
+  </div>
+  <a id="back-btn" href="/games/streamflix/">&larr; Back</a>
+  <div id="loading"><h2>Loading SHELDON...</h2><p>Preparing the movie experience</p></div>
+</div>
+<script>
+// ============================================================
+// SHELDON - A StreamFlix Original Animated Movie
+// ============================================================
+(function(){
+"use strict";
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 1280, H = 720;
+canvas.width = W; canvas.height = H;
+
+// UI elements
+const btnPlay = document.getElementById('btn-play');
+const btnVoice = document.getElementById('btn-voice');
+const btnFs = document.getElementById('btn-fs');
+const progressWrap = document.getElementById('progress-wrap');
+const progressFill = document.getElementById('progress-fill');
+const timeDisplay = document.getElementById('time-display');
+const subtitleSpeaker = document.getElementById('subtitle-speaker');
+const subtitleText = document.getElementById('subtitle-text');
+const loadingEl = document.getElementById('loading');
+
+// ---- STATE ----
+let playing = false;
+let voiceEnabled = true;
+let currentTime = 0; // seconds elapsed
+let lastTimestamp = 0;
+let globalAlpha = 1;
+let fadeState = null; // {type:'in'|'out', progress:0}
+
+// ---- VOICE SYSTEM ----
+const voiceConfigs = {
+  Narrator: {pitch:1.0, rate:0.88},
+  'Young Sheldon': {pitch:1.8, rate:1.1},
+  Sheldon: {pitch:1.1, rate:1.05},
+  Mary: {pitch:1.5, rate:0.9},
+  George: {pitch:0.7, rate:0.85},
+  Missy: {pitch:1.6, rate:1.15},
+  Meemaw: {pitch:1.3, rate:0.8},
+  Leonard: {pitch:1.1, rate:1.0},
+  Penny: {pitch:1.5, rate:1.05},
+  Howard: {pitch:1.4, rate:1.15},
+  Raj: {pitch:1.2, rate:0.95},
+  Amy: {pitch:1.3, rate:0.9},
+  Professor: {pitch:0.9, rate:0.85},
+  'Nobel Committee': {pitch:0.9, rate:0.85}
+};
+
+const speakerColors = {
+  'Young Sheldon':'#4fc3f7', Sheldon:'#4fc3f7',
+  Mary:'#ef5350', George:'#8d6e63', Missy:'#ff8a65',
+  Meemaw:'#ce93d8', Leonard:'#66bb6a', Penny:'#f48fb1',
+  Howard:'#ffa726', Raj:'#ab47bc', Amy:'#26a69a',
+  Narrator:'#b0bec5', Professor:'#78909c', Teacher:'#78909c',
+  'Nobel Committee':'#ffd54f'
+};
+
+let currentUtterance = null;
+let englishVoice = null;
+
+function initVoices(){
+  const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  englishVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) ||
+                 voices.find(v => v.lang.startsWith('en-US')) ||
+                 voices.find(v => v.lang.startsWith('en')) ||
+                 voices[0] || null;
+}
+if(window.speechSynthesis){
+  window.speechSynthesis.onvoiceschanged = initVoices;
+  initVoices();
+}
+
+function speak(character, text, onEnd){
+  if(!window.speechSynthesis || !voiceEnabled){
+    if(onEnd) onEnd();
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  const cfg = voiceConfigs[character] || {pitch:1, rate:1};
+  u.pitch = cfg.pitch;
+  u.rate = cfg.rate;
+  u.volume = 1;
+  if(englishVoice) u.voice = englishVoice;
+  u.onend = ()=>{ currentUtterance=null; if(onEnd) onEnd(); };
+  u.onerror = ()=>{ currentUtterance=null; if(onEnd) onEnd(); };
+  currentUtterance = u;
+  window.speechSynthesis.speak(u);
+}
+
+function stopSpeech(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  currentUtterance = null;
+}
+
+// ---- MUSIC SYSTEM (Web Audio API) ----
+let audioCtx = null;
+let musicGain = null;
+let currentOscillators = [];
+
+function initAudio(){
+  if(audioCtx) return;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    musicGain = audioCtx.createGain();
+    musicGain.gain.value = 0.06;
+    musicGain.connect(audioCtx.destination);
+  } catch(e){}
+}
+
+function stopMusic(){
+  currentOscillators.forEach(o=>{try{o.stop();}catch(e){}});
+  currentOscillators = [];
+}
+
+function playChord(freqs, duration, type='sine', vol=0.06){
+  if(!audioCtx) return;
+  const now = audioCtx.currentTime;
+  freqs.forEach(f=>{
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = f;
+    g.gain.setValueAtTime(vol, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    osc.connect(g);
+    g.connect(musicGain);
+    osc.start(now);
+    osc.stop(now + duration);
+    currentOscillators.push(osc);
+  });
+}
+
+function playMood(mood){
+  stopMusic();
+  if(!audioCtx) return;
+  const chords = {
+    warm: [[261.6,329.6,392],[293.7,349.2,440],[329.6,392,523.3],[293.7,349.2,440]],
+    comedic: [[329.6,415.3,523.3],[349.2,440,554.4],[392,493.9,587.3],[349.2,440,523.3]],
+    emotional: [[261.6,311,392],[246.9,311,370],[220,277.2,329.6],[246.9,293.7,370]],
+    triumphant: [[261.6,329.6,392,523.3],[293.7,370,440,587.3],[329.6,415.3,523.3,659.3],[392,493.9,587.3,784]],
+    nostalgic: [[261.6,329.6,392],[220,277.2,329.6],[246.9,311,370],[261.6,329.6,392]],
+    tense: [[246.9,293.7,370],[233.1,277.2,349.2],[220,261.6,329.6],[233.1,277.2,349.2]],
+    epic: [[196,261.6,329.6,392],[220,293.7,370,440],[246.9,329.6,415.3,493.9],[261.6,349.2,440,523.3]],
+    title: [[261.6,329.6,392,523.3],[329.6,415.3,523.3,659.3],[392,493.9,587.3,784],[523.3,659.3,784,1047]]
+  };
+  const c = chords[mood] || chords.warm;
+  let t = 0;
+  c.forEach((chord,i)=>{
+    setTimeout(()=>{
+      if(playing) playChord(chord, 3.5, 'sine', 0.04);
+    }, t);
+    t += 2800;
+  });
+}
+
+// ---- PARTICLE SYSTEM ----
+class Particle {
+  constructor(x,y,vx,vy,life,color,size){
+    this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.life=life;this.maxLife=life;this.color=color;this.size=size||2;
+  }
+  update(dt){this.x+=this.vx*dt;this.y+=this.vy*dt;this.life-=dt;}
+  draw(){
+    const a=this.life/this.maxLife;
+    ctx.globalAlpha=a*globalAlpha;
+    ctx.fillStyle=this.color;
+    ctx.beginPath();
+    ctx.arc(this.x,this.y,this.size,0,Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha=globalAlpha;
+  }
+}
+let particles = [];
+function addParticles(x,y,count,color,spread,life){
+  for(let i=0;i<count;i++){
+    const angle=Math.random()*Math.PI*2;
+    const speed=Math.random()*spread;
+    particles.push(new Particle(x,y,Math.cos(angle)*speed,Math.sin(angle)*speed,life||2,color,1+Math.random()*2));
+  }
+}
+function updateParticles(dt){
+  particles = particles.filter(p=>{p.update(dt);return p.life>0;});
+}
+function drawParticles(){
+  particles.forEach(p=>p.draw());
+}
+
+// ---- FLOATING EQUATIONS ----
+let floatingEqs = [];
+const eqTexts = ['E=mc²','∫f(x)dx','ψ(x,t)','∇²φ=0','F=ma','ΔS≥0','λ=h/p','PV=nRT','σ=F/A','∂²u/∂t²','Ω(E)','H|ψ⟩=E|ψ⟩','S=kB ln W','∮B·dl=μ₀I'];
+function spawnEquation(){
+  floatingEqs.push({x:Math.random()*W,y:H+20,vy:-15-Math.random()*25,text:eqTexts[Math.floor(Math.random()*eqTexts.length)],alpha:0.15+Math.random()*0.2,size:12+Math.random()*14});
+}
+function updateEquations(dt){
+  floatingEqs.forEach(e=>{e.y+=e.vy*dt;});
+  floatingEqs=floatingEqs.filter(e=>e.y>-30);
+}
+function drawEquations(){
+  floatingEqs.forEach(e=>{
+    ctx.globalAlpha=e.alpha*globalAlpha;
+    ctx.fillStyle='#4fc3f7';
+    ctx.font=e.size+'px monospace';
+    ctx.fillText(e.text,e.x,e.y);
+  });
+  ctx.globalAlpha=globalAlpha;
+}
+
+// ---- DRAWING HELPERS ----
+function drawRect(x,y,w,h,color){ctx.fillStyle=color;ctx.fillRect(x,y,w,h);}
+function drawCircle(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}
+function drawEllipse(x,y,rx,ry,color){ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill();}
+function drawText(text,x,y,font,color,align){
+  ctx.fillStyle=color||'#fff';
+  ctx.font=font||'20px sans-serif';
+  ctx.textAlign=align||'center';
+  ctx.textBaseline='middle';
+  ctx.fillText(text,x,y);
+  ctx.textAlign='left';
+}
+function drawStar(cx,cy,spikes,outerR,innerR,color){
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  let rot=Math.PI/2*3, step=Math.PI/spikes;
+  ctx.moveTo(cx,cy-outerR);
+  for(let i=0;i<spikes;i++){
+    ctx.lineTo(cx+Math.cos(rot)*outerR,cy+Math.sin(rot)*outerR);rot+=step;
+    ctx.lineTo(cx+Math.cos(rot)*innerR,cy+Math.sin(rot)*innerR);rot+=step;
+  }
+  ctx.closePath();ctx.fill();
+}
+
+// ---- CHARACTER DRAWING ----
+function drawYoungSheldon(x,y,scale,expression){
+  const s=scale||1;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(s,s);
+  // Legs
+  drawRect(-12,40,10,30,'#c8b07a');
+  drawRect(2,40,10,30,'#c8b07a');
+  // Shoes
+  drawRect(-14,68,14,6,'#4a3728');
+  drawRect(0,68,14,6,'#4a3728');
+  // Body - plaid shirt
+  drawRect(-18,-5,36,48,'#c62828');
+  // Plaid lines
+  ctx.strokeStyle='#1565c0';ctx.lineWidth=2;
+  for(let i=-18;i<18;i+=8){ctx.beginPath();ctx.moveTo(i,-5);ctx.lineTo(i,43);ctx.stroke();}
+  for(let j=-5;j<43;j+=8){ctx.beginPath();ctx.moveTo(-18,j);ctx.lineTo(18,j);ctx.stroke();}
+  // Collar
+  drawRect(-8,-8,16,6,'#fff');
+  // Bowtie
+  ctx.fillStyle='#1a237e';
+  ctx.beginPath();ctx.moveTo(0,-6);ctx.lineTo(-8,-10);ctx.lineTo(-8,-2);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(0,-6);ctx.lineTo(8,-10);ctx.lineTo(8,-2);ctx.closePath();ctx.fill();
+  drawCircle(0,-6,2,'#0d47a1');
+  // Head
+  drawCircle(0,-24,20,'#fdd9b5');
+  // Hair - brown bowl cut
+  ctx.fillStyle='#5d4037';
+  ctx.beginPath();
+  ctx.arc(0,-24,20,Math.PI,0);
+  ctx.lineTo(20,-20);
+  ctx.quadraticCurveTo(22,-28,18,-36);
+  ctx.quadraticCurveTo(0,-48,-18,-36);
+  ctx.quadraticCurveTo(-22,-28,-20,-20);
+  ctx.closePath();
+  ctx.fill();
+  // Bangs
+  ctx.fillStyle='#4e342e';
+  ctx.beginPath();
+  ctx.ellipse(0,-38,16,6,0,0,Math.PI);
+  ctx.fill();
+  // Eyes
+  const ey = expression === 'upset' ? -26 : -26;
+  drawCircle(-7,ey,5,'#fff');
+  drawCircle(7,ey,5,'#fff');
+  drawCircle(-7,ey,2.5,'#2c1810');
+  drawCircle(7,ey,2.5,'#2c1810');
+  drawCircle(-6,ey-1,1,'#fff');
+  drawCircle(8,ey-1,1,'#fff');
+  // Eyebrows
+  if(expression==='upset'){
+    ctx.strokeStyle='#3e2723';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(-12,-32);ctx.lineTo(-3,-34);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(12,-32);ctx.lineTo(3,-34);ctx.stroke();
+  } else {
+    ctx.strokeStyle='#3e2723';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(-12,-33);ctx.lineTo(-2,-33);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(2,-33);ctx.lineTo(12,-33);ctx.stroke();
+  }
+  // Mouth
+  if(expression==='happy'){
+    ctx.strokeStyle='#c62828';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(0,-16,5,0,Math.PI);ctx.stroke();
+  } else if(expression==='upset'){
+    ctx.strokeStyle='#c62828';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(0,-12,4,Math.PI,0);ctx.stroke();
+  } else {
+    ctx.strokeStyle='#c62828';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(-4,-17);ctx.lineTo(4,-17);ctx.stroke();
+  }
+  // Arms
+  drawRect(-28,0,12,8,'#c62828');
+  drawRect(16,0,12,8,'#c62828');
+  // Hands
+  drawCircle(-28,4,5,'#fdd9b5');
+  drawCircle(28,4,5,'#fdd9b5');
+  ctx.restore();
+}
+
+function drawAdultSheldon(x,y,scale,expression,shirtColor){
+  const s=scale||1;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(s,s);
+  // Legs
+  drawRect(-12,55,10,40,'#c8b07a');
+  drawRect(2,55,10,40,'#c8b07a');
+  // Shoes
+  drawRect(-14,93,14,7,'#37474f');
+  drawRect(0,93,14,7,'#37474f');
+  // Body - long sleeve undershirt
+  drawRect(-22,-5,44,62,'#795548');
+  // T-shirt over
+  drawRect(-20,-3,40,45,shirtColor||'#c62828');
+  // Flash logo on shirt
+  ctx.fillStyle='#ffd600';
+  ctx.beginPath();
+  ctx.moveTo(-3,10);ctx.lineTo(5,10);ctx.lineTo(2,20);ctx.lineTo(8,20);ctx.lineTo(-2,35);ctx.lineTo(1,24);ctx.lineTo(-5,24);
+  ctx.closePath();ctx.fill();
+  // Head
+  drawCircle(0,-24,22,'#fdd9b5');
+  // Hair
+  ctx.fillStyle='#5d4037';
+  ctx.beginPath();
+  ctx.arc(0,-26,22,Math.PI+0.3,Math.PI*2-0.3);
+  ctx.quadraticCurveTo(22,-30,20,-42);
+  ctx.quadraticCurveTo(5,-52,-5,-50);
+  ctx.quadraticCurveTo(-15,-48,-20,-42);
+  ctx.quadraticCurveTo(-24,-30,-22,-24);
+  ctx.closePath();ctx.fill();
+  // Side part
+  ctx.strokeStyle='#4e342e';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(-8,-46);ctx.quadraticCurveTo(-5,-42,-6,-38);ctx.stroke();
+  // Eyes
+  drawCircle(-8,-26,5,'#fff');
+  drawCircle(8,-26,5,'#fff');
+  drawCircle(-8,-26,2.5,'#2c1810');
+  drawCircle(8,-26,2.5,'#2c1810');
+  drawCircle(-7,-27,1,'#fff');
+  drawCircle(9,-27,1,'#fff');
+  // Eyebrows
+  ctx.strokeStyle='#3e2723';ctx.lineWidth=2;
+  if(expression==='smug'){
+    ctx.beginPath();ctx.moveTo(-13,-34);ctx.lineTo(-3,-36);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(3,-36);ctx.lineTo(13,-34);ctx.stroke();
+  } else {
+    ctx.beginPath();ctx.moveTo(-13,-34);ctx.lineTo(-3,-34);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(3,-34);ctx.lineTo(13,-34);ctx.stroke();
+  }
+  // Mouth
+  if(expression==='happy'||expression==='eureka'){
+    ctx.strokeStyle='#c62828';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(0,-16,6,0.1,Math.PI-0.1);ctx.stroke();
+  } else if(expression==='sad'){
+    ctx.strokeStyle='#c62828';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(0,-12,5,Math.PI+0.3,-0.3);ctx.stroke();
+  } else if(expression==='speaking'){
+    drawEllipse(0,-15,4,3,'#c62828');
+  } else {
+    ctx.strokeStyle='#c62828';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(-5,-17);ctx.lineTo(5,-17);ctx.stroke();
+  }
+  // Arms (long sleeves visible)
+  drawRect(-34,0,14,8,'#795548');
+  drawRect(20,0,14,8,'#795548');
+  drawCircle(-34,4,6,'#fdd9b5');
+  drawCircle(34,4,6,'#fdd9b5');
+  // Eureka sparkles
+  if(expression==='eureka'){
+    for(let i=0;i<5;i++){
+      const a=i*Math.PI*2/5+currentTime*2;
+      drawStar(Math.cos(a)*35,-30+Math.sin(a)*15,4,4,2,'#ffd600');
+    }
+  }
+  ctx.restore();
+}
+
+function drawMary(x,y,scale){
+  const s=scale||1;
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  // Legs
+  drawRect(-10,50,8,30,'#fdd9b5');
+  drawRect(2,50,8,30,'#fdd9b5');
+  // Shoes
+  drawRect(-12,78,12,5,'#c62828');
+  drawRect(0,78,12,5,'#c62828');
+  // Dress/blouse - floral
+  drawRect(-20,-5,40,58,'#e8b5ce');
+  // Floral pattern
+  for(let fx=-15;fx<15;fx+=10){
+    for(let fy=0;fy<50;fy+=12){
+      drawCircle(fx,fy,2,'#f48fb1');
+      drawCircle(fx+3,fy+3,1.5,'#ce93d8');
+    }
+  }
+  // Cross necklace
+  ctx.strokeStyle='#ffd600';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(0,-8);ctx.lineTo(0,2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-3,-4);ctx.lineTo(3,-4);ctx.stroke();
+  // Head
+  drawCircle(0,-24,20,'#fdd9b5');
+  // Big Texas hair
+  ctx.fillStyle='#8d6e63';
+  ctx.beginPath();
+  ctx.ellipse(0,-35,24,18,0,0,Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(-12,-24,12,22,0.3,0,Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(12,-24,12,22,-0.3,0,Math.PI*2);
+  ctx.fill();
+  // Eyes
+  drawCircle(-7,-26,4,'#fff');
+  drawCircle(7,-26,4,'#fff');
+  drawCircle(-7,-26,2,'#5d4037');
+  drawCircle(7,-26,2,'#5d4037');
+  // Eyelashes
+  ctx.strokeStyle='#3e2723';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(-11,-28);ctx.lineTo(-12,-31);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(11,-28);ctx.lineTo(12,-31);ctx.stroke();
+  // Warm smile
+  ctx.strokeStyle='#e57373';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(0,-17,5,0.1,Math.PI-0.1);ctx.stroke();
+  // Blush
+  drawCircle(-12,-20,3,'rgba(244,143,177,0.3)');
+  drawCircle(12,-20,3,'rgba(244,143,177,0.3)');
+  // Arms
+  drawRect(-30,0,12,8,'#e8b5ce');
+  drawRect(18,0,12,8,'#e8b5ce');
+  drawCircle(-30,4,5,'#fdd9b5');
+  drawCircle(30,4,5,'#fdd9b5');
+  ctx.restore();
+}
+
+function drawGeorge(x,y,scale){
+  const s=scale||1;
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  // Legs
+  drawRect(-14,55,12,35,'#37474f');
+  drawRect(2,55,12,35,'#37474f');
+  // Shoes
+  drawRect(-16,88,16,7,'#4e342e');
+  drawRect(0,88,16,7,'#4e342e');
+  // Stocky body - polo shirt
+  drawRect(-25,-5,50,62,'#1b5e20');
+  // Beer belly roundness
+  drawEllipse(0,25,22,18,'#1b5e20');
+  // Polo collar
+  drawRect(-8,-8,16,5,'#1b5e20');
+  ctx.strokeStyle='#2e7d32';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(-3,-8);ctx.lineTo(-3,-3);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(3,-8);ctx.lineTo(3,-3);ctx.stroke();
+  // Head
+  drawCircle(0,-24,22,'#e8c4a0');
+  // Cap
+  ctx.fillStyle='#b71c1c';
+  ctx.beginPath();
+  ctx.arc(0,-26,22,Math.PI,0);
+  ctx.fill();
+  drawRect(-26,-28,52,6,'#b71c1c');
+  drawRect(-28,-26,8,4,'#b71c1c'); // brim extension
+  drawRect(20,-26,8,4,'#b71c1c');
+  // Cap brim
+  drawRect(-24,-22,48,4,'#7f0000');
+  // Mustache
+  ctx.fillStyle='#5d4037';
+  ctx.beginPath();
+  ctx.ellipse(-5,-16,6,3,0,0,Math.PI);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(5,-16,6,3,0,0,Math.PI);
+  ctx.fill();
+  // Eyes
+  drawCircle(-8,-27,4,'#fff');
+  drawCircle(8,-27,4,'#fff');
+  drawCircle(-8,-27,2,'#5d4037');
+  drawCircle(8,-27,2,'#5d4037');
+  // Mouth (under mustache)
+  ctx.strokeStyle='#c62828';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(-4,-12);ctx.lineTo(4,-12);ctx.stroke();
+  // Arms
+  drawRect(-38,0,15,10,'#1b5e20');
+  drawRect(23,0,15,10,'#1b5e20');
+  drawCircle(-38,5,6,'#e8c4a0');
+  drawCircle(38,5,6,'#e8c4a0');
+  ctx.restore();
+}
+
+function drawMissy(x,y,scale){
+  const s=scale||1;
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  // Legs
+  drawRect(-10,40,8,28,'#fdd9b5');
+  drawRect(2,40,8,28,'#fdd9b5');
+  drawRect(-12,66,12,5,'#e91e63');
+  drawRect(0,66,12,5,'#e91e63');
+  // Body - t-shirt
+  drawRect(-16,-5,32,48,'#e91e63');
+  // Head
+  drawCircle(0,-24,18,'#fdd9b5');
+  // Brown hair with ponytail
+  ctx.fillStyle='#5d4037';
+  ctx.beginPath();
+  ctx.arc(0,-26,18,Math.PI+0.2,-0.2);
+  ctx.fill();
+  // Ponytail
+  ctx.fillStyle='#5d4037';
+  ctx.beginPath();
+  ctx.moveTo(14,-30);
+  ctx.quadraticCurveTo(30,-35,28,-15);
+  ctx.quadraticCurveTo(26,-5,18,-10);
+  ctx.closePath();ctx.fill();
+  // Ponytail band
+  drawCircle(16,-28,3,'#e91e63');
+  // Eyes
+  drawCircle(-6,-26,4,'#fff');
+  drawCircle(6,-26,4,'#fff');
+  drawCircle(-6,-26,2,'#5d4037');
+  drawCircle(6,-26,2,'#5d4037');
+  // Sassy smirk
+  ctx.strokeStyle='#e57373';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(-4,-17);ctx.quadraticCurveTo(2,-14,6,-17);ctx.stroke();
+  // Arms
+  drawRect(-26,0,12,7,'#e91e63');
+  drawRect(14,0,12,7,'#e91e63');
+  drawCircle(-26,3,4,'#fdd9b5');
+  drawCircle(26,3,4,'#fdd9b5');
+  ctx.restore();
+}
+
+function drawMeemaw(x,y,scale){
+  const s=scale||1;
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  // Legs
+  drawRect(-10,50,8,25,'#fdd9b5');
+  drawRect(2,50,8,25,'#fdd9b5');
+  drawRect(-12,73,12,5,'#795548');
+  drawRect(0,73,12,5,'#795548');
+  // Body - cardigan
+  drawRect(-20,-5,40,58,'#7b1fa2');
+  // Cardigan opening
+  drawRect(-3,-5,6,40,'#e1bee7');
+  // Head
+  drawCircle(0,-24,19,'#fdd9b5');
+  // Gray hair
+  ctx.fillStyle='#bdbdbd';
+  ctx.beginPath();
+  ctx.ellipse(0,-32,20,14,0,0,Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(-14,-24,8,16,0.2,0,Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(14,-24,8,16,-0.2,0,Math.PI*2);
+  ctx.fill();
+  // Glasses
+  ctx.strokeStyle='#5d4037';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(-7,-26,5,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(7,-26,5,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-2,-26);ctx.lineTo(2,-26);ctx.stroke();
+  // Eyes behind glasses
+  drawCircle(-7,-26,2,'#5d4037');
+  drawCircle(7,-26,2,'#5d4037');
+  // Warm smile
+  ctx.strokeStyle='#e57373';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(0,-17,5,0.1,Math.PI-0.1);ctx.stroke();
+  // Wrinkle lines
+  ctx.strokeStyle='rgba(0,0,0,0.1)';ctx.lineWidth=0.5;
+  ctx.beginPath();ctx.moveTo(-14,-19);ctx.lineTo(-10,-18);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(14,-19);ctx.lineTo(10,-18);ctx.stroke();
+  // Arms
+  drawRect(-30,0,12,8,'#7b1fa2');
+  drawRect(18,0,12,8,'#7b1fa2');
+  drawCircle(-30,4,5,'#fdd9b5');
+  drawCircle(30,4,5,'#fdd9b5');
+  ctx.restore();
+}
+
+function drawLeonard(x,y,scale){
+  const s=scale||1;
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  // Legs
+  drawRect(-10,50,8,35,'#37474f');
+  drawRect(2,50,8,35,'#37474f');
+  drawRect(-12,83,12,5,'#455a64');
+  drawRect(0,83,12,5,'#455a64');
+  // Body - hoodie
+  drawRect(-20,-5,40,58,'#4a148c');
+  // Hoodie hood
+  ctx.strokeStyle='#6a1b9a';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(0,-8,14,Math.PI+0.3,-0.3);ctx.stroke();
+  // Zipper
+  ctx.strokeStyle='#9e9e9e';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,-5);ctx.lineTo(0,50);ctx.stroke();
+  // Head
+  drawCircle(0,-24,18,'#fdd9b5');
+  // Curly brown hair
+  ctx.fillStyle='#5d4037';
+  for(let a=Math.PI;a<Math.PI*2;a+=0.3){
+    drawCircle(Math.cos(a)*16,-26+Math.sin(a)*14,5,'#5d4037');
+  }
+  // Glasses
+  ctx.strokeStyle='#212121';ctx.lineWidth=2;
+  ctx.beginPath();ctx.rect(-14,-31,11,9);ctx.stroke();
+  ctx.beginPath();ctx.rect(3,-31,11,9);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-3,-27);ctx.lineTo(3,-27);ctx.stroke();
+  // Eyes behind glasses
+  drawCircle(-8,-27,2.5,'#fff');
+  drawCircle(8,-27,2.5,'#fff');
+  drawCircle(-8,-27,1.5,'#5d4037');
+  drawCircle(8,-27,1.5,'#5d4037');
+  // Smile
+  ctx.strokeStyle='#e57373';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(0,-17,4,0.1,Math.PI-0.1);ctx.stroke();
+  // Arms
+  drawRect(-30,0,12,8,'#4a148c');
+  drawRect(18,0,12,8,'#4a148c');
+  drawCircle(-30,4,5,'#fdd9b5');
+  drawCircle(30,4,5,'#fdd9b5');
+  ctx.restore();
+}
+
+function drawPenny(x,y,scale){
+  const s=scale||1;
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  // Legs
+  drawRect(-8,50,7,32,'#fdd9b5');
+  drawRect(1,50,7,32,'#fdd9b5');
+  drawRect(-10,80,10,5,'#e91e63');
+  drawRect(0,80,10,5,'#e91e63');
+  // Body - casual top
+  drawRect(-18,-5,36,58,'#4caf50');
+  // V-neck
+  ctx.fillStyle='#fdd9b5';
+  ctx.beginPath();ctx.moveTo(0,-5);ctx.lineTo(-8,-5);ctx.lineTo(0,5);ctx.lineTo(8,-5);ctx.closePath();ctx.fill();
+  // Head
+  drawCircle(0,-24,19,'#fdd9b5');
+  // Blonde hair - long and flowing
+  ctx.fillStyle='#ffd54f';
+  ctx.beginPath();
+  ctx.ellipse(0,-34,20,14,0,0,Math.PI*2);
+  ctx.fill();
+  // Hair sides flowing down
+  ctx.beginPath();
+  ctx.ellipse(-16,-15,8,25,0.2,0,Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(16,-15,8,25,-0.2,0,Math.PI*2);
+  ctx.fill();
+  // Eyes
+  drawCircle(-7,-26,4,'#fff');
+  drawCircle(7,-26,4,'#fff');
+  drawCircle(-7,-26,2,'#2e7d32');
+  drawCircle(7,-26,2,'#2e7d32');
+  // Eyelashes
+  ctx.strokeStyle='#3e2723';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(-11,-28);ctx.lineTo(-13,-31);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(11,-28);ctx.lineTo(13,-31);ctx.stroke();
+  // Pretty smile
+  ctx.strokeStyle='#e57373';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(0,-17,5,0.1,Math.PI-0.1);ctx.stroke();
+  // Blush
+  drawCircle(-12,-20,3,'rgba(244,143,177,0.3)');
+  drawCircle(12,-20,3,'rgba(244,143,177,0.3)');
+  // Arms
+  drawRect(-28,0,12,7,'#4caf50');
+  drawRect(16,0,12,7,'#4caf50');
+  drawCircle(-28,3,5,'#fdd9b5');
+  drawCircle(28,3,5,'#fdd9b5');
+  ctx.restore();
+}
+
+function drawHoward(x,y,scale){
+  const s=scale||1;
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  // Legs - skinny
+  drawRect(-8,50,7,35,'#f57f17');
+  drawRect(1,50,7,35,'#f57f17');
+  // Belt buckle
+  drawRect(-6,48,12,5,'#9e9e9e');
+  drawRect(-3,49,6,3,'#ffd600');
+  // Shoes
+  drawRect(-10,83,10,5,'#37474f');
+  drawRect(0,83,10,5,'#37474f');
+  // Body - turtleneck
+  drawRect(-17,-5,34,56,'#d50000');
+  // Turtleneck collar
+  drawRect(-10,-12,20,10,'#d50000');
+  // Collar lines
+  ctx.strokeStyle='#b71c1c';ctx.lineWidth=1;
+  for(let t=-11;t<-3;t+=2){
+    ctx.beginPath();ctx.moveTo(-9,t);ctx.lineTo(9,t);ctx.stroke();
+  }
+  // Head
+  drawCircle(0,-28,18,'#fdd9b5');
+  // Bowl-cut dark hair
+  ctx.fillStyle='#212121';
+  ctx.beginPath();
+  ctx.arc(0,-30,18,Math.PI,0);
+  ctx.lineTo(18,-24);
+  ctx.quadraticCurveTo(20,-32,16,-40);
+  ctx.quadraticCurveTo(0,-50,-16,-40);
+  ctx.quadraticCurveTo(-20,-32,-18,-24);
+  ctx.closePath();ctx.fill();
+  // Straight bangs
+  drawRect(-16,-40,32,8,'#1a1a1a');
+  // Eyes
+  drawCircle(-7,-29,3.5,'#fff');
+  drawCircle(7,-29,3.5,'#fff');
+  drawCircle(-7,-29,2,'#4e342e');
+  drawCircle(7,-29,2,'#4e342e');
+  // Smirk
+  ctx.strokeStyle='#e57373';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(-4,-20);ctx.quadraticCurveTo(0,-17,5,-20);ctx.stroke();
+  // Arms - slim
+  drawRect(-27,0,12,7,'#d50000');
+  drawRect(15,0,12,7,'#d50000');
+  drawCircle(-27,3,4,'#fdd9b5');
+  drawCircle(27,3,4,'#fdd9b5');
+  ctx.restore();
+}
+
+function drawRaj(x,y,scale){
+  const s=scale||1;
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  // Legs
+  drawRect(-10,50,8,35,'#37474f');
+  drawRect(2,50,8,35,'#37474f');
+  drawRect(-12,83,12,5,'#4e342e');
+  drawRect(0,83,12,5,'#4e342e');
+  // Body - sweater vest over shirt
+  drawRect(-18,-5,36,58,'#1565c0');
+  // Sweater vest
+  drawRect(-15,-3,30,40,'#f9a825');
+  // V pattern
+  ctx.strokeStyle='#f57f17';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(-15,0);ctx.lineTo(0,12);ctx.lineTo(15,0);ctx.stroke();
+  // Head
+  drawCircle(0,-24,18,'#8d6e63');
+  // Dark hair
+  ctx.fillStyle='#1a1a1a';
+  ctx.beginPath();
+  ctx.arc(0,-26,18,Math.PI+0.2,-0.2);
+  ctx.fill();
+  // Neat hair on top
+  ctx.beginPath();
+  ctx.ellipse(0,-40,14,8,0,0,Math.PI);
+  ctx.fill();
+  // Eyes
+  drawCircle(-7,-26,4,'#fff');
+  drawCircle(7,-26,4,'#fff');
+  drawCircle(-7,-26,2,'#1a1a1a');
+  drawCircle(7,-26,2,'#1a1a1a');
+  // Gentle smile
+  ctx.strokeStyle='#bf360c';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(0,-17,4,0.1,Math.PI-0.1);ctx.stroke();
+  // Arms
+  drawRect(-28,0,12,8,'#1565c0');
+  drawRect(16,0,12,8,'#1565c0');
+  drawCircle(-28,4,5,'#8d6e63');
+  drawCircle(28,4,5,'#8d6e63');
+  ctx.restore();
+}
+
+function drawAmy(x,y,scale){
+  const s=scale||1;
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  // Legs
+  drawRect(-8,50,7,30,'#fdd9b5');
+  drawRect(1,50,7,30,'#fdd9b5');
+  drawRect(-10,78,10,5,'#5d4037');
+  drawRect(0,78,10,5,'#5d4037');
+  // Plaid skirt
+  drawRect(-16,35,32,18,'#2e7d32');
+  ctx.strokeStyle='#1b5e20';ctx.lineWidth=1;
+  for(let sk=-16;sk<16;sk+=6){ctx.beginPath();ctx.moveTo(sk,35);ctx.lineTo(sk,53);ctx.stroke();}
+  // Body - cardigan
+  drawRect(-18,-5,36,42,'#4a148c');
+  // Under-blouse
+  drawRect(-8,-5,16,35,'#e8eaf6');
+  // Cardigan opening
+  ctx.strokeStyle='#6a1b9a';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(-8,-5);ctx.lineTo(-8,35);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(8,-5);ctx.lineTo(8,35);ctx.stroke();
+  // Head
+  drawCircle(0,-24,18,'#fdd9b5');
+  // Brown hair in bun
+  ctx.fillStyle='#5d4037';
+  ctx.beginPath();
+  ctx.arc(0,-26,18,Math.PI+0.3,-0.3);
+  ctx.fill();
+  // Bun on top
+  drawCircle(0,-44,8,'#5d4037');
+  // Glasses
+  ctx.strokeStyle='#4e342e';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(-7,-26,5,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(7,-26,5,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-2,-26);ctx.lineTo(2,-26);ctx.stroke();
+  // Eyes
+  drawCircle(-7,-26,2.5,'#fff');
+  drawCircle(7,-26,2.5,'#fff');
+  drawCircle(-7,-26,1.5,'#4e342e');
+  drawCircle(7,-26,1.5,'#4e342e');
+  // Smile
+  ctx.strokeStyle='#e57373';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(0,-17,4,0.1,Math.PI-0.1);ctx.stroke();
+  // Arms
+  drawRect(-28,0,12,7,'#4a148c');
+  drawRect(16,0,12,7,'#4a148c');
+  drawCircle(-28,3,5,'#fdd9b5');
+  drawCircle(28,3,5,'#fdd9b5');
+  ctx.restore();
+}
+
+function drawTuxedoSheldon(x,y,scale){
+  const s=scale||1;
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  // Legs
+  drawRect(-12,55,10,40,'#1a1a1a');
+  drawRect(2,55,10,40,'#1a1a1a');
+  drawRect(-14,93,14,7,'#1a1a1a');
+  drawRect(0,93,14,7,'#1a1a1a');
+  // Tuxedo body
+  drawRect(-22,-5,44,62,'#1a1a1a');
+  // White shirt front
+  drawRect(-8,-5,16,50,'#fff');
+  // Lapels
+  ctx.fillStyle='#212121';
+  ctx.beginPath();ctx.moveTo(-8,-5);ctx.lineTo(-22,-5);ctx.lineTo(-12,20);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(8,-5);ctx.lineTo(22,-5);ctx.lineTo(12,20);ctx.closePath();ctx.fill();
+  // Bow tie
+  ctx.fillStyle='#1a1a1a';
+  ctx.beginPath();ctx.moveTo(0,-6);ctx.lineTo(-8,-10);ctx.lineTo(-8,-2);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(0,-6);ctx.lineTo(8,-10);ctx.lineTo(8,-2);ctx.closePath();ctx.fill();
+  drawCircle(0,-6,2,'#333');
+  // Head
+  drawCircle(0,-24,22,'#fdd9b5');
+  // Hair (neat)
+  ctx.fillStyle='#5d4037';
+  ctx.beginPath();
+  ctx.arc(0,-26,22,Math.PI+0.3,Math.PI*2-0.3);
+  ctx.quadraticCurveTo(22,-30,20,-42);
+  ctx.quadraticCurveTo(5,-52,-5,-50);
+  ctx.quadraticCurveTo(-15,-48,-20,-42);
+  ctx.quadraticCurveTo(-24,-30,-22,-24);
+  ctx.closePath();ctx.fill();
+  // Eyes
+  drawCircle(-8,-26,5,'#fff');
+  drawCircle(8,-26,5,'#fff');
+  drawCircle(-8,-26,2.5,'#2c1810');
+  drawCircle(8,-26,2.5,'#2c1810');
+  // Proud smile
+  ctx.strokeStyle='#c62828';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(0,-16,6,0.1,Math.PI-0.1);ctx.stroke();
+  // Arms
+  drawRect(-34,0,14,8,'#1a1a1a');
+  drawRect(20,0,14,8,'#1a1a1a');
+  drawCircle(-34,4,6,'#fdd9b5');
+  drawCircle(34,4,6,'#fdd9b5');
+  ctx.restore();
+}
+
+function drawAmyGown(x,y,scale){
+  const s=scale||1;
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  // Gown
+  ctx.fillStyle='#1565c0';
+  ctx.beginPath();
+  ctx.moveTo(-18,-5);ctx.lineTo(-30,85);ctx.lineTo(30,85);ctx.lineTo(18,-5);
+  ctx.closePath();ctx.fill();
+  // Gown shimmer
+  ctx.fillStyle='rgba(100,181,246,0.3)';
+  ctx.beginPath();ctx.moveTo(-5,-5);ctx.lineTo(-15,85);ctx.lineTo(5,85);ctx.lineTo(5,-5);ctx.closePath();ctx.fill();
+  // Shoes peek
+  drawRect(-10,82,8,5,'#1565c0');
+  drawRect(2,82,8,5,'#1565c0');
+  // Head
+  drawCircle(0,-24,18,'#fdd9b5');
+  // Updo hair
+  ctx.fillStyle='#5d4037';
+  ctx.beginPath();
+  ctx.arc(0,-26,18,Math.PI+0.3,-0.3);
+  ctx.fill();
+  // Elegant updo
+  drawCircle(0,-44,10,'#5d4037');
+  drawCircle(-4,-46,5,'#5d4037');
+  drawCircle(4,-46,5,'#5d4037');
+  // Sparkle in hair
+  drawStar(6,-48,4,3,1.5,'#ffd600');
+  // Glasses
+  ctx.strokeStyle='#4e342e';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(-7,-26,5,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(7,-26,5,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-2,-26);ctx.lineTo(2,-26);ctx.stroke();
+  // Eyes
+  drawCircle(-7,-26,2.5,'#fff');drawCircle(7,-26,2.5,'#fff');
+  drawCircle(-7,-26,1.5,'#4e342e');drawCircle(7,-26,1.5,'#4e342e');
+  // Happy smile
+  ctx.strokeStyle='#e57373';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(0,-17,5,0.1,Math.PI-0.1);ctx.stroke();
+  // Arms
+  drawCircle(-20,4,5,'#fdd9b5');
+  drawCircle(20,4,5,'#fdd9b5');
+  ctx.restore();
+}
+
+// ---- ENVIRONMENT DRAWING ----
+function drawSky(topColor,bottomColor){
+  const grad=ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,topColor);
+  grad.addColorStop(1,bottomColor);
+  ctx.fillStyle=grad;
+  ctx.fillRect(0,0,W,H);
+}
+
+function drawStars(count){
+  for(let i=0;i<count;i++){
+    const sx=(i*137.5)%W, sy=(i*97.3)%360;
+    const twinkle = 0.5 + 0.5*Math.sin(currentTime*2+i);
+    ctx.globalAlpha = twinkle * globalAlpha;
+    drawCircle(sx,sy,0.5+Math.random(),`#fff`);
+  }
+  ctx.globalAlpha = globalAlpha;
+}
+
+function drawGround(y,color1,color2){
+  const grad=ctx.createLinearGradient(0,y,0,H);
+  grad.addColorStop(0,color1);
+  grad.addColorStop(1,color2||color1);
+  ctx.fillStyle=grad;
+  ctx.fillRect(0,y,W,H-y);
+}
+
+function drawHouse(x,y,w,h){
+  // Main house
+  drawRect(x,y,w,h,'#d7ccc8');
+  // Roof
+  ctx.fillStyle='#5d4037';
+  ctx.beginPath();
+  ctx.moveTo(x-10,y);ctx.lineTo(x+w/2,y-40);ctx.lineTo(x+w+10,y);
+  ctx.closePath();ctx.fill();
+  // Door
+  drawRect(x+w/2-12,y+h-40,24,40,'#795548');
+  drawCircle(x+w/2+8,y+h-20,2,'#ffd600');
+  // Windows
+  drawRect(x+10,y+15,25,20,'#bbdefb');
+  drawRect(x+w-35,y+15,25,20,'#bbdefb');
+  ctx.strokeStyle='#5d4037';ctx.lineWidth=2;
+  ctx.strokeRect(x+10,y+15,25,20);
+  ctx.strokeRect(x+w-35,y+15,25,20);
+  // Window cross
+  ctx.beginPath();ctx.moveTo(x+22.5,y+15);ctx.lineTo(x+22.5,y+35);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x+10,y+25);ctx.lineTo(x+35,y+25);ctx.stroke();
+}
+
+function drawDesk(x,y){
+  drawRect(x,y,100,8,'#795548');
+  drawRect(x+5,y+8,8,30,'#5d4037');
+  drawRect(x+87,y+8,8,30,'#5d4037');
+}
+
+function drawBook(x,y,color){
+  drawRect(x,y,12,16,color);
+  ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=0.5;
+  ctx.strokeRect(x,y,12,16);
+}
+
+function drawWhiteboard(x,y,w,h){
+  drawRect(x,y,w,h,'#eceff1');
+  ctx.strokeStyle='#90a4ae';ctx.lineWidth=2;
+  ctx.strokeRect(x,y,w,h);
+  // Equations on board
+  ctx.fillStyle='#1565c0';
+  ctx.font='10px monospace';
+  const eqs = ['E = mc²','∫ψ*ψ dV = 1','Gμν = 8πTμν','∂ψ/∂t = Hψ','S = -kΣp ln p'];
+  eqs.forEach((eq,i)=>{
+    ctx.fillText(eq,x+8,y+15+i*(h-20)/5);
+  });
+}
+
+function drawCouch(x,y){
+  // Couch back
+  drawRect(x,y,200,25,'#795548');
+  // Cushions
+  drawRect(x+5,y+25,60,30,'#8d6e63');
+  drawRect(x+70,y+25,60,30,'#8d6e63');
+  drawRect(x+135,y+25,60,30,'#8d6e63');
+  // Cushion lines
+  ctx.strokeStyle='#6d4c41';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(x+65,y+25);ctx.lineTo(x+65,y+55);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x+135,y+25);ctx.lineTo(x+135,y+55);ctx.stroke();
+  // Arm rests
+  drawRect(x-8,y+5,13,50,'#6d4c41');
+  drawRect(x+195,y+5,13,50,'#6d4c41');
+  // Legs
+  drawRect(x+10,y+55,8,10,'#4e342e');
+  drawRect(x+182,y+55,8,10,'#4e342e');
+}
+
+function drawApartment(){
+  // Walls
+  drawRect(0,0,W,H,'#fff9c4');
+  // Back wall
+  drawRect(0,0,W,400,'#f5f5dc');
+  // Floor
+  drawRect(0,400,W,320,'#8d6e63');
+  // Floor boards
+  ctx.strokeStyle='#795548';ctx.lineWidth=1;
+  for(let fb=420;fb<H;fb+=20){
+    ctx.beginPath();ctx.moveTo(0,fb);ctx.lineTo(W,fb);ctx.stroke();
+  }
+  // Door (left)
+  drawRect(30,120,80,280,'#a1887f');
+  drawCircle(95,260,4,'#ffd600');
+  // Door number
+  drawText('4A',70,150,'bold 24px serif','#5d4037');
+  // Kitchen area (right)
+  drawRect(900,120,360,280,'#e8e0d0');
+  drawRect(900,200,360,8,'#795548'); // counter
+  // Fridge
+  drawRect(1150,120,80,280,'#cfd8dc');
+  ctx.strokeStyle='#b0bec5';ctx.lineWidth=1;ctx.strokeRect(1150,120,80,140);ctx.strokeRect(1150,260,80,140);
+  drawRect(1155,190,4,20,'#90a4ae');
+  drawRect(1155,330,4,20,'#90a4ae');
+  // Window
+  drawRect(500,50,200,150,'#81d4fa');
+  ctx.strokeStyle='#fff';ctx.lineWidth=3;
+  ctx.strokeRect(500,50,200,150);
+  ctx.beginPath();ctx.moveTo(600,50);ctx.lineTo(600,200);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(500,125);ctx.lineTo(700,125);ctx.stroke();
+}
+
+function drawAtom(cx,cy,size,t){
+  // Nucleus
+  drawCircle(cx,cy,size*0.15,'#4fc3f7');
+  // Orbits
+  ctx.strokeStyle='rgba(79,195,247,0.4)';
+  ctx.lineWidth=1;
+  for(let i=0;i<3;i++){
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.rotate(i*Math.PI/3+t*0.5);
+    ctx.beginPath();
+    ctx.ellipse(0,0,size,size*0.35,0,0,Math.PI*2);
+    ctx.stroke();
+    // Electron
+    const ea = t*2+i*Math.PI*2/3;
+    const ex = Math.cos(ea)*size;
+    const ey = Math.sin(ea)*size*0.35;
+    ctx.restore();
+    drawCircle(cx+Math.cos(i*Math.PI/3+t*0.5)*ex-Math.sin(i*Math.PI/3+t*0.5)*ey,
+               cy+Math.sin(i*Math.PI/3+t*0.5)*ex+Math.cos(i*Math.PI/3+t*0.5)*ey,
+               size*0.08,'#e1f5fe');
+  }
+}
+
+function drawPalmTree(x,y,h){
+  // Trunk
+  ctx.strokeStyle='#795548';ctx.lineWidth=8;
+  ctx.beginPath();ctx.moveTo(x,y);ctx.quadraticCurveTo(x+5,y-h*0.5,x+3,y-h);ctx.stroke();
+  // Leaves
+  ctx.strokeStyle='#2e7d32';ctx.lineWidth=3;
+  for(let la=0;la<6;la++){
+    const angle = la*Math.PI/3-Math.PI/6;
+    ctx.beginPath();
+    ctx.moveTo(x+3,y-h);
+    ctx.quadraticCurveTo(x+3+Math.cos(angle)*40,y-h+Math.sin(angle)*20-15,
+                          x+3+Math.cos(angle)*55,y-h+Math.sin(angle)*35);
+    ctx.stroke();
+  }
+}
+
+function drawNobel(x,y,s){
+  // Medal
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  // Ribbon
+  ctx.fillStyle='#1565c0';
+  ctx.beginPath();ctx.moveTo(-8,-30);ctx.lineTo(-15,-60);ctx.lineTo(15,-60);ctx.lineTo(8,-30);ctx.closePath();ctx.fill();
+  // Medal circle
+  drawCircle(0,0,20,'#ffd600');
+  drawCircle(0,0,16,'#ffb300');
+  // Profile on medal
+  ctx.strokeStyle='#f57f17';ctx.lineWidth=1.5;
+  ctx.beginPath();
+  ctx.arc(-2,-2,8,0,Math.PI*2);
+  ctx.stroke();
+  // N text
+  drawText('N',0,0,'bold 12px serif','#e65100');
+  ctx.restore();
+}
+
+// ---- SCENE DEFINITIONS ----
+const FADE_DUR = 1.5;
+
+const scenes = [
+  // Scene 1: TITLE (15s)
+  {
+    duration: 15,
+    mood: 'title',
+    dialogues: [
+      {at:0, speaker:'', text:''},
+    ],
+    render: function(t){
+      drawRect(0,0,W,H,'#0a0a1a');
+      drawStars(200);
+
+      // Floating equations
+      if(Math.random()<0.1) spawnEquation();
+      drawEquations();
+
+      // Streamflix presents (fade in first 3s)
+      if(t<5){
+        const a = t<2 ? t/2 : (t<4?1:(5-t));
+        ctx.globalAlpha = Math.max(0,a)*globalAlpha;
+        drawText('STREAMFLIX PRESENTS',''+W/2,200,'bold 36px sans-serif','#e50914');
+        ctx.globalAlpha = globalAlpha;
+      }
+
+      // Title
+      if(t>3){
+        const ta = Math.min(1,(t-3)/2);
+        ctx.globalAlpha = ta*globalAlpha;
+
+        // SHELDON title with glow
+        ctx.shadowColor='#4fc3f7';
+        ctx.shadowBlur=30;
+        drawText('SHELDON',''+W/2,H/2-20,'bold 90px Georgia','#4fc3f7');
+        ctx.shadowBlur=0;
+
+        // Subtitle
+        drawText('A Life in Science',''+W/2,H/2+50,'italic 28px Georgia','#b0bec5');
+
+        // Atoms orbiting title
+        drawAtom(W/2-200,H/2-20,40,t);
+        drawAtom(W/2+200,H/2-20,35,t+1);
+        drawAtom(W/2,H/2+100,30,t+2);
+
+        // Periodic table elements floating
+        const elements = ['H','He','Li','C','N','O','Fe','Au','U'];
+        elements.forEach((el,i)=>{
+          const ex = 100+i*130;
+          const ey = 600+Math.sin(t*1.5+i)*20;
+          ctx.globalAlpha = 0.4*ta*globalAlpha/ta;
+          drawRect(ex-15,ey-15,30,30,'rgba(79,195,247,0.15)');
+          ctx.strokeStyle='#4fc3f7';ctx.lineWidth=1;
+          ctx.strokeRect(ex-15,ey-15,30,30);
+          drawText(el,ex,ey,'bold 14px monospace','#4fc3f7');
+        });
+        ctx.globalAlpha = globalAlpha;
+      }
+
+      // Particles
+      if(t>4 && Math.random()<0.3){
+        addParticles(Math.random()*W,Math.random()*H,1,'#4fc3f7',30,2);
+      }
+    }
+  },
+  // Scene 2: EAST TEXAS, 1989 (15s)
+  {
+    duration: 15,
+    mood: 'nostalgic',
+    dialogues: [
+      {at:0.5, speaker:'Narrator', text:"In the small town of Medford, Texas, lived a boy who would change the world of physics forever."},
+      {at:9, speaker:'Young Sheldon', text:"I don't understand why they waste time on football when string theory exists."},
+    ],
+    render: function(t){
+      // Texas sky
+      drawSky('#87ceeb','#f4a460');
+      // Sun
+      drawCircle(1000,100,50,'#ffd600');
+      // Dry landscape
+      drawGround(450,'#c8a96e','#a0845c');
+      // Distant hills
+      ctx.fillStyle='#b8976a';
+      ctx.beginPath();ctx.moveTo(0,450);
+      for(let hx=0;hx<W;hx+=100){
+        ctx.quadraticCurveTo(hx+50,420+Math.sin(hx*0.01)*20,hx+100,450);
+      }
+      ctx.lineTo(W,450);ctx.fill();
+      // Road
+      ctx.fillStyle='#757575';
+      ctx.beginPath();ctx.moveTo(500,H);ctx.lineTo(600,450);ctx.lineTo(680,450);ctx.lineTo(780,H);ctx.fill();
+      // Road line
+      ctx.setLineDash([20,15]);
+      ctx.strokeStyle='#ffd600';ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(640,H);ctx.lineTo(640,450);ctx.stroke();
+      ctx.setLineDash([]);
+      // Cooper house
+      drawHouse(150,310,180,140);
+      // Tree
+      drawRect(420,370,10,80,'#5d4037');
+      drawCircle(425,355,30,'#2e7d32');
+      drawCircle(410,365,22,'#388e3c');
+      drawCircle(440,365,22,'#388e3c');
+      // Kids playing outside (silhouettes)
+      if(t>3){
+        const kbounce = Math.sin(t*4)*5;
+        drawCircle(850,440+kbounce,8,'#795548');
+        drawRect(846,448+kbounce,8,15,'#1565c0');
+        drawCircle(900,445+Math.sin(t*3.5)*4,8,'#8d6e63');
+        drawRect(896,453+Math.sin(t*3.5)*4,8,15,'#c62828');
+        // Football
+        drawEllipse(870,430+Math.sin(t*5)*10,6,4,'#795548');
+      }
+      // Sheldon at desk (visible through window)
+      if(t>2){
+        drawYoungSheldon(225,385,0.5);
+        // Books around him
+        drawBook(195,398,'#1565c0');
+        drawBook(207,396,'#c62828');
+        drawBook(255,397,'#2e7d32');
+      }
+      // Location text
+      if(t<4){
+        const lt = Math.min(1,t/1.5);
+        ctx.globalAlpha = lt*globalAlpha;
+        drawText('EAST TEXAS, 1989',W/2,80,'bold 36px Georgia','#fff');
+        ctx.globalAlpha = globalAlpha;
+      }
+    }
+  },
+  // Scene 3: GENIUS KID (15s)
+  {
+    duration: 15,
+    mood: 'comedic',
+    dialogues: [
+      {at:1, speaker:'Teacher', text:"And the answer is..."},
+      {at:4, speaker:'Young Sheldon', text:"The answer is 42.7 joules, but your equation had a sign error in step three."},
+      {at:10, speaker:'Narrator', text:"The teenagers were not amused."},
+    ],
+    render: function(t){
+      // Classroom
+      drawRect(0,0,W,H,'#f5f5dc');
+      drawRect(0,450,W,270,'#8d6e63');
+      // Blackboard
+      drawRect(350,30,550,200,'#2e7d32');
+      ctx.strokeStyle='#5d4037';ctx.lineWidth=4;
+      ctx.strokeRect(350,30,550,200);
+      // Chalk writing
+      ctx.fillStyle='#fff';ctx.font='16px monospace';
+      ctx.fillText('F = ma',380,70);
+      ctx.fillText('KE = ½mv²',380,100);
+      ctx.fillText('W = Fd cos θ',380,130);
+      ctx.fillText('Answer: ____ joules',380,170);
+      // Wrong sign highlighted
+      if(t>4){
+        ctx.strokeStyle='#f44336';ctx.lineWidth=2;
+        ctx.beginPath();ctx.arc(435,95,12,0,Math.PI*2);ctx.stroke();
+        ctx.fillStyle='#f44336';ctx.fillText('WRONG!',460,98);
+      }
+      // Teacher desk
+      drawRect(550,250,120,15,'#5d4037');
+      drawRect(560,265,10,40,'#4e342e');
+      drawRect(650,265,10,40,'#4e342e');
+      // Teacher (simplified)
+      drawCircle(610,290,15,'#fdd9b5');
+      drawRect(595,305,30,40,'#5d4037');
+      ctx.fillStyle='#bdbdbd';
+      ctx.beginPath();ctx.arc(610,280,15,Math.PI,0);ctx.fill();
+      // Student desks
+      for(let d=0;d<4;d++){
+        drawRect(120+d*220,380,80,10,'#8d6e63');
+        drawRect(130+d*220,390,8,30,'#795548');
+        drawRect(180+d*220,390,8,30,'#795548');
+      }
+      // Teens in chairs (annoyed)
+      for(let s=1;s<4;s++){
+        const sx = 160+s*220;
+        drawCircle(sx,355,12,'#fdd9b5');
+        drawRect(sx-10,367,20,30,'#' + ['1565c0','c62828','2e7d32'][s-1]);
+        // Annoyed eyes
+        if(t>5){
+          ctx.strokeStyle='#333';ctx.lineWidth=2;
+          ctx.beginPath();ctx.moveTo(sx-5,352);ctx.lineTo(sx-2,354);ctx.stroke();
+          ctx.beginPath();ctx.moveTo(sx+5,352);ctx.lineTo(sx+2,354);ctx.stroke();
+        }
+      }
+      // Young Sheldon (front, hand up)
+      drawYoungSheldon(160,380,0.7,'happy');
+      // Hand raised
+      if(t>2 && t<8){
+        ctx.save();
+        ctx.translate(160,380);ctx.scale(0.7,0.7);
+        // Raised hand
+        drawRect(20,-40,6,40,'#c62828');
+        drawCircle(23,-45,5,'#fdd9b5');
+        ctx.restore();
+      }
+      // "9 years old" label
+      if(t<3){
+        ctx.globalAlpha=Math.min(1,t)*globalAlpha;
+        drawRect(60,280,160,30,'rgba(0,0,0,0.7)');
+        drawText('SHELDON, AGE 9',140,295,'14px sans-serif','#ffd600');
+        ctx.globalAlpha=globalAlpha;
+      }
+    }
+  },
+  // Scene 4: FAMILY DINNER (15s)
+  {
+    duration: 15,
+    mood: 'warm',
+    dialogues: [
+      {at:0.5, speaker:'George', text:"How was school, kids?"},
+      {at:3, speaker:'Missy', text:"Normal."},
+      {at:4.5, speaker:'Young Sheldon', text:"I corrected my physics teacher three times and reorganized the periodic table display because it was inaccurate."},
+      {at:9, speaker:'Mary', text:"That's nice, Shelly. Eat your chicken."},
+      {at:11.5, speaker:'Young Sheldon', text:"You know I can't eat chicken that touched the peas."},
+    ],
+    render: function(t){
+      // Dining room
+      drawRect(0,0,W,H,'#fff8e1');
+      drawRect(0,420,W,300,'#8d6e63');
+      // Table
+      drawRect(250,350,750,30,'#795548');
+      drawRect(300,380,20,60,'#5d4037');
+      drawRect(930,380,20,60,'#5d4037');
+      // Plates on table
+      for(let p=0;p<5;p++){
+        const px = 340+p*130;
+        drawCircle(px,345,18,'#eceff1');
+        drawCircle(px,345,14,'#fff');
+        // Food
+        drawCircle(px-4,343,5,'#ffa726'); // chicken
+        drawCircle(px+5,346,4,'#66bb6a'); // peas
+      }
+      // Sheldon's plate (peas separated/pushed away)
+      if(t>11){
+        drawCircle(336,346,4,'#fff8e1'); // peas removed visually
+      }
+      // Family members around table
+      drawGeorge(340,310,0.45);
+      drawMary(870,310,0.45);
+      drawYoungSheldon(470,320,0.5);
+      drawMissy(600,320,0.45);
+      // Meemaw in background on rocking chair
+      // Ceiling light
+      drawRect(610,0,4,100,'#bdbdbd');
+      drawEllipse(612,105,30,10,'#fff9c4');
+      ctx.globalAlpha=0.3*globalAlpha;
+      drawCircle(612,105,60,'#fff9c4');
+      ctx.globalAlpha=globalAlpha;
+      // Picture frame on wall
+      drawRect(150,100,80,60,'#5d4037');
+      drawRect(154,104,72,52,'#81d4fa');
+      // Cross on wall (Mary's touch)
+      ctx.strokeStyle='#ffd600';ctx.lineWidth=3;
+      ctx.beginPath();ctx.moveTo(800,80);ctx.lineTo(800,140);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(780,100);ctx.lineTo(820,100);ctx.stroke();
+    }
+  },
+  // Scene 5: MEEMAW'S WISDOM (15s)
+  {
+    duration: 15,
+    mood: 'emotional',
+    dialogues: [
+      {at:0.5, speaker:'Meemaw', text:"Moon Pie, those kids don't understand you because you're special."},
+      {at:4, speaker:'Young Sheldon', text:"I know I'm special, Meemaw. My IQ is 187."},
+      {at:7, speaker:'Meemaw', text:"That's not what I meant, baby. Being smart is a gift, but being kind is a choice."},
+      {at:12, speaker:'Narrator', text:"She gave him a cookie. It helped."},
+    ],
+    render: function(t){
+      // Cozy living room
+      drawRect(0,0,W,H,'#fff3e0');
+      drawRect(0,440,W,280,'#a1887f');
+      // Wallpaper pattern
+      ctx.globalAlpha=0.1*globalAlpha;
+      for(let wx=0;wx<W;wx+=40){
+        for(let wy=0;wy<440;wy+=40){
+          drawCircle(wx,wy,3,'#8d6e63');
+        }
+      }
+      ctx.globalAlpha=globalAlpha;
+      // Couch
+      drawCouch(150,380);
+      // Armchair for Meemaw
+      drawRect(700,390,80,15,'#4a148c');
+      drawRect(700,370,80,25,'#6a1b9a');
+      drawRect(690,375,15,40,'#4a148c');
+      drawRect(775,375,15,40,'#4a148c');
+      // Lamp
+      drawRect(600,250,6,160,'#bdbdbd');
+      ctx.fillStyle='#fff9c4';
+      ctx.beginPath();ctx.moveTo(580,250);ctx.lineTo(603,200);ctx.lineTo(626,250);ctx.closePath();ctx.fill();
+      // Warm glow
+      ctx.globalAlpha=0.15*globalAlpha;
+      drawCircle(603,250,80,'#fff9c4');
+      ctx.globalAlpha=globalAlpha;
+      // Bookshelf
+      drawRect(900,100,200,310,'#5d4037');
+      for(let shelf=0;shelf<4;shelf++){
+        drawRect(905,100+shelf*78,190,5,'#4e342e');
+        for(let b=0;b<7;b++){
+          const bc = ['#c62828','#1565c0','#2e7d32','#f57f17','#4a148c','#e91e63','#00838f'][b];
+          drawRect(910+b*26,108+shelf*78,20,68,bc);
+        }
+      }
+      // Meemaw in armchair
+      drawMeemaw(740,350,0.55);
+      // Young Sheldon on couch (upset at first, then better)
+      const expr = t < 6 ? 'upset' : 'happy';
+      drawYoungSheldon(250,395,0.55,expr);
+      // Cookie appearing
+      if(t>12){
+        drawCircle(280,385,8,'#d4a056');
+        drawCircle(278,383,2,'#5d4037');
+        drawCircle(283,386,2,'#5d4037');
+      }
+      // Rug
+      ctx.globalAlpha=0.3*globalAlpha;
+      drawEllipse(500,480,200,40,'#c62828');
+      ctx.globalAlpha=globalAlpha;
+    }
+  },
+  // Scene 6: COLLEGE AT 11 (15s)
+  {
+    duration: 15,
+    mood: 'nostalgic',
+    dialogues: [
+      {at:0.5, speaker:'Narrator', text:"At just eleven years old, Sheldon Cooper enrolled at East Texas Tech."},
+      {at:5, speaker:'Narrator', text:"He was younger than everyone, smaller than everyone, and smarter than everyone."},
+      {at:10, speaker:'Young Sheldon', text:"I don't need friends. I have textbooks."},
+    ],
+    render: function(t){
+      // Campus
+      drawSky('#87ceeb','#b3e5fc');
+      drawGround(420,'#4caf50','#388e3c');
+      // University building
+      drawRect(300,150,650,270,'#d7ccc8');
+      // Columns
+      for(let c=0;c<5;c++){
+        drawRect(340+c*130,200,20,220,'#bdbdbd');
+      }
+      // Pediment
+      ctx.fillStyle='#bcaaa4';
+      ctx.beginPath();ctx.moveTo(280,200);ctx.lineTo(625,120);ctx.lineTo(970,200);ctx.closePath();ctx.fill();
+      // Sign
+      drawText('EAST TEXAS TECH',625,165,'bold 22px serif','#5d4037');
+      // Steps
+      for(let step=0;step<3;step++){
+        drawRect(350,420+step*15,550,15,'#bcaaa4');
+      }
+      // Big students walking
+      const phase = t*0.5;
+      for(let s=0;s<4;s++){
+        const sx = 200+s*200+Math.sin(phase+s)*10;
+        drawCircle(sx,400,14,'#fdd9b5');
+        drawRect(sx-14,414,28,35,['#1565c0','#c62828','#2e7d32','#f57f17'][s]);
+        drawRect(sx-8,449,7,25,'#37474f');
+        drawRect(sx+1,449,7,25,'#37474f');
+      }
+      // Tiny Sheldon with big backpack
+      drawYoungSheldon(640,430,0.5,'happy');
+      // Huge backpack
+      drawRect(625,395,30,35,'#1565c0');
+      ctx.strokeStyle='#0d47a1';ctx.lineWidth=1;
+      ctx.strokeRect(625,395,30,35);
+      // Books sticking out
+      drawRect(628,392,6,5,'#c62828');
+      drawRect(638,392,6,5,'#2e7d32');
+      // Montage: grades floating
+      if(t>4){
+        const grades = ['A+','A+','A+','A+','A+'];
+        grades.forEach((g,i)=>{
+          const gy = 100+i*50+Math.sin(t*2+i)*10;
+          const gx = 100+Math.sin(t+i*1.3)*30;
+          ctx.globalAlpha=(0.5+Math.sin(t+i)*0.3)*globalAlpha;
+          drawText(g,gx,gy,'bold 28px sans-serif','#ffd600');
+        });
+        ctx.globalAlpha=globalAlpha;
+      }
+      // Eating lunch alone (later)
+      if(t>8){
+        ctx.globalAlpha=0.8*globalAlpha;
+        drawRect(850,500,80,5,'#8d6e63');
+        drawRect(860,505,8,20,'#795548');
+        drawRect(912,505,8,20,'#795548');
+        drawYoungSheldon(890,485,0.35,'happy');
+        // Book he's reading
+        drawRect(870,490,15,12,'#4fc3f7');
+        ctx.globalAlpha=globalAlpha;
+      }
+    }
+  },
+  // Scene 7: GROWING UP (12s)
+  {
+    duration: 12,
+    mood: 'emotional',
+    dialogues: [
+      {at:0.5, speaker:'Narrator', text:"Years passed. Degrees piled up. PhD after PhD. Always the smartest. Always alone."},
+      {at:7, speaker:'Narrator', text:"But genius has its price. And loneliness was the interest."},
+    ],
+    render: function(t){
+      // Gradient time-lapse background
+      const phase = t/12;
+      const r = Math.floor(10+phase*30);
+      const g = Math.floor(10+phase*15);
+      const b = Math.floor(30+phase*20);
+      drawRect(0,0,W,H,`rgb(${r},${g},${b})`);
+
+      // Growing Sheldon in center
+      const age = 11 + (t/12)*15; // 11 to 26
+      const scale = 0.4 + (t/12)*0.5;
+
+      if(age < 16){
+        drawYoungSheldon(W/2, H/2+50, scale);
+      } else {
+        drawAdultSheldon(W/2, H/2+30, scale-0.1);
+      }
+
+      // Degrees/diplomas floating around
+      const degrees = ['B.S. Physics','M.S. Physics','Ph.D. Physics','Ph.D. Theoretical Physics'];
+      degrees.forEach((deg,i)=>{
+        if(t > 2+i*2.5){
+          const da = Math.min(1,(t-2-i*2.5)/1);
+          ctx.globalAlpha=da*0.8*globalAlpha;
+          const dx = 200+i*220;
+          const dy = 150+Math.sin(t+i)*20;
+          drawRect(dx-60,dy-15,120,30,'rgba(255,248,225,0.9)');
+          ctx.strokeStyle='#ffd600';ctx.lineWidth=1;
+          ctx.strokeRect(dx-60,dy-15,120,30);
+          drawText(deg,dx,dy,'12px serif','#5d4037');
+        }
+      });
+      ctx.globalAlpha=globalAlpha;
+
+      // Books pile growing
+      const bookCount = Math.floor(t*2);
+      for(let b=0;b<Math.min(bookCount,15);b++){
+        const bx = 100+Math.random()*100;
+        const by = H-50-b*8;
+        drawRect(bx,by,30,7,['#c62828','#1565c0','#2e7d32','#f57f17','#4a148c'][b%5]);
+      }
+
+      // Clock ticking effect
+      drawCircle(1100,100,40,'rgba(255,255,255,0.1)');
+      ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.arc(1100,100,35,0,Math.PI*2);
+      ctx.stroke();
+      // Clock hands
+      const hourAngle = (t/12)*Math.PI*6;
+      const minAngle = t*Math.PI*2;
+      ctx.beginPath();ctx.moveTo(1100,100);
+      ctx.lineTo(1100+Math.sin(hourAngle)*20,100-Math.cos(hourAngle)*20);ctx.stroke();
+      ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(1100,100);
+      ctx.lineTo(1100+Math.sin(minAngle)*28,100-Math.cos(minAngle)*28);ctx.stroke();
+
+      // Bittersweet particles
+      if(Math.random()<0.15) addParticles(Math.random()*W,Math.random()*H,1,'#4fc3f7',20,3);
+    }
+  },
+  // Scene 8: CALTECH (15s)
+  {
+    duration: 15,
+    mood: 'triumphant',
+    dialogues: [
+      {at:0.5, speaker:'Sheldon', text:"At last. A place worthy of my intellect."},
+      {at:5, speaker:'Narrator', text:"The California Institute of Technology. Pasadena. Sheldon had found his kingdom."},
+      {at:10, speaker:'Sheldon', text:"This is my spot. It is the optimal location considering airflow, proximity to the kitchen, and television viewing angle."},
+    ],
+    render: function(t){
+      // Sunny Pasadena
+      drawSky('#40c4ff','#80d8ff');
+      drawCircle(1050,80,60,'#ffd600');
+      // Rays
+      ctx.globalAlpha=0.15*globalAlpha;
+      for(let r=0;r<12;r++){
+        const angle=r*Math.PI/6+t*0.1;
+        ctx.strokeStyle='#ffd600';ctx.lineWidth=3;
+        ctx.beginPath();ctx.moveTo(1050+Math.cos(angle)*70,80+Math.sin(angle)*70);
+        ctx.lineTo(1050+Math.cos(angle)*120,80+Math.sin(angle)*120);ctx.stroke();
+      }
+      ctx.globalAlpha=globalAlpha;
+      // Mountains in back
+      ctx.fillStyle='#90a4ae';
+      ctx.beginPath();ctx.moveTo(0,350);
+      ctx.lineTo(200,250);ctx.lineTo(400,300);ctx.lineTo(600,230);ctx.lineTo(800,280);ctx.lineTo(1000,240);ctx.lineTo(W,300);ctx.lineTo(W,350);ctx.fill();
+      // Ground
+      drawGround(400,'#66bb6a','#4caf50');
+      // Caltech building
+      drawRect(200,200,850,200,'#e8d5b7');
+      // Arches
+      for(let a=0;a<6;a++){
+        ctx.fillStyle='#d7ccc8';
+        ctx.beginPath();
+        ctx.arc(280+a*130,300,40,Math.PI,0);
+        ctx.fill();
+        drawRect(240+a*130,300,80,100,'#d7ccc8');
+        // Dark archway
+        drawRect(250+a*130,310,60,90,'#5d4037');
+      }
+      // Tower
+      drawRect(580,100,100,100,'#e8d5b7');
+      drawRect(600,80,60,25,'#d7ccc8');
+      // CALTECH sign
+      drawText('CALIFORNIA INSTITUTE OF TECHNOLOGY',625,180,'bold 16px serif','#5d4037');
+      // Palm trees
+      drawPalmTree(120,400,120);
+      drawPalmTree(1100,400,100);
+      drawPalmTree(1180,400,110);
+      // Sheldon walking in
+      const sx = Math.min(625, 100+t*50);
+      drawAdultSheldon(sx,430,0.6,'smug');
+      // Couch spot effect (later)
+      if(t>9){
+        drawCouch(350,500);
+        // Glowing spot
+        ctx.globalAlpha=(0.3+Math.sin(t*3)*0.15)*globalAlpha;
+        drawCircle(420,510,25,'#ffd600');
+        ctx.globalAlpha=globalAlpha;
+        drawAdultSheldon(420,485,0.4,'happy');
+      }
+    }
+  },
+  // Scene 9: MEETING LEONARD (15s)
+  {
+    duration: 15,
+    mood: 'comedic',
+    dialogues: [
+      {at:0.5, speaker:'Leonard', text:"Hi, I'm Leonard Hofstadter. I'm looking for a roommate?"},
+      {at:4, speaker:'Sheldon', text:"Do you have any communicable diseases? What's your stance on thermostat settings? Do you play any wind instruments?"},
+      {at:9, speaker:'Leonard', text:"Uh... no, 72 degrees, and no?"},
+      {at:11.5, speaker:'Sheldon', text:"You'll do. But we need a roommate agreement."},
+    ],
+    render: function(t){
+      // Apartment hallway
+      drawRect(0,0,W,H,'#fff9c4');
+      drawRect(0,480,W,240,'#a1887f');
+      // Hallway carpet
+      drawRect(0,480,W,240,'#c62828');
+      ctx.globalAlpha=0.3*globalAlpha;
+      for(let cx=0;cx<W;cx+=30){
+        for(let cy=480;cy<H;cy+=30){
+          drawCircle(cx,cy,5,'#b71c1c');
+        }
+      }
+      ctx.globalAlpha=globalAlpha;
+      // Door 4A
+      drawRect(400,150,150,330,'#a1887f');
+      drawCircle(530,320,6,'#ffd600');
+      drawText('4A',475,180,'bold 36px serif','#5d4037');
+      // Door 4B
+      drawRect(700,150,150,330,'#a1887f');
+      drawCircle(720,320,6,'#ffd600');
+      drawText('4B',775,180,'bold 36px serif','#5d4037');
+      // Stairs
+      drawRect(0,200,120,280,'#bcaaa4');
+      ctx.strokeStyle='#a1887f';ctx.lineWidth=2;
+      for(let st=0;st<8;st++){
+        ctx.beginPath();ctx.moveTo(0,220+st*35);ctx.lineTo(120,220+st*35);ctx.stroke();
+      }
+      // Sheldon at door
+      drawAdultSheldon(470,370,0.7);
+      // Leonard arriving
+      const lx = t < 3 ? 100+t*60 : 280;
+      drawLeonard(lx,380,0.65);
+      // Roommate agreement binder (appears at end)
+      if(t>11){
+        // Giant binder
+        ctx.save();
+        ctx.translate(530,340);
+        drawRect(-30,-40,60,55,'#1565c0');
+        drawText('ROOMMATE',0,-25,'bold 7px sans-serif','#fff');
+        drawText('AGREEMENT',0,-15,'bold 7px sans-serif','#fff');
+        drawText('Rev. 14.2',0,-5,'6px sans-serif','#b3e5fc');
+        // Stack effect
+        drawRect(-28,-38,60,2,'#e3f2fd');
+        drawRect(-26,-36,60,2,'#e3f2fd');
+        ctx.restore();
+      }
+    }
+  },
+  // Scene 10: THE GANG (15s)
+  {
+    duration: 15,
+    mood: 'warm',
+    dialogues: [
+      {at:0.5, speaker:'Howard', text:"So get this - I designed a zero-gravity toilet for the Space Station."},
+      {at:4, speaker:'Raj', text:"Dude, I discovered a trans-Neptunian object."},
+      {at:7, speaker:'Sheldon', text:"Both pale in comparison to my work on string theory, but do go on."},
+      {at:11, speaker:'Narrator', text:"And just like that, a group of brilliant misfits became a family."},
+    ],
+    render: function(t){
+      drawApartment();
+      // Couch
+      drawCouch(300,440);
+      // Coffee table
+      drawRect(350,510,180,12,'#5d4037');
+      drawRect(360,522,8,20,'#4e342e');
+      drawRect(510,522,8,20,'#4e342e');
+      // Takeout containers on table
+      drawRect(370,500,25,12,'#fff');
+      drawRect(410,500,25,12,'#fff');
+      drawRect(450,500,25,12,'#fff');
+      drawRect(490,500,25,12,'#fff');
+      // Chopsticks
+      ctx.strokeStyle='#8d6e63';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(375,498);ctx.lineTo(380,488);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(378,498);ctx.lineTo(383,488);ctx.stroke();
+      // The gang on/around couch
+      drawAdultSheldon(370,410,0.5,'smug'); // in his spot
+      drawLeonard(440,415,0.48);
+      drawHoward(510,415,0.48);
+      drawRaj(580,415,0.48);
+      // Whiteboard in background
+      drawWhiteboard(750,150,200,150);
+      // Comic books visible
+      drawRect(180,440,15,20,'#ffd600');
+      drawRect(195,438,15,22,'#c62828');
+      drawRect(210,440,15,20,'#4fc3f7');
+      // TV
+      drawRect(150,250,130,80,'#212121');
+      drawRect(155,255,120,70,'#1565c0');
+    }
+  },
+  // Scene 11: PENNY MOVES IN (15s)
+  {
+    duration: 15,
+    mood: 'comedic',
+    dialogues: [
+      {at:0.5, speaker:'Penny', text:"Hi! I'm Penny, your new neighbor!"},
+      {at:3, speaker:'Narrator', text:"Leonard was instantly lovestruck."},
+      {at:5, speaker:'Sheldon', text:"I feel I should warn you, this building has a very specific recycling protocol..."},
+      {at:9, speaker:'Penny', text:"Uh, nice to meet you too?"},
+      {at:11, speaker:'Sheldon', text:"Knock knock knock, Penny. Knock knock knock, Penny. Knock knock knock, Penny."},
+    ],
+    render: function(t){
+      // Hallway
+      drawRect(0,0,W,H,'#fff9c4');
+      drawRect(0,480,W,240,'#c62828');
+      // Doors
+      drawRect(300,150,150,330,'#a1887f');
+      drawText('4A',375,180,'bold 30px serif','#5d4037');
+      drawRect(700,150,150,330,'#a1887f');
+      drawText('4B',775,180,'bold 30px serif','#5d4037');
+      // Door 4B open
+      if(t>0){
+        drawRect(700,150,10,330,'#8d6e63');
+      }
+      // Penny in doorway
+      drawPenny(750,380,0.65);
+      // Moving boxes
+      drawRect(820,430,40,40,'#8d6e63');
+      drawRect(830,400,35,35,'#a1887f');
+      drawText('STUFF',840,418,'8px sans-serif','#5d4037');
+      // Sheldon and Leonard
+      drawAdultSheldon(400,380,0.65);
+      drawLeonard(480,385,0.6);
+      // Leonard's heart eyes
+      if(t>2 && t<6){
+        const hb = Math.sin(t*6)*3;
+        ctx.fillStyle='#e91e63';
+        ctx.font='20px sans-serif';
+        ctx.fillText('♥',490,350+hb);
+        ctx.fillText('♥',470,340+hb);
+      }
+      // Knock animation
+      if(t>10.5){
+        const knockPhase = ((t-10.5)*6)%3;
+        if(knockPhase<1){
+          // Hand knocking
+          drawCircle(690,300,8,'#fdd9b5');
+          ctx.strokeStyle='#fdd9b5';ctx.lineWidth=4;
+          ctx.beginPath();ctx.moveTo(640,350);ctx.lineTo(685,305);ctx.stroke();
+          // Impact lines
+          ctx.strokeStyle='#ffd600';ctx.lineWidth=1;
+          ctx.beginPath();ctx.moveTo(695,290);ctx.lineTo(700,280);ctx.stroke();
+          ctx.beginPath();ctx.moveTo(700,295);ctx.lineTo(710,290);ctx.stroke();
+        }
+      }
+    }
+  },
+  // Scene 12: BAZINGA! (15s)
+  {
+    duration: 15,
+    mood: 'comedic',
+    dialogues: [
+      {at:0.5, speaker:'Narrator', text:"Sheldon's sense of humor was... unique."},
+      {at:3, speaker:'Sheldon', text:"Bazinga!"},
+      {at:5.5, speaker:'Sheldon', text:"Bazinga!"},
+      {at:8, speaker:'Howard', text:"I can't tell when he's joking anymore."},
+      {at:10.5, speaker:'Sheldon', text:"That's because my humor operates on a higher frequency. Bazinga!"},
+    ],
+    render: function(t){
+      drawApartment();
+      // Different prank vignettes
+      if(t<5){
+        // Prank 1: Spider in drawer
+        drawLeonard(500,430,0.6);
+        drawAdultSheldon(650,420,0.6,'happy');
+        // Desk with drawer
+        drawRect(380,440,100,10,'#795548');
+        drawRect(390,450,80,30,'#8d6e63');
+        // Spider
+        if(t>2){
+          ctx.fillStyle='#1a1a1a';
+          drawCircle(430,445,5,'#1a1a1a');
+          for(let l=0;l<4;l++){
+            ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1;
+            const la=l*0.4-0.6;
+            ctx.beginPath();ctx.moveTo(430+Math.cos(la)*5,445+Math.sin(la)*5);
+            ctx.lineTo(430+Math.cos(la)*15,445+Math.sin(la)*15);ctx.stroke();
+            ctx.beginPath();ctx.moveTo(430-Math.cos(la)*5,445+Math.sin(la)*5);
+            ctx.lineTo(430-Math.cos(la)*15,445+Math.sin(la)*15);ctx.stroke();
+          }
+          // Leonard jumping
+          drawLeonard(500,420+Math.sin(t*8)*10,0.6);
+        }
+      } else if(t<9){
+        // Prank 2: Fake element
+        drawRaj(400,430,0.6);
+        drawAdultSheldon(600,420,0.6,'happy');
+        // Raj looking excited then disappointed
+        drawRect(450,350,120,30,'rgba(0,0,0,0.7)');
+        if(t<7){
+          drawText('New Element!',510,365,'14px sans-serif','#ffd600');
+        } else {
+          drawText('BAZINGA!',510,365,'bold 14px sans-serif','#f44336');
+        }
+      } else {
+        // Everyone groaning
+        drawAdultSheldon(640,420,0.6,'happy');
+        drawLeonard(400,430,0.55);
+        drawHoward(500,435,0.55);
+        drawRaj(750,430,0.55);
+        drawPenny(850,430,0.55);
+      }
+      // BAZINGA text effects
+      const bazTimes = [3,5.5,12.5];
+      bazTimes.forEach(bt=>{
+        if(t>bt && t<bt+2){
+          const bp = (t-bt)/2;
+          ctx.globalAlpha=(1-bp)*globalAlpha;
+          const bs = 40+bp*60;
+          ctx.save();
+          ctx.translate(W/2,200);
+          ctx.rotate(Math.sin(t*10)*0.1);
+          drawText('BAZINGA!',0,0,`bold ${bs}px Impact`,'#ffd600');
+          ctx.restore();
+          // Explosion particles
+          if(t-bt<0.3) addParticles(W/2,200,10,'#ffd600',100,1.5);
+          ctx.globalAlpha=globalAlpha;
+        }
+      });
+    }
+  },
+  // Scene 13: AMY FARRAH FOWLER (15s)
+  {
+    duration: 15,
+    mood: 'warm',
+    dialogues: [
+      {at:0.5, speaker:'Narrator', text:"Then came the most unexpected variable in Sheldon's equation: love."},
+      {at:4, speaker:'Amy', text:"I find you fascinating. Your neural pathways must be extraordinary."},
+      {at:8, speaker:'Sheldon', text:"You're... not entirely unpleasant to talk to."},
+      {at:11, speaker:'Amy', text:"That's the most romantic thing anyone's ever said to me."},
+    ],
+    render: function(t){
+      // Coffee shop
+      drawRect(0,0,W,H,'#4e342e');
+      drawRect(0,0,W,250,'#6d4c41');
+      drawRect(0,450,W,270,'#3e2723');
+      // Exposed brick pattern
+      ctx.globalAlpha=0.15*globalAlpha;
+      for(let bx=0;bx<W;bx+=25){
+        for(let by=0;by<250;by+=12){
+          drawRect(bx+(by%24===0?0:12),by,22,10,'#8d6e63');
+        }
+      }
+      ctx.globalAlpha=globalAlpha;
+      // Counter in back
+      drawRect(800,250,480,20,'#5d4037');
+      drawRect(810,270,460,180,'#4e342e');
+      // Coffee machine
+      drawRect(950,180,60,70,'#757575');
+      drawRect(960,190,40,30,'#616161');
+      // Menu board
+      drawRect(820,80,200,120,'#1a1a1a');
+      drawText('COFFEE',920,110,'16px sans-serif','#fff');
+      drawText('TEA',920,135,'16px sans-serif','#fff');
+      drawText('PASTRIES',920,160,'16px sans-serif','#fff');
+      // Tables
+      drawCircle(350,400,50,'#5d4037');
+      drawRect(345,445,10,50,'#4e342e');
+      drawCircle(650,420,40,'#5d4037');
+      // Coffee cups on table
+      drawRect(330,385,15,12,'#eceff1');
+      drawRect(355,385,15,12,'#eceff1');
+      // Steam
+      if(t>0){
+        ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1;
+        for(let s=0;s<2;s++){
+          ctx.beginPath();
+          const sx=338+s*25;
+          ctx.moveTo(sx,383);
+          ctx.quadraticCurveTo(sx+Math.sin(t*3+s)*5,373,sx+Math.sin(t*2+s)*3,363);
+          ctx.stroke();
+        }
+      }
+      // Sheldon and Amy at table
+      drawAdultSheldon(310,360,0.5,t>7?'happy':'');
+      drawAmy(390,365,0.5);
+      // Heart particles between them (subtle)
+      if(t>8){
+        const ha=0.3+Math.sin(t*2)*0.15;
+        ctx.globalAlpha=ha*globalAlpha;
+        ctx.fillStyle='#e91e63';ctx.font='16px sans-serif';
+        ctx.fillText('♥',345,340+Math.sin(t*3)*5);
+        ctx.globalAlpha=globalAlpha;
+      }
+      // Other customers (silhouettes)
+      drawCircle(650,395,12,'#8d6e63');
+      drawRect(638,407,24,30,'#37474f');
+      drawCircle(700,400,11,'#fdd9b5');
+      drawRect(689,411,22,28,'#1565c0');
+    }
+  },
+  // Scene 14: THE NOBEL DREAM (18s)
+  {
+    duration: 18,
+    mood: 'tense',
+    dialogues: [
+      {at:0.5, speaker:'Narrator', text:"Sheldon became obsessed with one goal: the Nobel Prize in Physics."},
+      {at:4, speaker:'Narrator', text:"Super-Asymmetry. A theory that could change everything."},
+      {at:8, speaker:'Leonard', text:"Sheldon, you need to rest."},
+      {at:10, speaker:'Sheldon', text:"Rest is for people who aren't on the verge of the biggest physics breakthrough of the century."},
+      {at:15, speaker:'Narrator', text:"And then... eureka."},
+    ],
+    render: function(t){
+      // Sheldon's office - late night
+      const brightness = 0.3+Math.sin(t*0.5)*0.05;
+      drawRect(0,0,W,H,`rgba(20,20,40,${1-brightness})`);
+      drawRect(0,0,W,H,'#1a1a2e');
+      // Window showing night
+      drawRect(800,50,200,200,'#0a0a2e');
+      drawStars(30);
+      // Moon
+      drawCircle(880,100,25,'#e0e0e0');
+      drawCircle(870,95,22,'#0a0a2e'); // crescent
+      // Desk
+      drawRect(200,400,600,15,'#5d4037');
+      drawRect(220,415,15,80,'#4e342e');
+      drawRect(770,415,15,80,'#4e342e');
+      // Whiteboards everywhere
+      drawWhiteboard(50,50,200,180);
+      drawWhiteboard(280,30,250,200);
+      drawWhiteboard(570,80,200,170);
+      // Extra equations scrawled
+      ctx.fillStyle='#f44336';ctx.font='12px monospace';
+      ctx.fillText('SUPER-ASYMMETRY',300,55);
+      ctx.fillStyle='#4fc3f7';
+      ctx.fillText('∮ F·ds = ΔE',310,80);
+      ctx.fillText('Ψ(x) = Σ aₙφₙ',310,100);
+      ctx.fillText('S(asymm) ≠ S(symm)',310,120);
+      // Papers scattered on desk
+      for(let p=0;p<8;p++){
+        ctx.save();
+        ctx.translate(250+p*65,395);
+        ctx.rotate((Math.random()-0.5)*0.3);
+        drawRect(-15,-10,30,20,'#fff');
+        ctx.fillStyle='#1565c0';ctx.font='4px monospace';
+        ctx.fillText('===',-8,-3);ctx.fillText('===',-8,3);
+        ctx.restore();
+      }
+      // Coffee cups (many)
+      for(let c=0;c<4;c++){
+        drawRect(650+c*25,388,12,12,'#fff');
+        drawRect(650+c*25,385,12,3,'#795548');
+      }
+      // Sheldon working obsessively
+      if(t<14){
+        drawAdultSheldon(500,370,0.6,'smug');
+        // Writing hand animation
+        const wx = 500+Math.sin(t*4)*20;
+        drawCircle(wx+30,370,4,'#fdd9b5');
+      } else {
+        // EUREKA moment
+        drawAdultSheldon(500,360,0.65,'eureka');
+        // Light burst
+        ctx.globalAlpha=Math.min(1,(t-14)/1)*0.3*globalAlpha;
+        drawCircle(500,300,100+Math.sin(t*5)*20,'#ffd600');
+        ctx.globalAlpha=globalAlpha;
+        addParticles(500,350,2,'#ffd600',80,1.5);
+      }
+      // Amy helping (after t>6)
+      if(t>6 && t<14){
+        drawAmy(350,375,0.5);
+      }
+      // Leonard checking in
+      if(t>7.5 && t<10){
+        drawLeonard(150,400,0.5);
+      }
+    }
+  },
+  // Scene 15: SETBACK (15s)
+  {
+    duration: 15,
+    mood: 'emotional',
+    dialogues: [
+      {at:0.5, speaker:'Narrator', text:"But then came the devastating news. Another team had published similar results."},
+      {at:4, speaker:'Sheldon', text:"All my work... for nothing."},
+      {at:7, speaker:'Leonard', text:"I'm sorry, buddy."},
+      {at:9, speaker:'Mary', text:"Shelly, God has a plan for you."},
+      {at:11, speaker:'Sheldon', text:"With all due respect to your deity, Mom, I preferred my plan."},
+    ],
+    render: function(t){
+      drawApartment();
+      // Couch
+      drawCouch(350,420);
+      // Sheldon sitting on his spot, looking defeated
+      drawAdultSheldon(420,395,0.6,'sad');
+      // Dark mood - dim the apartment
+      ctx.globalAlpha=0.3*globalAlpha;
+      drawRect(0,0,W,H,'#1a1a2e');
+      ctx.globalAlpha=globalAlpha;
+      // Crumpled papers on floor
+      for(let p=0;p<6;p++){
+        drawCircle(200+p*80+Math.random()*30,520+Math.random()*20,6,'#e0e0e0');
+      }
+      // Newspaper/Article showing rival team
+      if(t<4){
+        drawRect(250,150,300,80,'#fff');
+        drawText('PHYSICS WEEKLY',400,170,'bold 14px serif','#1a1a1a');
+        drawText('Team Publishes Super-Asymmetry Results',400,195,'11px sans-serif','#424242');
+        drawText('Cooper\'s work may be redundant',400,210,'9px sans-serif','#757575');
+      }
+      // Leonard standing nearby
+      if(t>5 && t<9){
+        drawLeonard(550,420,0.55);
+      }
+      // Phone with Mary (visual indicator)
+      if(t>8.5){
+        drawRect(460,365,30,45,'#212121');
+        drawRect(462,370,26,35,'#bbdefb');
+        // Mary's face tiny on phone
+        drawCircle(475,385,8,'#fdd9b5');
+        ctx.fillStyle='#8d6e63';
+        ctx.beginPath();ctx.ellipse(475,380,10,6,0,0,Math.PI*2);ctx.fill();
+      }
+      // Amy enters and holds hand
+      if(t>12){
+        drawAmy(350,400,0.5);
+        // Holding hand connection
+        ctx.strokeStyle='#e91e63';ctx.lineWidth=2;
+        ctx.setLineDash([3,3]);
+        ctx.beginPath();ctx.moveTo(380,410);ctx.lineTo(405,410);ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      // Rain on window (sad mood)
+      ctx.strokeStyle='rgba(79,195,247,0.5)';ctx.lineWidth=1;
+      for(let r=0;r<20;r++){
+        const rx=510+Math.random()*180;
+        const ry=60+((t*50+r*37)%140);
+        ctx.beginPath();ctx.moveTo(rx,ry);ctx.lineTo(rx-1,ry+8);ctx.stroke();
+      }
+    }
+  },
+  // Scene 16: PERSEVERANCE (12s)
+  {
+    duration: 12,
+    mood: 'triumphant',
+    dialogues: [
+      {at:0.5, speaker:'Narrator', text:"But Sheldon Cooper doesn't give up. And this time, he wasn't alone."},
+      {at:4, speaker:'Narrator', text:"Together with Amy, they pushed beyond what either could do alone."},
+      {at:8, speaker:'Sheldon', text:"Amy... we did it. We actually did it!"},
+    ],
+    render: function(t){
+      // Office/Lab - brighter now
+      drawRect(0,0,W,H,'#263238');
+      // Bright lighting
+      drawRect(0,0,W,H,'rgba(255,248,225,0.1)');
+      // Floor
+      drawRect(0,450,W,270,'#37474f');
+      // Multiple whiteboards - filling up
+      drawWhiteboard(50,50,250,200);
+      drawWhiteboard(330,30,280,220);
+      drawWhiteboard(650,50,250,200);
+      // Progress indicators on boards
+      const progress = Math.min(1,t/8);
+      ctx.fillStyle='#4fc3f7';
+      ctx.fillRect(55,55,240*progress,190);
+      ctx.globalAlpha=0.9*globalAlpha;
+      ctx.fillStyle='#263238';
+      ctx.fillRect(55,55,240*progress,190);
+      ctx.globalAlpha=globalAlpha;
+      // New equations being written
+      ctx.fillStyle='#4caf50';ctx.font='11px monospace';
+      const newEqs = ['S_super-asymm = ∫L dV','Ψ(neuro) ⊗ Φ(phys)','ΔG_combined > ΔG_separate','BREAKTHROUGH!'];
+      newEqs.forEach((eq,i)=>{
+        if(t>i*2){
+          ctx.fillText(eq,340,55+i*30);
+        }
+      });
+      // Sheldon and Amy working together
+      drawAdultSheldon(450,400,0.6, t>7 ? 'eureka' : 'smug');
+      drawAmy(580,405,0.55);
+      // Working animation - pointing at boards
+      if(t<8){
+        ctx.strokeStyle='#ffd600';ctx.lineWidth=1;
+        ctx.setLineDash([5,5]);
+        ctx.beginPath();ctx.moveTo(480,370);ctx.lineTo(400,200);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(560,380);ctx.lineTo(500,200);ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      // HUG moment
+      if(t>9){
+        // Draw them closer together
+        drawAdultSheldon(500,395,0.6,'happy');
+        drawAmy(530,400,0.55);
+        // Hearts and sparkles
+        for(let h=0;h<5;h++){
+          const hx=500+Math.sin(t*2+h)*40;
+          const hy=350+Math.cos(t*2+h)*20;
+          ctx.globalAlpha=(0.5+Math.sin(t*3+h)*0.3)*globalAlpha;
+          ctx.fillStyle='#e91e63';ctx.font='14px sans-serif';
+          ctx.fillText('♥',hx,hy);
+        }
+        ctx.globalAlpha=globalAlpha;
+        addParticles(515,380,1,'#ffd600',40,1.5);
+      }
+    }
+  },
+  // Scene 17: THE PHONE CALL (18s)
+  {
+    duration: 18,
+    mood: 'epic',
+    dialogues: [
+      {at:0.5, speaker:'Narrator', text:"Then, one October morning, the phone rang."},
+      {at:4, speaker:'Nobel Committee', text:"Dr. Cooper? This is the Nobel Committee in Stockholm..."},
+      {at:8, speaker:'Sheldon', text:"We... we won?"},
+      {at:10, speaker:'Narrator', text:"The apartment erupted in celebration."},
+      {at:12, speaker:'Howard', text:"Sheldon won a Nobel Prize. The apocalypse is upon us."},
+      {at:15, speaker:'Penny', text:"Oh my God, oh my God! I'm so happy for you guys!"},
+    ],
+    render: function(t){
+      drawApartment();
+
+      if(t<8){
+        // Early morning - bedroom
+        ctx.globalAlpha=0.3*globalAlpha;
+        drawRect(0,0,W,H,'#1a1a4e');
+        ctx.globalAlpha=globalAlpha;
+        // Bed
+        drawRect(350,400,250,60,'#5d4037');
+        drawRect(340,380,270,25,'#fff');
+        drawRect(340,370,70,15,'#b3e5fc');
+        // Sheldon in bed
+        if(t<3){
+          drawRect(420,385,80,20,'#fdd9b5'); // sleeping face
+          drawCircle(460,390,12,'#fdd9b5');
+        }
+        // Phone ringing
+        if(t>1){
+          const ringBounce=Math.sin(t*15)*3;
+          drawRect(620,385+ringBounce,30,50,'#212121');
+          drawRect(622,390+ringBounce,26,40,'#4fc3f7');
+          // Ring waves
+          ctx.strokeStyle='#4fc3f7';ctx.lineWidth=1;
+          for(let r=0;r<3;r++){
+            ctx.globalAlpha=(0.5-r*0.15)*globalAlpha;
+            ctx.beginPath();
+            ctx.arc(635,410+ringBounce,15+r*8,0,Math.PI*2);
+            ctx.stroke();
+          }
+          ctx.globalAlpha=globalAlpha;
+        }
+        // Sheldon answering
+        if(t>2.5){
+          drawAdultSheldon(500,370,0.5);
+        }
+        // Amy waking up
+        if(t>5){
+          drawAmy(420,375,0.45);
+        }
+      } else {
+        // CELEBRATION
+        drawCouch(300,440);
+        // Everyone celebrating
+        const bounce = Math.sin(t*5)*5;
+        drawAdultSheldon(400,400+bounce,0.55,'eureka');
+        drawAmy(460,405+bounce,0.5);
+        drawLeonard(320,410-bounce,0.5);
+        drawPenny(540,408+Math.sin(t*5+1)*5,0.5);
+        drawHoward(600,412+Math.sin(t*5+2)*5,0.48);
+        drawRaj(660,410+Math.sin(t*5+3)*5,0.48);
+        // Confetti
+        for(let c=0;c<30;c++){
+          const cx2 = (c*43+t*80)%W;
+          const cy2 = (c*97+t*120)%H;
+          const cc = ['#f44336','#4fc3f7','#ffd600','#4caf50','#e91e63','#ff9800'][c%6];
+          drawRect(cx2,cy2,6,3,cc);
+        }
+        // "NOBEL PRIZE" banner
+        const bannerAlpha = Math.min(1,(t-8)/2);
+        ctx.globalAlpha=bannerAlpha*globalAlpha;
+        drawRect(W/2-150,80,300,50,'rgba(0,0,0,0.8)');
+        drawText('NOBEL PRIZE!',W/2,105,'bold 30px Georgia','#ffd600');
+        ctx.globalAlpha=globalAlpha;
+        // Happy tears from Penny
+        if(t>14){
+          ctx.fillStyle='#4fc3f7';
+          drawCircle(535,415,2,'#4fc3f7');
+          drawCircle(545,416,2,'#4fc3f7');
+        }
+        addParticles(Math.random()*W,50,1,['#ffd600','#4fc3f7','#e91e63'][Math.floor(Math.random()*3)],30,2);
+      }
+    }
+  },
+  // Scene 18: STOCKHOLM (15s)
+  {
+    duration: 15,
+    mood: 'epic',
+    dialogues: [
+      {at:0.5, speaker:'Narrator', text:"Stockholm, Sweden. The Nobel Prize Ceremony."},
+      {at:4, speaker:'Narrator', text:"The hall was grand. The moment was even grander."},
+      {at:8, speaker:'Narrator', text:"Mary cried. Meemaw beamed. The whole gang was there."},
+      {at:12, speaker:'Narrator', text:"And Sheldon Cooper received the highest honor in science."},
+    ],
+    render: function(t){
+      // Grand ceremony hall
+      drawRect(0,0,W,H,'#1a0a0a');
+      // Rich red walls
+      drawRect(0,0,W,500,'#4a0000');
+      // Gold trim
+      drawRect(0,0,W,15,'#ffd600');
+      drawRect(0,490,W,8,'#ffd600');
+      // Columns
+      for(let c=0;c<6;c++){
+        drawRect(50+c*220,20,25,470,'#ffd600');
+        ctx.globalAlpha=0.3*globalAlpha;
+        drawRect(55+c*220,20,15,470,'#ffb300');
+        ctx.globalAlpha=globalAlpha;
+      }
+      // Stage
+      drawRect(200,350,880,8,'#5d4037');
+      drawRect(180,358,920,150,'#3e2723');
+      // Podium
+      drawRect(580,280,120,80,'#5d4037');
+      drawRect(575,270,130,15,'#795548');
+      // Nobel emblem on podium
+      drawCircle(640,320,15,'#ffd600');
+      drawText('N',640,320,'bold 12px serif','#4a0000');
+      // Microphone
+      drawRect(638,265,4,20,'#757575');
+      drawCircle(640,260,5,'#424242');
+      // Floor
+      drawRect(0,500,W,220,'#3e2723');
+      // Audience seats
+      for(let row=0;row<3;row++){
+        for(let seat=0;seat<12;seat++){
+          const sx = 80+seat*100;
+          const sy = 530+row*50;
+          // Seat
+          drawRect(sx,sy,15,20,'#4a0000');
+          // Head
+          drawCircle(sx+7,sy-5,7,'#fdd9b5');
+        }
+      }
+      // Recognizable friends in audience
+      drawLeonard(180,520,0.35);
+      drawPenny(230,518,0.35);
+      drawHoward(300,522,0.35);
+      drawRaj(350,520,0.35);
+      drawMary(450,518,0.38);
+      drawMeemaw(520,520,0.35);
+      // Sheldon in tuxedo on stage
+      drawTuxedoSheldon(640,310,0.65);
+      // Amy in gown nearby
+      drawAmyGown(500,320,0.55);
+      // Nobel medal presentation
+      if(t>10){
+        drawNobel(640,250,0.8);
+        // Spotlight
+        ctx.globalAlpha=0.1*globalAlpha;
+        ctx.fillStyle='#ffd600';
+        ctx.beginPath();ctx.moveTo(640,0);ctx.lineTo(580,350);ctx.lineTo(700,350);ctx.closePath();ctx.fill();
+        ctx.globalAlpha=globalAlpha;
+      }
+      // Camera flashes
+      if(Math.random()<0.15){
+        const fx=Math.random()*W,fy=500+Math.random()*100;
+        ctx.globalAlpha=0.8*globalAlpha;
+        drawCircle(fx,fy,3,'#fff');
+        ctx.globalAlpha=globalAlpha;
+      }
+    }
+  },
+  // Scene 19: THE SPEECH (18s)
+  {
+    duration: 18,
+    mood: 'emotional',
+    dialogues: [
+      {at:0.5, speaker:'Narrator', text:"Sheldon began his prepared speech. Then he stopped. And spoke from the heart."},
+      {at:3.5, speaker:'Sheldon', text:"I have spent my whole life believing I didn't need anyone. That my intellect was enough. I was wrong."},
+      {at:8, speaker:'Sheldon', text:"I needed a best friend who never gave up on me."},
+      {at:10, speaker:'Sheldon', text:"I needed someone to teach me that being human matters."},
+      {at:12, speaker:'Sheldon', text:"I needed people to laugh with. And I needed someone to love."},
+      {at:15, speaker:'Sheldon', text:"I'm not just a physicist who won a Nobel Prize. I'm a lucky man who found a family."},
+    ],
+    render: function(t){
+      // Same grand hall but focused on podium
+      drawRect(0,0,W,H,'#1a0a0a');
+      drawRect(0,0,W,500,'#4a0000');
+      drawRect(0,0,W,15,'#ffd600');
+      // Spotlight on Sheldon
+      ctx.globalAlpha=0.15*globalAlpha;
+      ctx.fillStyle='#ffd600';
+      ctx.beginPath();ctx.moveTo(W/2,0);ctx.lineTo(W/2-100,500);ctx.lineTo(W/2+100,500);ctx.closePath();ctx.fill();
+      ctx.globalAlpha=globalAlpha;
+      // Podium (center)
+      drawRect(W/2-60,350,120,80,'#5d4037');
+      drawRect(W/2-65,340,130,15,'#795548');
+      drawCircle(W/2,380,15,'#ffd600');
+      // Microphone
+      drawRect(W/2-2,330,4,20,'#757575');
+      drawCircle(W/2,325,5,'#424242');
+      // Speech paper on podium
+      if(t<3){
+        drawRect(W/2-20,345,40,20,'#fff');
+      } else {
+        // Paper put aside
+        drawRect(W/2+50,350,30,15,'#fff');
+      }
+      // Sheldon at podium - emotional
+      drawTuxedoSheldon(W/2,310,0.7);
+      // Audience reactions - zoom in on specific people as mentioned
+      const focusY = 560;
+      // Friends in audience
+      drawLeonard(250,focusY-5,0.4);
+      drawPenny(330,focusY-3,0.4);
+      drawHoward(420,focusY,0.38);
+      drawRaj(500,focusY-2,0.38);
+      drawAmy(600,350,0.5); // Amy on stage
+      drawMary(700,focusY-5,0.42);
+      drawMeemaw(790,focusY,0.38);
+      // Spotlight on mentioned friend
+      if(t>8 && t<10){
+        ctx.globalAlpha=0.2*globalAlpha;
+        drawCircle(250,focusY,40,'#ffd600'); // Leonard
+        ctx.globalAlpha=globalAlpha;
+      }
+      if(t>10 && t<12){
+        ctx.globalAlpha=0.2*globalAlpha;
+        drawCircle(330,focusY,40,'#ffd600'); // Penny
+        ctx.globalAlpha=globalAlpha;
+      }
+      if(t>12 && t<13.5){
+        ctx.globalAlpha=0.2*globalAlpha;
+        drawCircle(460,focusY,60,'#ffd600'); // Howard & Raj
+        ctx.globalAlpha=globalAlpha;
+      }
+      if(t>13.5 && t<15){
+        ctx.globalAlpha=0.2*globalAlpha;
+        drawCircle(600,350,50,'#e91e63'); // Amy
+        ctx.globalAlpha=globalAlpha;
+      }
+      // Mary crying (proud)
+      if(t>14){
+        ctx.fillStyle='#4fc3f7';
+        drawCircle(695,focusY+2,2,'#4fc3f7');
+        drawCircle(705,focusY+3,2,'#4fc3f7');
+      }
+      // Standing ovation at end
+      if(t>16){
+        ctx.fillStyle='#fff';ctx.font='14px sans-serif';
+        for(let a=0;a<15;a++){
+          const ax = 50+a*85;
+          const bounce = Math.sin(t*4+a)*3;
+          drawCircle(ax,610+bounce,6,'#fdd9b5');
+          drawRect(ax-5,616+bounce,10,15,'#37474f');
+        }
+        // Applause text
+        ctx.globalAlpha=(0.5+Math.sin(t*6)*0.3)*globalAlpha;
+        drawText('👏 STANDING OVATION 👏',W/2,650,'bold 20px sans-serif','#ffd600');
+        ctx.globalAlpha=globalAlpha;
+      }
+    }
+  },
+  // Scene 20: ENDING (20s)
+  {
+    duration: 20,
+    mood: 'warm',
+    dialogues: [
+      {at:0.5, speaker:'Narrator', text:"Back home. Apartment 4A. Where it all began."},
+      {at:3, speaker:'Sheldon', text:"I want you all to know... in my own way... I love you all."},
+      {at:7, speaker:'Sheldon', text:"Bazinga!"},
+      {at:8.5, speaker:'Penny', text:"Just eat your food, Sheldon."},
+      {at:10.5, speaker:'Narrator', text:"And in that apartment, among friends who became family, the genius found what equations could never give him."},
+      {at:15, speaker:'Narrator', text:"Home."},
+    ],
+    render: function(t){
+      if(t<13){
+        drawApartment();
+        drawCouch(300,440);
+        // Coffee table with takeout
+        drawRect(350,510,180,12,'#5d4037');
+        for(let tc=0;tc<5;tc++){
+          drawRect(360+tc*30,500,25,12,'#fff');
+        }
+        // Everyone together
+        const b = Math.sin(t*2)*2;
+        drawAdultSheldon(370,410+b,0.5,'happy'); // in his spot
+        drawLeonard(440,415-b,0.48);
+        drawPenny(510,412+Math.sin(t*2.5)*2,0.48);
+        drawHoward(580,415+Math.sin(t*2.2)*2,0.46);
+        drawRaj(650,413+Math.sin(t*2.7)*2,0.46);
+        drawAmy(300,412+Math.sin(t*2.1)*2,0.48);
+        // BAZINGA effect
+        if(t>6.5 && t<8){
+          const bp = (t-6.5)/1.5;
+          ctx.globalAlpha=(1-bp)*globalAlpha;
+          drawText('BAZINGA!',W/2,300,`bold ${50+bp*30}px Impact`,'#ffd600');
+          ctx.globalAlpha=globalAlpha;
+          if(t<7) addParticles(W/2,300,5,'#ffd600',80,1.5);
+        }
+        // Everyone laughing (bouncing)
+        if(t>7){
+          // Laughter marks
+          ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='16px sans-serif';
+          const chars = [440,510,580,650,300];
+          chars.forEach((cx,i)=>{
+            ctx.fillText('ha',cx-5,395+Math.sin(t*5+i)*5);
+          });
+        }
+      }
+      // Zoom out sequence
+      if(t>=13){
+        const zoomT = (t-13)/7; // 0 to 1
+        if(zoomT < 0.3){
+          // Zoom out from apartment
+          const z = 1-zoomT*2;
+          ctx.save();
+          ctx.translate(W/2*(1-z),H/2*(1-z));
+          ctx.scale(z,z);
+          drawApartment();
+          drawCouch(300,440);
+          drawAdultSheldon(370,410,0.5,'happy');
+          drawLeonard(440,415,0.48);
+          drawPenny(510,412,0.48);
+          drawHoward(580,415,0.46);
+          drawRaj(650,413,0.46);
+          drawAmy(300,412,0.48);
+          ctx.restore();
+        } else if(zoomT < 0.5){
+          // Building exterior
+          drawSky('#1a1a4e','#0a0a2e');
+          drawStars(100);
+          drawRect(400,200,480,400,'#8d6e63');
+          // Windows
+          for(let wx=0;wx<4;wx++){
+            for(let wy=0;wy<5;wy++){
+              const lit = (wx===1&&wy===2) || Math.random()>0.5;
+              drawRect(420+wx*110,220+wy*75,40,35,lit?'#fff9c4':'#37474f');
+            }
+          }
+          // Apartment 4A window glowing
+          drawRect(530,370,40,35,'#ffd600');
+        } else if(zoomT < 0.7){
+          // City
+          drawSky('#0a0a2e','#000');
+          drawStars(200);
+          // City skyline
+          for(let b=0;b<15;b++){
+            const bh = 100+Math.random()*250;
+            const bx = b*90;
+            drawRect(bx,H-bh,70,bh,'#1a1a3e');
+            // windows
+            for(let bw=0;bw<3;bw++){
+              for(let bww=0;bww<Math.floor(bh/30);bww++){
+                if(Math.random()>0.4)
+                  drawRect(bx+10+bw*20,H-bh+10+bww*30,8,12,'#fff9c4');
+              }
+            }
+          }
+        } else if(zoomT < 0.85){
+          // Earth from space
+          drawRect(0,0,W,H,'#000');
+          drawStars(300);
+          drawCircle(W/2,H/2+100,200,'#1565c0');
+          // Continents
+          ctx.fillStyle='#2e7d32';
+          drawEllipse(W/2-40,H/2+60,60,40,'#388e3c');
+          drawEllipse(W/2+60,H/2+40,40,50,'#388e3c');
+          drawEllipse(W/2-20,H/2+120,50,25,'#388e3c');
+          // Atmosphere glow
+          ctx.globalAlpha=0.2*globalAlpha;
+          drawCircle(W/2,H/2+100,210,'#4fc3f7');
+          ctx.globalAlpha=globalAlpha;
+        } else {
+          // Stars / cosmos
+          drawRect(0,0,W,H,'#000');
+          drawStars(400);
+          // Nebula colors
+          ctx.globalAlpha=0.1*globalAlpha;
+          drawCircle(300,300,150,'#4a148c');
+          drawCircle(800,200,120,'#0d47a1');
+          drawCircle(600,500,100,'#b71c1c');
+          ctx.globalAlpha=globalAlpha;
+          // Atom orbiting "THE END"
+          drawAtom(W/2,H/2,80,t);
+        }
+        // THE END text
+        if(zoomT > 0.6){
+          const endAlpha = Math.min(1,(zoomT-0.6)/0.2);
+          ctx.globalAlpha=endAlpha*globalAlpha;
+          ctx.shadowColor='#4fc3f7';ctx.shadowBlur=20;
+          drawText('THE END',W/2,H/2-20,'bold 60px Georgia','#fff');
+          ctx.shadowBlur=0;
+          // Credits
+          if(zoomT>0.8){
+            drawText('A StreamFlix Original',W/2,H/2+40,'italic 22px Georgia','#b0bec5');
+            drawText('Created by Petru',W/2,H/2+70,'16px Georgia','#78909c');
+          }
+          ctx.globalAlpha=globalAlpha;
+        }
+      }
+    }
+  }
+];
+
+// ---- COMPUTE TOTAL DURATION ----
+let totalDuration = 0;
+const sceneStarts = [];
+scenes.forEach(s=>{
+  sceneStarts.push(totalDuration);
+  totalDuration += s.duration;
+});
+
+// ---- SUBTITLE/DIALOGUE SYSTEM ----
+let currentDialogueIndex = -1;
+let lastSceneIndex = -1;
+let dialoguePlayed = {};
+
+function showSubtitle(speaker, text){
+  subtitleSpeaker.textContent = speaker;
+  subtitleSpeaker.style.color = speakerColors[speaker] || '#b0bec5';
+  subtitleText.textContent = text;
+  subtitleText.style.display = text ? 'block' : 'none';
+  subtitleSpeaker.style.display = speaker ? 'block' : 'none';
+}
+
+function clearSubtitle(){
+  subtitleSpeaker.textContent = '';
+  subtitleText.textContent = '';
+  subtitleText.style.display = 'none';
+  subtitleSpeaker.style.display = 'none';
+}
+
+function updateDialogue(sceneIndex, sceneTime){
+  const scene = scenes[sceneIndex];
+  if(!scene || !scene.dialogues) return;
+
+  if(sceneIndex !== lastSceneIndex){
+    lastSceneIndex = sceneIndex;
+    currentDialogueIndex = -1;
+  }
+
+  // Find which dialogue should be active
+  let activeIdx = -1;
+  for(let i=scene.dialogues.length-1; i>=0; i--){
+    if(sceneTime >= scene.dialogues[i].at){
+      activeIdx = i;
+      break;
+    }
+  }
+
+  if(activeIdx >= 0 && activeIdx !== currentDialogueIndex){
+    currentDialogueIndex = activeIdx;
+    const d = scene.dialogues[activeIdx];
+    const key = sceneIndex+'_'+activeIdx;
+    if(d.text){
+      showSubtitle(d.speaker, d.text);
+      if(!dialoguePlayed[key]){
+        dialoguePlayed[key] = true;
+        speak(d.speaker, d.text);
+      }
+    }
+  }
+
+  // Clear subtitle if past last dialogue by enough time
+  if(activeIdx >= 0){
+    const d = scene.dialogues[activeIdx];
+    const wordCount = d.text.split(' ').length;
+    const displayTime = Math.max(3, wordCount * 0.4);
+    if(sceneTime > d.at + displayTime){
+      clearSubtitle();
+    }
+  }
+}
+
+// ---- MAIN RENDER LOOP ----
+function getSceneAt(time){
+  for(let i=scenes.length-1;i>=0;i--){
+    if(time >= sceneStarts[i]) return i;
+  }
+  return 0;
+}
+
+function render(timestamp){
+  if(!lastTimestamp) lastTimestamp = timestamp;
+  const dt = Math.min((timestamp - lastTimestamp)/1000, 0.1);
+  lastTimestamp = timestamp;
+
+  if(playing){
+    currentTime += dt;
+    if(currentTime >= totalDuration){
+      currentTime = totalDuration;
+      playing = false;
+      btnPlay.innerHTML = '&#9654;';
+    }
+  }
+
+  // Clear
+  ctx.clearRect(0,0,W,H);
+  ctx.globalAlpha = 1;
+  globalAlpha = 1;
+
+  // Determine current scene
+  const sceneIndex = getSceneAt(currentTime);
+  const scene = scenes[sceneIndex];
+  const sceneStart = sceneStarts[sceneIndex];
+  const sceneTime = currentTime - sceneStart;
+
+  // Fade transitions
+  const fadeIn = Math.min(1, sceneTime / FADE_DUR);
+  const fadeOut = Math.min(1, (scene.duration - sceneTime) / FADE_DUR);
+  globalAlpha = Math.min(fadeIn, fadeOut);
+  globalAlpha = Math.max(0.01, globalAlpha);
+  ctx.globalAlpha = globalAlpha;
+
+  // Render scene
+  scene.render(sceneTime);
+
+  // Particles
+  updateParticles(dt);
+  drawParticles();
+
+  // Update equations
+  updateEquations(dt);
+
+  // Music trigger
+  if(sceneTime < 0.1 && playing){
+    playMood(scene.mood);
+  }
+
+  // Dialogue
+  if(playing){
+    updateDialogue(sceneIndex, sceneTime);
+  }
+
+  // Fade overlay
+  if(globalAlpha < 1){
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#000';
+    ctx.globalAlpha = 1 - Math.min(fadeIn, fadeOut);
+    ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha = 1;
+  }
+
+  // Progress bar
+  const pct = (currentTime / totalDuration) * 100;
+  progressFill.style.width = pct + '%';
+
+  // Time display
+  const cur = formatTime(currentTime);
+  const tot = formatTime(totalDuration);
+  timeDisplay.textContent = cur + ' / ' + tot;
+
+  requestAnimationFrame(render);
+}
+
+function formatTime(s){
+  const m = Math.floor(s/60);
+  const sec = Math.floor(s%60);
+  return m + ':' + (sec<10?'0':'') + sec;
+}
+
+// ---- CONTROLS ----
+btnPlay.addEventListener('click', togglePlay);
+function togglePlay(){
+  if(!playing && currentTime >= totalDuration){
+    currentTime = 0;
+    dialoguePlayed = {};
+    clearSubtitle();
+  }
+  playing = !playing;
+  btnPlay.innerHTML = playing ? '&#10074;&#10074;' : '&#9654;';
+  if(playing){
+    initAudio();
+    if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    initVoices();
+  } else {
+    stopSpeech();
+    stopMusic();
+  }
+}
+
+document.addEventListener('keydown', e=>{
+  if(e.code === 'Space'){
+    e.preventDefault();
+    togglePlay();
+  }
+});
+
+// Progress bar seeking
+progressWrap.addEventListener('click', e=>{
+  const rect = progressWrap.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  currentTime = pct * totalDuration;
+  dialoguePlayed = {};
+  clearSubtitle();
+  stopSpeech();
+  stopMusic();
+  particles = [];
+  floatingEqs = [];
+});
+
+// Voice toggle
+btnVoice.addEventListener('click', ()=>{
+  voiceEnabled = !voiceEnabled;
+  btnVoice.textContent = voiceEnabled ? '🔊' : '🔇';
+  if(!voiceEnabled) stopSpeech();
+});
+
+// Fullscreen
+btnFs.addEventListener('click', ()=>{
+  if(!document.fullscreenElement){
+    document.getElementById('cinema').requestFullscreen().catch(()=>{});
+  } else {
+    document.exitFullscreen();
+  }
+});
+
+// ---- INIT ----
+setTimeout(()=>{
+  loadingEl.style.display='none';
+  requestAnimationFrame(render);
+},500);
+
+})();
+</script>
+</body>
+</html>

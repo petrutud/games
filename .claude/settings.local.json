@@ -48,7 +48,12 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1314/games/streamflix/)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1314/games/streamflix/mario-galaxy-movie.html)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1314/games/streamflix/mario-bros-movie.html)",
-      "Bash(pkill -f \"hugo server\")"
+      "Bash(pkill -f \"hugo server\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1315/games/streamflix/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1315/games/streamflix/mario-galaxy-movie.html)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1315/games/streamflix/mario-bros-movie.html)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1315/games/streamflix/minecraft-movie.html)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1315/games/streamflix/sheldon-movie.html)"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",

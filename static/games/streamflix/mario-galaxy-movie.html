@@ -43,6 +43,7 @@ body{background:#0a0a0f;color:#fff;font-family:'Segoe UI',Arial,sans-serif;overf
       <button class="ctrl-btn" id="playPauseBtn">&#9654;</button>
       <span id="timeDisplay">0:00 / 0:00</span>
       <span class="spacer"></span>
+      <button class="ctrl-btn" id="voiceToggleBtn" title="Toggle voice acting">&#128266;</button>
       <button class="ctrl-btn" id="fullscreenBtn">&#9974;</button>
     </div>
   </div>
@@ -262,6 +263,72 @@ function setMood(mood) {
   currentMood = mood;
   playMoodMusic(mood);
 }
+
+// ===================== VOICE ACTING SYSTEM =====================
+const voiceMgr = {
+  enabled: true,
+  available: typeof window.speechSynthesis !== 'undefined',
+  voices: [],
+  selectedVoice: null,
+  currentText: '',
+  currentSpeaker: '',
+
+  characterVoices: {
+    'Narrator':   { pitch: 1.0, rate: 0.88, volume: 1.0 },
+    'Mario':      { pitch: 1.35, rate: 1.05, volume: 1.0 },
+    'Peach':      { pitch: 1.7, rate: 0.95, volume: 0.95 },
+    'Bowser':     { pitch: 0.4, rate: 0.75, volume: 1.0 },
+    'Rosalina':   { pitch: 1.2, rate: 0.82, volume: 0.9 },
+    'Luma':       { pitch: 2.0, rate: 1.3, volume: 0.85 },
+    'Luigi':      { pitch: 1.4, rate: 0.9, volume: 0.95 },
+    'Toad':       { pitch: 1.9, rate: 1.25, volume: 0.9 },
+    'Queen Bee':  { pitch: 1.1, rate: 0.85, volume: 0.95 }
+  },
+
+  init() {
+    if (!this.available) return;
+    const loadVoices = () => {
+      this.voices = speechSynthesis.getVoices();
+      this.selectedVoice = this.voices.find(v => /en[-_]/i.test(v.lang) && v.localService) ||
+                           this.voices.find(v => /en[-_]/i.test(v.lang)) ||
+                           this.voices[0] || null;
+    };
+    loadVoices();
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+      speechSynthesis.addEventListener('voiceschanged', loadVoices);
+    }
+  },
+
+  speak(text, speaker) {
+    if (!this.available || !this.enabled) return;
+    if (text === this.currentText && speaker === this.currentSpeaker) return;
+    this.currentText = text;
+    this.currentSpeaker = speaker;
+    speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    if (this.selectedVoice) utterance.voice = this.selectedVoice;
+    const cfg = this.characterVoices[speaker] || this.characterVoices['Narrator'];
+    utterance.pitch = cfg.pitch;
+    utterance.rate = cfg.rate;
+    utterance.volume = cfg.volume;
+    utterance.lang = 'en-US';
+    speechSynthesis.speak(utterance);
+  },
+
+  stop() {
+    if (!this.available) return;
+    speechSynthesis.cancel();
+    this.currentText = '';
+    this.currentSpeaker = '';
+  },
+
+  toggle() {
+    this.enabled = !this.enabled;
+    if (!this.enabled) this.stop();
+    return this.enabled;
+  }
+};
+voiceMgr.init();
 
 // ===================== PARTICLE SYSTEM =====================
 class Particle {
@@ -1272,6 +1339,11 @@ function drawText(text, x, y, size, color, align, stroke) {
 function drawDialogue(speaker, text, speakerColor, time) {
   const alpha = Math.min(1, time * 3);
   ctx.globalAlpha = alpha;
+
+  // Trigger voice acting when dialogue appears
+  if (time >= 0 && time < 0.15) {
+    voiceMgr.speak(text, speaker);
+  }
 
   // Background
   ctx.fillStyle = 'rgba(0,0,0,0.7)';
@@ -3875,6 +3947,7 @@ function lerpColor(c1, c2, t) {
 }
 
 // ===================== MAIN RENDER LOOP =====================
+let lastSceneIndex = -1;
 
 function render(timestamp) {
   if (!lastFrameTime) lastFrameTime = timestamp;
@@ -3887,6 +3960,7 @@ function render(timestamp) {
       movieTime = TOTAL_DURATION;
       playing = false;
       updatePlayButton();
+      voiceMgr.stop();
     }
   }
 
@@ -3897,6 +3971,12 @@ function render(timestamp) {
 
   // Get current scene
   const scene = getSceneAt(movieTime);
+
+  // Stop voice on scene transition
+  if (scene.index !== lastSceneIndex) {
+    voiceMgr.stop();
+    lastSceneIndex = scene.index;
+  }
 
   // Render scene
   renderScene(scene.index, scene.localTime, scene.duration);
@@ -3949,6 +4029,7 @@ playPauseBtn.addEventListener('click', () => {
   initAudio();
   playing = !playing;
   updatePlayButton();
+  if (!playing) voiceMgr.stop();
   if (playing && movieTime >= TOTAL_DURATION) {
     movieTime = 0;
   }
@@ -3959,6 +4040,13 @@ progressBar.addEventListener('click', (e) => {
   const x = (e.clientX - rect.left) / rect.width;
   movieTime = x * TOTAL_DURATION;
   currentMood = ''; // Force music reload
+  voiceMgr.stop();
+});
+
+const voiceToggleBtn = document.getElementById('voiceToggleBtn');
+voiceToggleBtn.addEventListener('click', () => {
+  const on = voiceMgr.toggle();
+  voiceToggleBtn.innerHTML = on ? '\u{1F50A}' : '\u{1F507}';
 });
 
 fullscreenBtn.addEventListener('click', () => {
@@ -3975,15 +4063,18 @@ document.addEventListener('keydown', (e) => {
     initAudio();
     playing = !playing;
     updatePlayButton();
+    if (!playing) voiceMgr.stop();
     if (playing && movieTime >= TOTAL_DURATION) {
       movieTime = 0;
     }
   } else if (e.code === 'ArrowRight') {
     movieTime = Math.min(TOTAL_DURATION, movieTime + 5);
     currentMood = '';
+    voiceMgr.stop();
   } else if (e.code === 'ArrowLeft') {
     movieTime = Math.max(0, movieTime - 5);
     currentMood = '';
+    voiceMgr.stop();
   }
 });
 

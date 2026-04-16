@@ -1,0 +1,3427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minecraft: The Legend of the Ender Dragon - StreamFlix</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;width:100vw;user-select:none}
+#cinema{position:relative;width:100vw;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#letterbox-top,#letterbox-bottom{position:absolute;left:0;width:100%;background:#000;z-index:10;pointer-events:none}
+#letterbox-top{top:0}
+#letterbox-bottom{bottom:0}
+canvas{display:block;z-index:1}
+#controls{position:absolute;bottom:0;left:0;right:0;z-index:20;background:linear-gradient(transparent,rgba(0,0,0,.9));padding:12px 20px 18px;display:flex;flex-direction:column;gap:8px;opacity:0;transition:opacity .3s}
+#cinema:hover #controls,#controls.show{opacity:1}
+#progress-container{width:100%;height:6px;background:rgba(255,255,255,.2);border-radius:3px;cursor:pointer;position:relative}
+#progress-container:hover{height:10px;margin-top:-2px}
+#progress-bar{height:100%;background:linear-gradient(90deg,#4a7a2e,#9b59b6);border-radius:3px;width:0%;transition:width .1s linear;pointer-events:none}
+#progress-buffer{position:absolute;top:0;left:0;height:100%;background:rgba(255,255,255,.1);border-radius:3px;pointer-events:none}
+#btn-row{display:flex;align-items:center;gap:16px}
+.ctrl-btn{background:none;border:none;color:#fff;cursor:pointer;font-size:20px;padding:4px 8px;opacity:.85;transition:opacity .2s}
+.ctrl-btn:hover{opacity:1}
+#time-display{font-size:13px;color:#ccc;font-variant-numeric:tabular-nums}
+#title-display{flex:1;text-align:center;font-size:14px;color:#aaa;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#back-btn{position:absolute;top:20px;left:20px;z-index:30;background:rgba(0,0,0,.6);border:none;color:#fff;padding:8px 16px;border-radius:20px;cursor:pointer;font-size:14px;opacity:0;transition:opacity .3s;text-decoration:none;display:flex;align-items:center;gap:6px}
+#cinema:hover #back-btn{opacity:.8}
+#back-btn:hover{opacity:1;background:rgba(255,255,255,.15)}
+#scene-indicator{position:absolute;top:20px;right:20px;z-index:30;color:#aaa;font-size:12px;opacity:0;transition:opacity .3s}
+#cinema:hover #scene-indicator{opacity:.7}
+#subtitle-bar{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);z-index:25;background:rgba(0,0,0,.75);padding:8px 24px;border-radius:6px;font-size:18px;text-align:center;max-width:80%;display:none;line-height:1.4;text-shadow:1px 1px 2px #000}
+</style>
+</head>
+<body>
+<div id="cinema">
+  <div id="letterbox-top"></div>
+  <canvas id="c"></canvas>
+  <div id="letterbox-bottom"></div>
+  <a href="/games/streamflix/" id="back-btn">&#9664; Back</a>
+  <div id="scene-indicator"></div>
+  <div id="subtitle-bar"></div>
+  <div id="controls" class="show">
+    <div id="progress-container"><div id="progress-buffer"></div><div id="progress-bar"></div></div>
+    <div id="btn-row">
+      <button class="ctrl-btn" id="play-btn">&#9654;</button>
+      <span id="time-display">0:00 / 0:00</span>
+      <span id="title-display">Minecraft: The Legend of the Ender Dragon</span>
+      <button class="ctrl-btn" id="voice-btn" title="Toggle Voice Acting">&#128266;</button>
+      <button class="ctrl-btn" id="fs-btn">&#x26F6;</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== MOVIE ENGINE =====
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 1280, H = 720;
+canvas.width = W; canvas.height = H;
+
+let playing = false, globalTime = 0, lastTimestamp = 0;
+let currentScene = 0, sceneTime = 0;
+let fadeAlpha = 0, fadeDir = 0;
+let controlsTimeout;
+
+const scenes = [
+  {name:"Title", duration:15},
+  {name:"A New World", duration:15},
+  {name:"First Night", duration:15},
+  {name:"Meeting Alex", duration:15},
+  {name:"The Village", duration:15},
+  {name:"Mining Montage", duration:12},
+  {name:"Wolf Companion", duration:12},
+  {name:"The Nether Portal", duration:15},
+  {name:"Nether Fortress", duration:15},
+  {name:"Piglin Trading", duration:12},
+  {name:"Back to Overworld", duration:12},
+  {name:"The Stronghold", duration:15},
+  {name:"The End", duration:15},
+  {name:"Boss Battle Begins", duration:18},
+  {name:"Darkest Moment", duration:15},
+  {name:"Final Stand", duration:18},
+  {name:"Dragon Defeated", duration:15},
+  {name:"The End Poem", duration:15},
+  {name:"Home", duration:15},
+  {name:"Ending + Credits", duration:20}
+];
+const TRANSITION_TIME = 1.5;
+const totalDuration = scenes.reduce((s,sc)=>s+sc.duration,0);
+
+// ===== AUDIO ENGINE =====
+let audioCtx, masterGain;
+let currentMusicNodes = [];
+let currentMusicType = '';
+
+function initAudio(){
+  if(audioCtx) return;
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.2;
+  masterGain.connect(audioCtx.destination);
+}
+
+function stopMusic(){
+  currentMusicNodes.forEach(n=>{try{n.stop();}catch(e){}try{n.disconnect();}catch(e){}});
+  currentMusicNodes = [];
+  currentMusicType = '';
+}
+
+function playNote(freq, startTime, duration, type='sine', vol=0.15){
+  if(!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  g.gain.setValueAtTime(0, startTime);
+  g.gain.linearRampToValueAtTime(vol, startTime+0.05);
+  g.gain.setValueAtTime(vol, startTime+duration-0.1);
+  g.gain.linearRampToValueAtTime(0, startTime+duration);
+  osc.connect(g);
+  g.connect(masterGain);
+  osc.start(startTime);
+  osc.stop(startTime+duration);
+  currentMusicNodes.push(osc);
+  return osc;
+}
+
+function playMusic(type){
+  if(type === currentMusicType) return;
+  stopMusic();
+  if(!audioCtx) return;
+  currentMusicType = type;
+  const now = audioCtx.currentTime;
+
+  if(type === 'calm'){
+    // C418-inspired calm ambient
+    const notes = [261.63, 329.63, 392.00, 349.23, 293.66, 261.63, 329.63, 392.00];
+    const loop = () => {
+      if(currentMusicType !== 'calm') return;
+      const t = audioCtx.currentTime;
+      notes.forEach((n,i) => {
+        playNote(n, t + i*1.2, 1.5, 'sine', 0.08);
+        playNote(n*0.5, t + i*1.2, 1.8, 'sine', 0.04);
+      });
+      const tm = setTimeout(loop, notes.length*1200);
+      currentMusicNodes._timer = tm;
+    };
+    loop();
+    // Ambient pad
+    const pad = audioCtx.createOscillator();
+    const padG = audioCtx.createGain();
+    pad.type = 'sine';
+    pad.frequency.value = 130.81;
+    padG.gain.value = 0.04;
+    pad.connect(padG);
+    padG.connect(masterGain);
+    pad.start();
+    currentMusicNodes.push(pad);
+  } else if(type === 'tense'){
+    const notes = [130.81, 138.59, 130.81, 123.47, 116.54, 123.47, 130.81, 138.59];
+    const loop = () => {
+      if(currentMusicType !== 'tense') return;
+      const t = audioCtx.currentTime;
+      notes.forEach((n,i) => {
+        playNote(n, t + i*0.8, 1.0, 'sawtooth', 0.04);
+        playNote(n*2, t + i*0.8 + 0.4, 0.3, 'square', 0.02);
+      });
+      setTimeout(loop, notes.length*800);
+    };
+    loop();
+    // Deep rumble
+    const rum = audioCtx.createOscillator();
+    const rumG = audioCtx.createGain();
+    rum.type = 'sawtooth';
+    rum.frequency.value = 55;
+    rumG.gain.value = 0.03;
+    rum.connect(rumG);
+    rumG.connect(masterGain);
+    rum.start();
+    currentMusicNodes.push(rum);
+  } else if(type === 'nether'){
+    // Dark, hellish ambience
+    const notes = [73.42, 77.78, 82.41, 77.78, 73.42, 69.30, 73.42, 82.41];
+    const loop = () => {
+      if(currentMusicType !== 'nether') return;
+      const t = audioCtx.currentTime;
+      notes.forEach((n,i) => {
+        playNote(n, t + i*1.0, 1.2, 'sawtooth', 0.03);
+        playNote(n*3, t + i*1.0 + 0.2, 0.5, 'square', 0.015);
+      });
+      setTimeout(loop, notes.length*1000);
+    };
+    loop();
+    const rum = audioCtx.createOscillator();
+    const rumG = audioCtx.createGain();
+    rum.type = 'sawtooth';
+    rum.frequency.value = 40;
+    rumG.gain.value = 0.035;
+    rum.connect(rumG);
+    rumG.connect(masterGain);
+    rum.start();
+    currentMusicNodes.push(rum);
+  } else if(type === 'epic'){
+    // Epic boss battle
+    const notes = [146.83, 174.61, 196.00, 220.00, 246.94, 220.00, 196.00, 174.61, 146.83, 130.81, 146.83, 164.81];
+    const loop = () => {
+      if(currentMusicType !== 'epic') return;
+      const t = audioCtx.currentTime;
+      notes.forEach((n,i) => {
+        playNote(n, t + i*0.5, 0.6, 'sawtooth', 0.06);
+        playNote(n*0.5, t + i*0.5, 0.5, 'square', 0.03);
+        if(i%2===0) playNote(n*2, t + i*0.5+0.25, 0.2, 'sine', 0.04);
+      });
+      setTimeout(loop, notes.length*500);
+    };
+    loop();
+    // Driving bass
+    const bass = audioCtx.createOscillator();
+    const bassG = audioCtx.createGain();
+    bass.type = 'square';
+    bass.frequency.value = 73.42;
+    bassG.gain.value = 0.04;
+    bass.connect(bassG);
+    bassG.connect(masterGain);
+    bass.start();
+    currentMusicNodes.push(bass);
+  } else if(type === 'peaceful'){
+    const notes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 261.63, 196.00, 261.63, 329.63];
+    const loop = () => {
+      if(currentMusicType !== 'peaceful') return;
+      const t = audioCtx.currentTime;
+      notes.forEach((n,i) => {
+        playNote(n, t + i*1.5, 2.0, 'sine', 0.07);
+        playNote(n*0.5, t + i*1.5 + 0.5, 1.5, 'triangle', 0.03);
+      });
+      setTimeout(loop, notes.length*1500);
+    };
+    loop();
+    const pad = audioCtx.createOscillator();
+    const padG = audioCtx.createGain();
+    pad.type = 'sine';
+    pad.frequency.value = 196.00;
+    padG.gain.value = 0.03;
+    pad.connect(padG);
+    padG.connect(masterGain);
+    pad.start();
+    currentMusicNodes.push(pad);
+  } else if(type === 'triumph'){
+    const notes = [261.63, 329.63, 392.00, 523.25, 587.33, 523.25, 659.25, 523.25];
+    const loop = () => {
+      if(currentMusicType !== 'triumph') return;
+      const t = audioCtx.currentTime;
+      notes.forEach((n,i) => {
+        playNote(n, t + i*0.8, 1.0, 'sine', 0.08);
+        playNote(n*0.5, t + i*0.8, 1.2, 'triangle', 0.04);
+        playNote(n*2, t + i*0.8 + 0.4, 0.4, 'sine', 0.03);
+      });
+      setTimeout(loop, notes.length*800);
+    };
+    loop();
+  }
+}
+
+// ===== VOICE SYSTEM =====
+let voiceEnabled = true;
+let currentUtterance = null;
+let spokenLines = new Set();
+
+const voiceProfiles = {
+  narrator: {pitch:1.0, rate:0.85},
+  steve: {pitch:1.1, rate:1.0},
+  alex: {pitch:1.5, rate:1.05},
+  creeper: {pitch:1.8, rate:0.6},
+  elder: {pitch:0.7, rate:0.75},
+  golem: {pitch:0.3, rate:0.6},
+  enderman: {pitch:0.5, rate:0.7},
+  dragon: {pitch:0.3, rate:0.65},
+  wolf: {pitch:1.9, rate:1.2},
+  piglin: {pitch:0.8, rate:1.1}
+};
+
+const speakerColors = {
+  narrator: '#ffd700',
+  steve: '#5599ff',
+  alex: '#ff8844',
+  creeper: '#44cc44',
+  elder: '#aa7744',
+  golem: '#aaaaaa',
+  enderman: '#aa44ff',
+  dragon: '#bb44ff',
+  wolf: '#ffffff',
+  piglin: '#ffaa00'
+};
+
+function speak(text, character, lineId){
+  if(!voiceEnabled) return;
+  if(!window.speechSynthesis) return;
+  if(lineId && spokenLines.has(lineId)) return;
+  if(lineId) spokenLines.add(lineId);
+
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  const profile = voiceProfiles[character] || voiceProfiles.narrator;
+  utter.pitch = profile.pitch;
+  utter.rate = profile.rate;
+  utter.volume = 0.9;
+
+  // Try to get an English voice
+  const voices = window.speechSynthesis.getVoices();
+  const english = voices.find(v=>v.lang.startsWith('en'));
+  if(english) utter.voice = english;
+
+  currentUtterance = utter;
+  window.speechSynthesis.speak(utter);
+}
+
+function stopSpeech(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+}
+
+// Preload voices
+if(window.speechSynthesis){
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+}
+
+// ===== SUBTITLE SYSTEM =====
+const subtitleEl = document.getElementById('subtitle-bar');
+let currentSubtitle = '';
+let subtitleTimeout = null;
+
+function showSubtitle(speaker, text, color, duration){
+  const displayName = speaker.charAt(0).toUpperCase() + speaker.slice(1);
+  const c = color || speakerColors[speaker] || '#fff';
+  subtitleEl.innerHTML = `<span style="color:${c};font-weight:bold">${displayName}:</span> ${text}`;
+  subtitleEl.style.display = 'block';
+  if(subtitleTimeout) clearTimeout(subtitleTimeout);
+  subtitleTimeout = setTimeout(()=>{ subtitleEl.style.display = 'none'; }, (duration||4)*1000);
+}
+
+function hideSubtitle(){
+  subtitleEl.style.display = 'none';
+}
+
+// ===== DIALOGUE SYSTEM =====
+let dialogueQueue = [];
+let lastDialogueTime = -999;
+
+function queueDialogue(time, speaker, text, duration){
+  dialogueQueue.push({time, speaker, text, duration: duration||4});
+}
+
+function checkDialogue(t, sceneIdx){
+  const lineId = sceneIdx + '_' + Math.floor(t*10);
+  for(let d of dialogueQueue){
+    if(t >= d.time && t < d.time + 0.3 && !spokenLines.has(sceneIdx+'_'+d.time)){
+      spokenLines.add(sceneIdx+'_'+d.time);
+      showSubtitle(d.speaker, d.text, speakerColors[d.speaker], d.duration);
+      speak(d.text, d.speaker, sceneIdx+'_'+d.time);
+    }
+  }
+}
+
+// ===== PARTICLE SYSTEM =====
+let particles = [];
+
+function addParticle(x, y, color, vx, vy, life, size){
+  particles.push({x, y, color, vx: vx||(Math.random()-0.5)*3, vy: vy||(Math.random()-0.5)*3, life: life||1, maxLife: life||1, size: size||4});
+}
+
+function addExplosion(x, y, color, count){
+  for(let i=0;i<(count||20);i++){
+    const angle = Math.random()*Math.PI*2;
+    const speed = Math.random()*5+2;
+    addParticle(x, y, color, Math.cos(angle)*speed, Math.sin(angle)*speed, 0.8+Math.random()*0.5, 3+Math.random()*4);
+  }
+}
+
+function addXPOrbs(x, y, count){
+  for(let i=0;i<(count||30);i++){
+    const angle = Math.random()*Math.PI*2;
+    const speed = Math.random()*6+3;
+    const c = Math.random()>0.3 ? '#7FFF00' : '#FFD700';
+    addParticle(x, y, c, Math.cos(angle)*speed, Math.sin(angle)*speed-2, 1.5+Math.random(), 4+Math.random()*6);
+  }
+}
+
+function updateParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.1;
+    p.life -= dt;
+    if(p.life <= 0) particles.splice(i,1);
+  }
+}
+
+function drawParticles(){
+  for(const p of particles){
+    const alpha = Math.max(0, p.life / p.maxLife);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ===== DRAWING HELPERS =====
+// Everything blocky! No curves!
+
+function drawSky(topColor, bottomColor){
+  const grad = ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0, topColor);
+  grad.addColorStop(1, bottomColor);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,W,H);
+}
+
+function drawBlockySun(x, y, size){
+  ctx.fillStyle = '#FFF44F';
+  ctx.fillRect(x-size/2, y-size/2, size, size);
+  ctx.fillStyle = '#FFD700';
+  ctx.fillRect(x-size/2+4, y-size/2+4, size-8, size-8);
+}
+
+function drawSquareMoon(x, y, size){
+  ctx.fillStyle = '#E8E8D0';
+  ctx.fillRect(x-size/2, y-size/2, size, size);
+  ctx.fillStyle = '#D0D0B8';
+  ctx.fillRect(x-size/4, y-size/4, size/4, size/4);
+  ctx.fillRect(x, y, size/5, size/5);
+}
+
+function drawSquareStars(t){
+  const seed = 12345;
+  for(let i=0;i<60;i++){
+    const sx = ((seed*i*7+i*131)%W);
+    const sy = ((seed*i*3+i*97)%300);
+    const flicker = Math.sin(t*2+i)*0.3+0.7;
+    ctx.globalAlpha = flicker;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(sx, sy, 2+i%3, 2+i%3);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawBlockyClouds(t, y){
+  const y0 = y || 60;
+  for(let i=0;i<5;i++){
+    const cx = ((t*20 + i*300)%1500) - 100;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(cx, y0+i*15, 80, 20);
+    ctx.fillRect(cx+15, y0-10+i*15, 50, 20);
+    ctx.fillRect(cx-10, y0+5+i*15, 30, 15);
+  }
+}
+
+function drawGrassGround(groundY, layers){
+  // Grass top
+  ctx.fillStyle = '#5DA332';
+  ctx.fillRect(0, groundY, W, 16);
+  // Dirt
+  ctx.fillStyle = '#8B6914';
+  ctx.fillRect(0, groundY+16, W, H-groundY-16);
+  // Dirt texture
+  ctx.fillStyle = '#7A5C12';
+  for(let x=0; x<W; x+=32){
+    for(let y=groundY+16; y<H; y+=32){
+      if((x/32+y/32)%3===0){
+        ctx.fillRect(x+4, y+4, 12, 12);
+      }
+    }
+  }
+  // Grass details
+  ctx.fillStyle = '#4A8C28';
+  for(let x=0; x<W; x+=16){
+    if(x%48===0) ctx.fillRect(x, groundY-4, 8, 4);
+  }
+}
+
+function drawOakTree(x, y){
+  // Trunk
+  ctx.fillStyle = '#6B4226';
+  ctx.fillRect(x-8, y-60, 16, 60);
+  ctx.fillStyle = '#5A3720';
+  ctx.fillRect(x-4, y-60, 4, 60);
+  // Leaves (blocky cube)
+  ctx.fillStyle = '#2D8B2D';
+  ctx.fillRect(x-32, y-100, 64, 48);
+  ctx.fillRect(x-24, y-112, 48, 16);
+  ctx.fillStyle = '#3DA33D';
+  ctx.fillRect(x-28, y-96, 20, 20);
+  ctx.fillRect(x+8, y-104, 16, 16);
+}
+
+function drawBirchTree(x, y){
+  ctx.fillStyle = '#E8E0D0';
+  ctx.fillRect(x-7, y-55, 14, 55);
+  ctx.fillStyle = '#333';
+  ctx.fillRect(x-5, y-40, 4, 6);
+  ctx.fillRect(x+2, y-25, 3, 5);
+  ctx.fillStyle = '#3DA33D';
+  ctx.fillRect(x-28, y-90, 56, 40);
+  ctx.fillRect(x-20, y-100, 40, 14);
+}
+
+function drawFlower(x, y, color){
+  ctx.fillStyle = '#3A7A20';
+  ctx.fillRect(x, y-10, 2, 10);
+  ctx.fillStyle = color;
+  ctx.fillRect(x-3, y-15, 8, 8);
+}
+
+// ===== CHARACTER DRAWING =====
+
+function drawSteve(x, y, scale, options){
+  const s = scale || 1;
+  const opt = options || {};
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+
+  // Legs
+  const walkAngle = opt.walk ? Math.sin((globalTime||0)*8)*0.3 : 0;
+  ctx.fillStyle = '#3333AA';
+  ctx.fillRect(-8, 0, 7, 20 + walkAngle*5);
+  ctx.fillRect(1, 0, 7, 20 - walkAngle*5);
+
+  // Body (cyan/teal shirt)
+  ctx.fillStyle = '#00AAAA';
+  ctx.fillRect(-8, -24, 16, 24);
+  // Belt
+  ctx.fillStyle = '#3333AA';
+  ctx.fillRect(-8, -4, 16, 4);
+
+  // Arms
+  if(opt.punch){
+    // One arm extended
+    ctx.fillStyle = '#C4A072';
+    ctx.fillRect(8, -24, 8, 8);
+    ctx.fillRect(16, -24, 12, 8);
+    ctx.fillRect(-16, -24, 8, 20);
+  } else if(opt.sword){
+    ctx.fillStyle = '#C4A072';
+    ctx.fillRect(8, -24, 8, 20);
+    ctx.fillRect(-16, -24, 8, 20);
+    // Sword in hand
+    ctx.fillStyle = opt.swordColor || '#55FFFF';
+    ctx.fillRect(16, -36, 4, 24);
+    ctx.fillStyle = '#8B6914';
+    ctx.fillRect(14, -14, 8, 4);
+  } else if(opt.highfive){
+    ctx.fillStyle = '#C4A072';
+    ctx.fillRect(8, -38, 8, 16);
+    ctx.fillRect(-16, -24, 8, 20);
+  } else {
+    ctx.fillStyle = '#C4A072';
+    const armSwing = opt.walk ? Math.sin((globalTime||0)*8)*10 : 0;
+    ctx.fillRect(8, -24, 8, 20+armSwing);
+    ctx.fillRect(-16, -24, 8, 20-armSwing);
+  }
+
+  // Head
+  ctx.fillStyle = '#C4A072'; // skin
+  ctx.fillRect(-8, -44, 16, 16);
+  // Hair (brown)
+  ctx.fillStyle = '#6B3A1F';
+  ctx.fillRect(-8, -48, 16, 8);
+  ctx.fillRect(-8, -44, 4, 4);
+  ctx.fillRect(8, -44, 4, 4);
+  // Eyes (blue)
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-5, -40, 4, 4);
+  ctx.fillRect(2, -40, 4, 4);
+  ctx.fillStyle = '#3355FF';
+  ctx.fillRect(-4, -40, 2, 3);
+  ctx.fillRect(3, -40, 2, 3);
+  // Mouth
+  ctx.fillStyle = '#8B6050';
+  ctx.fillRect(-3, -34, 6, 2);
+
+  // Diamond armor if equipped
+  if(opt.armor){
+    ctx.fillStyle = 'rgba(100,220,255,0.5)';
+    ctx.fillRect(-9, -25, 18, 25);
+    ctx.fillRect(-9, -49, 18, 8);
+    ctx.fillStyle = 'rgba(80,200,240,0.3)';
+    ctx.fillRect(-9, 0, 7, 20);
+    ctx.fillRect(2, 0, 7, 20);
+  }
+
+  ctx.restore();
+}
+
+function drawAlex(x, y, scale, options){
+  const s = scale || 1;
+  const opt = options || {};
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+
+  // Legs
+  const walkAngle = opt.walk ? Math.sin((globalTime||0)*8+1)*0.3 : 0;
+  ctx.fillStyle = '#8B6914';
+  ctx.fillRect(-7, 0, 6, 20 + walkAngle*5);
+  ctx.fillRect(1, 0, 6, 20 - walkAngle*5);
+
+  // Body (green shirt)
+  ctx.fillStyle = '#55AA33';
+  ctx.fillRect(-7, -22, 14, 22);
+
+  // Arms
+  if(opt.bow){
+    ctx.fillStyle = '#D4B896';
+    ctx.fillRect(7, -30, 6, 10);
+    ctx.fillRect(-13, -22, 6, 18);
+    // Bow
+    ctx.fillStyle = '#6B4226';
+    ctx.fillRect(13, -36, 3, 20);
+    ctx.fillStyle = '#ccc';
+    ctx.fillRect(15, -36, 1, 20);
+  } else if(opt.highfive){
+    ctx.fillStyle = '#D4B896';
+    ctx.fillRect(7, -36, 6, 14);
+    ctx.fillRect(-13, -22, 6, 18);
+  } else {
+    ctx.fillStyle = '#D4B896';
+    const armSwing = opt.walk ? Math.sin((globalTime||0)*8+1)*10 : 0;
+    ctx.fillRect(7, -22, 6, 18+armSwing);
+    ctx.fillRect(-13, -22, 6, 18-armSwing);
+  }
+
+  // Head
+  ctx.fillStyle = '#D4B896';
+  ctx.fillRect(-7, -42, 14, 16);
+  // Hair (orange/red, longer)
+  ctx.fillStyle = '#CC5522';
+  ctx.fillRect(-8, -46, 16, 8);
+  ctx.fillRect(-8, -42, 3, 14);
+  ctx.fillRect(7, -42, 3, 14);
+  ctx.fillRect(-8, -28, 3, 8);
+  ctx.fillRect(7, -28, 3, 8);
+  // Eyes (green)
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-4, -38, 4, 4);
+  ctx.fillRect(2, -38, 4, 4);
+  ctx.fillStyle = '#33AA33';
+  ctx.fillRect(-3, -38, 2, 3);
+  ctx.fillRect(3, -38, 2, 3);
+  // Mouth
+  ctx.fillStyle = '#B08070';
+  ctx.fillRect(-2, -32, 5, 2);
+
+  if(opt.armor){
+    ctx.fillStyle = 'rgba(100,220,255,0.5)';
+    ctx.fillRect(-8, -23, 16, 23);
+    ctx.fillRect(-8, -47, 16, 8);
+  }
+
+  ctx.restore();
+}
+
+function drawCreeper(x, y, scale){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+
+  // Body
+  ctx.fillStyle = '#55AA33';
+  ctx.fillRect(-10, -30, 20, 30);
+  // Pattern
+  ctx.fillStyle = '#448828';
+  for(let py=-28;py<0;py+=6){
+    for(let px=-8;px<10;px+=6){
+      if((px+py)%12===0) ctx.fillRect(px, py, 4, 4);
+    }
+  }
+
+  // Head
+  ctx.fillStyle = '#55AA33';
+  ctx.fillRect(-10, -50, 20, 20);
+  ctx.fillStyle = '#448828';
+  ctx.fillRect(-8, -48, 4, 4);
+  ctx.fillRect(4, -48, 4, 4);
+
+  // Face (black sad face)
+  ctx.fillStyle = '#000';
+  // Eyes
+  ctx.fillRect(-7, -46, 4, 6);
+  ctx.fillRect(3, -46, 4, 6);
+  // Mouth (frown)
+  ctx.fillRect(-5, -38, 2, 2);
+  ctx.fillRect(-3, -36, 6, 2);
+  ctx.fillRect(3, -38, 2, 2);
+
+  // Legs (4 stubby)
+  ctx.fillStyle = '#55AA33';
+  ctx.fillRect(-10, 0, 7, 10);
+  ctx.fillRect(3, 0, 7, 10);
+
+  ctx.restore();
+}
+
+function drawVillagerElder(x, y, scale){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+
+  // Robe (brown)
+  ctx.fillStyle = '#8B6914';
+  ctx.fillRect(-10, -24, 20, 36);
+  ctx.fillStyle = '#7A5C12';
+  ctx.fillRect(-10, -24, 20, 4);
+
+  // Arms crossed
+  ctx.fillStyle = '#8B6914';
+  ctx.fillRect(-14, -18, 28, 8);
+
+  // Head
+  ctx.fillStyle = '#D4AA70';
+  ctx.fillRect(-8, -44, 16, 20);
+  // Bald head
+  ctx.fillStyle = '#D4AA70';
+  ctx.fillRect(-6, -48, 12, 6);
+  // Big nose
+  ctx.fillStyle = '#C49960';
+  ctx.fillRect(-2, -38, 5, 8);
+  // Unibrow
+  ctx.fillStyle = '#555';
+  ctx.fillRect(-6, -42, 12, 2);
+  // Eyes
+  ctx.fillStyle = '#333';
+  ctx.fillRect(-5, -40, 3, 3);
+  ctx.fillRect(3, -40, 3, 3);
+  // Gray beard
+  ctx.fillStyle = '#999';
+  ctx.fillRect(-6, -30, 12, 8);
+  ctx.fillRect(-4, -22, 8, 4);
+
+  ctx.restore();
+}
+
+function drawIronGolem(x, y, scale){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+
+  // Body (tall gray)
+  ctx.fillStyle = '#B8B8B8';
+  ctx.fillRect(-16, -50, 32, 50);
+  // Cracks
+  ctx.fillStyle = '#888';
+  ctx.fillRect(-10, -40, 8, 2);
+  ctx.fillRect(4, -30, 6, 2);
+  // Vine detail
+  ctx.fillStyle = '#5A7A3A';
+  ctx.fillRect(-14, -35, 4, 12);
+
+  // Long arms
+  ctx.fillStyle = '#A8A8A8';
+  ctx.fillRect(-28, -48, 12, 40);
+  ctx.fillRect(16, -48, 12, 40);
+
+  // Head
+  ctx.fillStyle = '#C0C0C0';
+  ctx.fillRect(-10, -68, 20, 18);
+  // Eyes (red)
+  ctx.fillStyle = '#CC2222';
+  ctx.fillRect(-6, -62, 4, 4);
+  ctx.fillRect(3, -62, 4, 4);
+  // Nose
+  ctx.fillStyle = '#A0A0A0';
+  ctx.fillRect(-2, -58, 4, 6);
+
+  // Legs
+  ctx.fillStyle = '#A8A8A8';
+  ctx.fillRect(-14, 0, 10, 16);
+  ctx.fillRect(4, 0, 10, 16);
+
+  ctx.restore();
+}
+
+function drawEnderman(x, y, scale, holdsBlock){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+
+  // Tall thin body
+  ctx.fillStyle = '#1A1A2E';
+  ctx.fillRect(-6, -60, 12, 50);
+
+  // Long thin legs
+  ctx.fillRect(-6, -10, 5, 30);
+  ctx.fillRect(1, -10, 5, 30);
+
+  // Long thin arms
+  ctx.fillRect(-12, -55, 6, 35);
+  ctx.fillRect(6, -55, 6, 35);
+
+  // Head
+  ctx.fillStyle = '#1A1A2E';
+  ctx.fillRect(-8, -76, 16, 16);
+  // Purple eyes
+  ctx.fillStyle = '#CC44FF';
+  ctx.fillRect(-6, -72, 4, 3);
+  ctx.fillRect(3, -72, 4, 3);
+
+  // Particles
+  for(let i=0;i<4;i++){
+    ctx.fillStyle = `rgba(150,50,200,${0.3+Math.sin(globalTime*3+i)*0.3})`;
+    ctx.fillRect(-10+Math.sin(globalTime*2+i*2)*8, -70+i*15+Math.cos(globalTime*3+i)*5, 3, 3);
+  }
+
+  // Holds grass block
+  if(holdsBlock){
+    ctx.fillStyle = '#5DA332';
+    ctx.fillRect(-16, -22, 12, 6);
+    ctx.fillStyle = '#8B6914';
+    ctx.fillRect(-16, -16, 12, 8);
+  }
+
+  ctx.restore();
+}
+
+function drawEnderDragon(x, y, scale, options){
+  const s = scale || 1;
+  const opt = options || {};
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+
+  const wingFlap = Math.sin((globalTime||0)*3) * 15;
+
+  // Wings (gray)
+  ctx.fillStyle = '#555';
+  // Left wing
+  ctx.fillRect(-70, -20+wingFlap, 40, 8);
+  ctx.fillRect(-80, -15+wingFlap, 30, 6);
+  ctx.fillRect(-60, -25+wingFlap, 10, 30);
+  // Right wing
+  ctx.fillRect(30, -20-wingFlap, 40, 8);
+  ctx.fillRect(50, -15-wingFlap, 30, 6);
+  ctx.fillRect(50, -25-wingFlap, 10, 30);
+
+  // Body (black/dark)
+  ctx.fillStyle = '#222';
+  ctx.fillRect(-25, -15, 50, 20);
+
+  // Tail
+  ctx.fillRect(20, -5, 30, 8);
+  ctx.fillRect(45, -3, 20, 5);
+  ctx.fillRect(60, -2, 15, 3);
+
+  // Head (spiky)
+  ctx.fillStyle = '#2A2A2A';
+  ctx.fillRect(-45, -20, 24, 18);
+  // Spikes
+  ctx.fillRect(-40, -28, 4, 8);
+  ctx.fillRect(-34, -26, 4, 6);
+  ctx.fillRect(-48, -16, 6, 4);
+  // Purple eyes
+  ctx.fillStyle = '#CC44FF';
+  ctx.fillRect(-42, -16, 5, 4);
+  ctx.fillRect(-34, -16, 5, 4);
+  // Mouth
+  if(opt.breathing){
+    ctx.fillStyle = '#9933CC';
+    ctx.fillRect(-50, -10, 10, 4);
+    // Acid breath
+    for(let i=0;i<8;i++){
+      ctx.fillStyle = `rgba(150,50,200,${0.7-i*0.08})`;
+      ctx.fillRect(-55-i*12, -12+Math.sin(globalTime*5+i)*4, 10, 6);
+    }
+  }
+
+  // Legs
+  ctx.fillStyle = '#222';
+  ctx.fillRect(-15, 5, 6, 12);
+  ctx.fillRect(10, 5, 6, 12);
+
+  ctx.restore();
+}
+
+function drawWolf(x, y, scale, happy){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+
+  const tailWag = happy ? Math.sin((globalTime||0)*10)*15 : 0;
+
+  // Body
+  ctx.fillStyle = '#E8E0D0';
+  ctx.fillRect(-12, -12, 24, 14);
+  // Gray patches
+  ctx.fillStyle = '#B8B0A0';
+  ctx.fillRect(-12, -12, 24, 4);
+
+  // Legs
+  ctx.fillStyle = '#D8D0C0';
+  ctx.fillRect(-10, 2, 5, 10);
+  ctx.fillRect(-2, 2, 5, 10);
+  ctx.fillRect(4, 2, 5, 10);
+  ctx.fillRect(10, 2, 5, 10);
+
+  // Head
+  ctx.fillStyle = '#E8E0D0';
+  ctx.fillRect(-18, -18, 12, 12);
+  // Ears
+  ctx.fillStyle = '#D0C8B8';
+  ctx.fillRect(-18, -24, 4, 6);
+  ctx.fillRect(-10, -24, 4, 6);
+  // Eyes
+  ctx.fillStyle = '#333';
+  ctx.fillRect(-16, -14, 3, 3);
+  ctx.fillRect(-11, -14, 3, 3);
+  // Nose
+  ctx.fillStyle = '#222';
+  ctx.fillRect(-16, -10, 4, 3);
+  // Tongue (if happy)
+  if(happy){
+    ctx.fillStyle = '#FF6666';
+    ctx.fillRect(-15, -7, 3, 5);
+  }
+
+  // Red collar
+  ctx.fillStyle = '#DD2222';
+  ctx.fillRect(-12, -6, 10, 3);
+
+  // Tail
+  ctx.save();
+  ctx.translate(12, -10);
+  ctx.rotate(tailWag * Math.PI/180);
+  ctx.fillStyle = '#E8E0D0';
+  ctx.fillRect(0, -8, 4, 10);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function drawPiglin(x, y, scale){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+
+  // Legs
+  ctx.fillStyle = '#CC8855';
+  ctx.fillRect(-7, 0, 6, 16);
+  ctx.fillRect(1, 0, 6, 16);
+
+  // Body
+  ctx.fillStyle = '#CC8855';
+  ctx.fillRect(-8, -22, 16, 22);
+  // Gold armor pieces
+  ctx.fillStyle = '#FFD700';
+  ctx.fillRect(-9, -22, 18, 4);
+  ctx.fillRect(-9, -10, 18, 3);
+
+  // Arms
+  ctx.fillStyle = '#CC8855';
+  ctx.fillRect(8, -20, 6, 16);
+  ctx.fillRect(-14, -20, 6, 16);
+
+  // Crossbow in hand
+  ctx.fillStyle = '#6B4226';
+  ctx.fillRect(14, -18, 10, 3);
+  ctx.fillRect(20, -22, 3, 10);
+
+  // Head
+  ctx.fillStyle = '#DDA0A0';
+  ctx.fillRect(-8, -40, 16, 18);
+  // Pig snout
+  ctx.fillStyle = '#FFAAAA';
+  ctx.fillRect(-4, -32, 8, 5);
+  ctx.fillStyle = '#CC8888';
+  ctx.fillRect(-2, -31, 2, 2);
+  ctx.fillRect(1, -31, 2, 2);
+  // Eyes
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-6, -38, 4, 3);
+  ctx.fillRect(3, -38, 4, 3);
+  ctx.fillStyle = '#333';
+  ctx.fillRect(-5, -38, 2, 2);
+  ctx.fillRect(4, -38, 2, 2);
+  // Ears
+  ctx.fillStyle = '#DDA0A0';
+  ctx.fillRect(-10, -42, 4, 6);
+  ctx.fillRect(7, -42, 4, 6);
+  // Gold crown detail
+  ctx.fillStyle = '#FFD700';
+  ctx.fillRect(-6, -43, 12, 3);
+
+  ctx.restore();
+}
+
+function drawZombie(x, y, scale){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(s,s);
+  // Legs
+  ctx.fillStyle = '#3333AA';
+  ctx.fillRect(-7,0,6,18);
+  ctx.fillRect(1,0,6,18);
+  // Body (green shirt, torn)
+  ctx.fillStyle = '#00AA88';
+  ctx.fillRect(-8,-22,16,22);
+  // Arms extended forward
+  ctx.fillStyle = '#5A8A5A';
+  ctx.fillRect(8,-22,6,6);
+  ctx.fillRect(14,-22,10,6);
+  ctx.fillRect(-14,-22,6,6);
+  ctx.fillRect(-24,-22,10,6);
+  // Head (green)
+  ctx.fillStyle = '#5A8A5A';
+  ctx.fillRect(-8,-40,16,16);
+  // Eyes
+  ctx.fillStyle = '#000';
+  ctx.fillRect(-5,-36,3,4);
+  ctx.fillRect(3,-36,3,4);
+  ctx.restore();
+}
+
+function drawSkeleton(x, y, scale){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(s,s);
+  // Legs (thin)
+  ctx.fillStyle = '#D8D8D8';
+  ctx.fillRect(-5,0,3,18);
+  ctx.fillRect(2,0,3,18);
+  // Body
+  ctx.fillRect(-6,-22,12,22);
+  // Arms with bow
+  ctx.fillRect(6,-20,12,3);
+  ctx.fillRect(-18,-20,12,3);
+  // Bow
+  ctx.fillStyle = '#6B4226';
+  ctx.fillRect(16,-26,2,14);
+  // Head (skull)
+  ctx.fillStyle = '#E8E8E8';
+  ctx.fillRect(-6,-38,12,14);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(-4,-34,3,4);
+  ctx.fillRect(2,-34,3,4);
+  ctx.fillRect(-2,-28,4,2);
+  ctx.restore();
+}
+
+function drawSpider(x, y, scale){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(s,s);
+  ctx.fillStyle = '#333';
+  ctx.fillRect(-12,-8,24,10);
+  ctx.fillRect(-8,-14,16,8);
+  // Red eyes
+  ctx.fillStyle = '#FF0000';
+  ctx.fillRect(-6,-12,3,3);
+  ctx.fillRect(3,-12,3,3);
+  // Legs
+  ctx.fillStyle = '#444';
+  for(let i=0;i<4;i++){
+    ctx.fillRect(-20+i*4, -4+i*2, 8, 2);
+    ctx.fillRect(12-i*2, -4+i*2, 8, 2);
+  }
+  ctx.restore();
+}
+
+function drawGhast(x, y, scale){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(s,s);
+  // Body (big white cube)
+  ctx.fillStyle = '#F0F0F0';
+  ctx.fillRect(-20,-20,40,40);
+  // Sad face
+  ctx.fillStyle = '#555';
+  ctx.fillRect(-12,-10,6,8);
+  ctx.fillRect(6,-10,6,8);
+  ctx.fillRect(-6,6,12,4);
+  // Tentacles
+  ctx.fillStyle = '#E0E0E0';
+  for(let i=0;i<5;i++){
+    const len = 15+Math.sin(globalTime*2+i)*5;
+    ctx.fillRect(-16+i*8, 20, 4, len);
+  }
+  ctx.restore();
+}
+
+function drawBlaze(x, y, scale){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(s,s);
+  // Core
+  ctx.fillStyle = '#FFD700';
+  ctx.fillRect(-6,-12,12,12);
+  // Head
+  ctx.fillStyle = '#FFAA00';
+  ctx.fillRect(-8,-22,16,12);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(-5,-18,3,3);
+  ctx.fillRect(3,-18,3,3);
+  // Spinning rods
+  for(let i=0;i<6;i++){
+    const angle = globalTime*3 + i*Math.PI/3;
+    const rx = Math.cos(angle)*16;
+    const ry = Math.sin(angle)*8 - 6;
+    ctx.fillStyle = '#FFD700';
+    ctx.fillRect(rx-3, ry-1, 6, 3);
+  }
+  // Fire particles
+  ctx.fillStyle = '#FF6600';
+  ctx.fillRect(-4, 0, 3, 5);
+  ctx.fillRect(2, 2, 3, 4);
+  ctx.restore();
+}
+
+function drawWitherSkeleton(x, y, scale){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(s,s);
+  // Like skeleton but dark
+  ctx.fillStyle = '#333';
+  ctx.fillRect(-5,0,3,20);
+  ctx.fillRect(2,0,3,20);
+  ctx.fillRect(-6,-24,12,24);
+  ctx.fillRect(6,-22,14,3);
+  // Stone sword
+  ctx.fillStyle = '#888';
+  ctx.fillRect(18,-30,3,14);
+  ctx.fillStyle = '#6B4226';
+  ctx.fillRect(16,-18,7,3);
+  ctx.fillRect(-18,-22,12,3);
+  // Head
+  ctx.fillStyle = '#2A2A2A';
+  ctx.fillRect(-6,-40,12,14);
+  ctx.fillStyle = '#555';
+  ctx.fillRect(-4,-36,3,4);
+  ctx.fillRect(2,-36,3,4);
+  ctx.restore();
+}
+
+function drawChicken(x, y, scale){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(s,s);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-5,-8,10,10);
+  ctx.fillRect(-4,-14,8,8);
+  ctx.fillStyle = '#FF6600';
+  ctx.fillRect(-2,-10,4,3);
+  ctx.fillStyle = '#FFD700';
+  ctx.fillRect(-5,2,3,5);
+  ctx.fillRect(2,2,3,5);
+  // Red wattle
+  ctx.fillStyle = '#CC0000';
+  ctx.fillRect(-1,-7,2,3);
+  ctx.restore();
+}
+
+function drawCraftingTable(x, y, scale){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(s,s);
+  ctx.fillStyle = '#8B6914';
+  ctx.fillRect(-16,-16,32,32);
+  ctx.fillStyle = '#A0782C';
+  ctx.fillRect(-16,-16,16,16);
+  ctx.fillRect(0,0,16,16);
+  // Grid lines
+  ctx.fillStyle = '#6B4226';
+  ctx.fillRect(-16,0,32,2);
+  ctx.fillRect(0,-16,2,32);
+  // Tools on top
+  ctx.fillStyle = '#888';
+  ctx.fillRect(-10,-12,4,8);
+  ctx.fillRect(4,-12,4,8);
+  ctx.restore();
+}
+
+function drawTorch(x, y, scale){
+  const s = scale || 1;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(s,s);
+  ctx.fillStyle = '#6B4226';
+  ctx.fillRect(-2, 0, 4, 14);
+  ctx.fillStyle = '#FFD700';
+  ctx.fillRect(-3, -6, 6, 8);
+  ctx.fillStyle = '#FF8800';
+  ctx.fillRect(-2, -8, 4, 4);
+  // Glow
+  ctx.fillStyle = `rgba(255,200,50,${0.1+Math.sin(globalTime*5)*0.05})`;
+  ctx.fillRect(-16, -20, 32, 32);
+  ctx.restore();
+}
+
+function drawPortalFrame(x, y, w, h, active){
+  // Obsidian frame
+  ctx.fillStyle = '#1A0A2E';
+  ctx.fillRect(x, y, w, 16); // bottom
+  ctx.fillRect(x, y-h, w, 16); // top
+  ctx.fillRect(x, y-h, 16, h); // left
+  ctx.fillRect(x+w-16, y-h, 16, h); // right
+  // Purple texture
+  ctx.fillStyle = '#2A1A3E';
+  for(let bx=x;bx<x+w;bx+=16){
+    ctx.fillRect(bx+2, y+2, 6, 6);
+    ctx.fillRect(bx+2, y-h+2, 6, 6);
+  }
+  // Active portal
+  if(active){
+    ctx.fillStyle = `rgba(150,50,200,${0.5+Math.sin(globalTime*3)*0.2})`;
+    ctx.fillRect(x+16, y-h+16, w-32, h-16);
+    // Swirl effect
+    for(let i=0;i<8;i++){
+      const px = x+20 + Math.sin(globalTime*2+i)*((w-40)/2-10) + (w-40)/2;
+      const py = y-h+20 + ((globalTime*30+i*20)%(h-20));
+      ctx.fillStyle = `rgba(200,100,255,${0.3+Math.sin(globalTime*4+i)*0.2})`;
+      ctx.fillRect(px, py, 6, 6);
+    }
+  }
+}
+
+function drawEndPortal(x, y, w){
+  // End portal frame blocks
+  ctx.fillStyle = '#D4C896';
+  for(let i=0; i<5; i++){
+    ctx.fillRect(x+i*(w/5), y, w/5-2, 16);
+  }
+  // Starry interior
+  ctx.fillStyle = '#000011';
+  ctx.fillRect(x+8, y+4, w-16, 40);
+  for(let i=0;i<15;i++){
+    ctx.fillStyle = `rgba(100,200,100,${0.3+Math.sin(globalTime*3+i)*0.3})`;
+    ctx.fillRect(x+12+((i*37)%(w-28)), y+8+((i*13)%32), 3, 3);
+  }
+}
+
+function drawDiamondSword(x, y, angle, scale){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.rotate(angle || 0);
+  ctx.scale(scale||1, scale||1);
+  ctx.fillStyle = '#55FFFF';
+  ctx.fillRect(-2, -24, 4, 20);
+  ctx.fillStyle = '#44DDDD';
+  ctx.fillRect(-1, -26, 2, 4);
+  ctx.fillStyle = '#8B6914';
+  ctx.fillRect(-4, -4, 8, 4);
+  ctx.fillStyle = '#6B4226';
+  ctx.fillRect(-2, 0, 4, 6);
+  ctx.restore();
+}
+
+function drawIronSword(x, y, angle, scale){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.rotate(angle || 0);
+  ctx.scale(scale||1, scale||1);
+  ctx.fillStyle = '#C8C8C8';
+  ctx.fillRect(-2, -24, 4, 20);
+  ctx.fillStyle = '#B0B0B0';
+  ctx.fillRect(-1, -26, 2, 4);
+  ctx.fillStyle = '#8B6914';
+  ctx.fillRect(-4, -4, 8, 4);
+  ctx.fillStyle = '#6B4226';
+  ctx.fillRect(-2, 0, 4, 6);
+  ctx.restore();
+}
+
+function drawDiamondOre(x, y){
+  ctx.fillStyle = '#888';
+  ctx.fillRect(x, y, 32, 32);
+  ctx.fillStyle = '#777';
+  ctx.fillRect(x+2, y+2, 12, 12);
+  ctx.fillRect(x+18, y+18, 10, 10);
+  ctx.fillStyle = '#55FFFF';
+  ctx.fillRect(x+8, y+10, 6, 6);
+  ctx.fillRect(x+18, y+6, 6, 6);
+  ctx.fillRect(x+12, y+20, 6, 6);
+}
+
+function drawGoldOre(x, y){
+  ctx.fillStyle = '#888';
+  ctx.fillRect(x, y, 32, 32);
+  ctx.fillStyle = '#777';
+  ctx.fillRect(x+4, y+4, 10, 10);
+  ctx.fillStyle = '#FFD700';
+  ctx.fillRect(x+8, y+8, 8, 8);
+  ctx.fillRect(x+18, y+14, 6, 6);
+  ctx.fillRect(x+6, y+20, 6, 6);
+}
+
+function drawRedstoneOre(x, y){
+  ctx.fillStyle = '#888';
+  ctx.fillRect(x, y, 32, 32);
+  ctx.fillStyle = '#FF2222';
+  ctx.fillRect(x+6, y+6, 5, 5);
+  ctx.fillRect(x+16, y+10, 5, 5);
+  ctx.fillRect(x+10, y+20, 5, 5);
+  ctx.fillRect(x+22, y+22, 4, 4);
+}
+
+function drawCoalOre(x, y){
+  ctx.fillStyle = '#888';
+  ctx.fillRect(x, y, 32, 32);
+  ctx.fillStyle = '#222';
+  ctx.fillRect(x+6, y+8, 8, 8);
+  ctx.fillRect(x+16, y+14, 8, 8);
+  ctx.fillRect(x+10, y+22, 6, 6);
+}
+
+function drawIronOre(x, y){
+  ctx.fillStyle = '#888';
+  ctx.fillRect(x, y, 32, 32);
+  ctx.fillStyle = '#D4B896';
+  ctx.fillRect(x+6, y+6, 7, 7);
+  ctx.fillRect(x+18, y+12, 7, 7);
+  ctx.fillRect(x+8, y+20, 7, 7);
+}
+
+function drawHouse(x, y, w, h, color){
+  // Walls
+  ctx.fillStyle = color || '#AA8844';
+  ctx.fillRect(x, y-h, w, h);
+  // Darker planks texture
+  ctx.fillStyle = '#8B6914';
+  for(let by=y-h;by<y;by+=16){
+    ctx.fillRect(x, by, w, 1);
+  }
+  // Roof
+  ctx.fillStyle = '#664422';
+  ctx.fillRect(x-8, y-h-12, w+16, 14);
+  ctx.fillRect(x+4, y-h-20, w-8, 10);
+  // Door
+  ctx.fillStyle = '#6B4226';
+  ctx.fillRect(x+w/2-8, y-24, 16, 24);
+  ctx.fillStyle = '#FFD700';
+  ctx.fillRect(x+w/2+4, y-14, 3, 3);
+  // Window
+  ctx.fillStyle = '#88CCFF';
+  ctx.fillRect(x+8, y-h+10, 12, 12);
+  ctx.fillRect(x+w-20, y-h+10, 12, 12);
+  // Window cross
+  ctx.fillStyle = '#6B4226';
+  ctx.fillRect(x+8, y-h+15, 12, 2);
+  ctx.fillRect(x+13, y-h+10, 2, 12);
+}
+
+function drawVillageHouse(x, y, variant){
+  const v = variant || 0;
+  const colors = ['#D4AA70', '#C49960', '#AA8844'];
+  drawHouse(x, y, 60+v*10, 45+v*5, colors[v%3]);
+}
+
+function drawWell(x, y){
+  // Stone base
+  ctx.fillStyle = '#888';
+  ctx.fillRect(x-20, y-8, 40, 20);
+  // Water
+  ctx.fillStyle = '#3366FF';
+  ctx.fillRect(x-14, y-6, 28, 12);
+  // Pillars
+  ctx.fillStyle = '#AA8844';
+  ctx.fillRect(x-18, y-36, 4, 28);
+  ctx.fillRect(x+14, y-36, 4, 28);
+  // Roof
+  ctx.fillStyle = '#664422';
+  ctx.fillRect(x-22, y-40, 44, 6);
+}
+
+function drawEndCrystal(x, y, scale){
+  const s = scale || 1;
+  const bob = Math.sin(globalTime*2)*5;
+  ctx.save();
+  ctx.translate(x, y+bob);
+  ctx.scale(s,s);
+  // Base (bedrock)
+  ctx.fillStyle = '#333';
+  ctx.fillRect(-8, 10, 16, 6);
+  // Crystal (pink/magenta rotating)
+  const rot = globalTime * 2;
+  ctx.fillStyle = '#FF66CC';
+  ctx.fillRect(-6, -10, 12, 20);
+  ctx.fillStyle = '#FF99DD';
+  ctx.fillRect(-4, -8, 8, 16);
+  // Fire on top
+  ctx.fillStyle = '#FF4400';
+  ctx.fillRect(-3, -14, 6, 6);
+  ctx.fillStyle = '#FFAA00';
+  ctx.fillRect(-2, -16, 4, 4);
+  // Beam going up
+  ctx.fillStyle = `rgba(255,100,200,${0.3+Math.sin(globalTime*4)*0.2})`;
+  ctx.fillRect(-1, -50, 2, 40);
+  ctx.restore();
+}
+
+function drawObsidianPillar(x, y, height){
+  ctx.fillStyle = '#1A0A2E';
+  ctx.fillRect(x-12, y-height, 24, height);
+  ctx.fillStyle = '#2A1A3E';
+  ctx.fillRect(x-10, y-height+4, 8, 8);
+  ctx.fillRect(x+2, y-height+16, 8, 8);
+}
+
+// ===== SCENE RENDERERS =====
+
+function renderScene(idx, t){
+  dialogueQueue = [];
+  switch(idx){
+    case 0: renderTitle(t); break;
+    case 1: renderNewWorld(t); break;
+    case 2: renderFirstNight(t); break;
+    case 3: renderMeetingAlex(t); break;
+    case 4: renderVillage(t); break;
+    case 5: renderMining(t); break;
+    case 6: renderWolfCompanion(t); break;
+    case 7: renderNetherPortal(t); break;
+    case 8: renderNetherFortress(t); break;
+    case 9: renderPiglinTrading(t); break;
+    case 10: renderBackOverworld(t); break;
+    case 11: renderStronghold(t); break;
+    case 12: renderTheEnd(t); break;
+    case 13: renderBossBattle(t); break;
+    case 14: renderDarkestMoment(t); break;
+    case 15: renderFinalStand(t); break;
+    case 16: renderDragonDefeated(t); break;
+    case 17: renderEndPoem(t); break;
+    case 18: renderHome(t); break;
+    case 19: renderCredits(t); break;
+  }
+}
+
+// SCENE 1: TITLE
+function renderTitle(t){
+  playMusic('calm');
+  // Dark background
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fillRect(0,0,W,H);
+
+  // Terrain generating from left to right
+  const genProgress = Math.min(1, t/8);
+  const genW = genProgress * W;
+
+  // Sky
+  drawSky('#6BB5FF', '#87CEEB');
+  ctx.fillRect(genW, 0, W-genW, H);
+
+  // Generate terrain blocks
+  const groundY = 500;
+  if(genW > 0){
+    // Grass and dirt
+    for(let bx=0; bx<genW; bx+=16){
+      const hillH = Math.sin(bx*0.01)*30 + Math.sin(bx*0.005)*20;
+      ctx.fillStyle = '#5DA332';
+      ctx.fillRect(bx, groundY-hillH, 16, 16);
+      ctx.fillStyle = '#8B6914';
+      ctx.fillRect(bx, groundY-hillH+16, 16, H-groundY+hillH-16);
+    }
+    // Trees
+    if(genW > 200) drawOakTree(180, groundY-10);
+    if(genW > 500) drawBirchTree(460, groundY-20);
+    if(genW > 800) drawOakTree(780, groundY);
+    if(genW > 1100) drawOakTree(1060, groundY-15);
+  }
+
+  // Clouds
+  drawBlockyClouds(t, 80);
+
+  // Sun
+  drawBlockySun(1050, 120, 50);
+
+  // "STREAMFLIX PRESENTS"
+  if(t > 2 && t < 6){
+    const alpha = t < 3 ? (t-2) : (t > 5 ? (6-t) : 1);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#E50914';
+    ctx.font = 'bold 28px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('STREAMFLIX PRESENTS', W/2, 200);
+    ctx.globalAlpha = 1;
+  }
+
+  // Main title
+  if(t > 5){
+    const titleAlpha = Math.min(1, (t-5)/2);
+    ctx.globalAlpha = titleAlpha;
+
+    // Title shadow
+    ctx.fillStyle = '#333';
+    ctx.font = 'bold 56px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('MINECRAFT', W/2+3, H/2-20+3);
+    ctx.font = 'bold 30px monospace';
+    ctx.fillText('THE LEGEND OF THE ENDER DRAGON', W/2+2, H/2+25+2);
+
+    // Title
+    ctx.fillStyle = '#55FF55';
+    ctx.font = 'bold 56px monospace';
+    ctx.fillText('MINECRAFT', W/2, H/2-20);
+    // Subtitle
+    ctx.fillStyle = '#CC88FF';
+    ctx.font = 'bold 30px monospace';
+    ctx.fillText('THE LEGEND OF THE ENDER DRAGON', W/2, H/2+25);
+
+    ctx.globalAlpha = 1;
+  }
+
+  // Creeper peeking
+  if(t > 8){
+    const creeperY = H/2 - 60 + Math.max(0, (10-t)*30);
+    drawCreeper(W/2 + 280, creeperY, 1.2);
+  }
+}
+
+// SCENE 2: A NEW WORLD
+function renderNewWorld(t){
+  playMusic('calm');
+
+  // Sunrise
+  const sunProgress = Math.min(1, t/6);
+  const skyTop = lerpColor('#1A0A2E', '#6BB5FF', sunProgress);
+  const skyBot = lerpColor('#332244', '#87CEEB', sunProgress);
+  drawSky(skyTop, skyBot);
+
+  // Sun rising
+  const sunY = 400 - sunProgress * 280;
+  drawBlockySun(200, sunY, 45);
+
+  // Clouds
+  drawBlockyClouds(t, 70);
+
+  // Ground
+  const groundY = 520;
+  drawGrassGround(groundY);
+
+  // Trees
+  drawOakTree(100, groundY);
+  drawBirchTree(350, groundY);
+  drawOakTree(900, groundY);
+  drawOakTree(1150, groundY);
+
+  // Flowers
+  drawFlower(200, groundY, '#FF4444');
+  drawFlower(250, groundY, '#FFFF44');
+  drawFlower(700, groundY, '#FF44FF');
+  drawFlower(550, groundY, '#FF8844');
+
+  // Chickens
+  drawChicken(750, groundY-7, 1);
+  drawChicken(800, groundY-7, 1);
+
+  // Steve spawns in
+  if(t > 2){
+    const spawnAlpha = Math.min(1, (t-2)/1);
+    // Spawn particles
+    if(t < 4){
+      for(let i=0;i<6;i++){
+        ctx.fillStyle = `rgba(255,255,255,${0.6*(4-t)/2})`;
+        ctx.fillRect(W/2-20+Math.sin(t*5+i)*20, groundY-50+Math.cos(t*4+i)*30, 4, 4);
+      }
+    }
+    ctx.globalAlpha = spawnAlpha;
+    const steveX = t > 6 ? W/2 + (t-6)*30 : W/2;
+    const punching = t > 8 && t < 11;
+    drawSteve(steveX, groundY, 1.8, {punch: punching, walk: t > 6});
+    ctx.globalAlpha = 1;
+
+    // Punching tree
+    if(punching){
+      // Wood blocks flying
+      const blockT = t - 8;
+      for(let i=0;i<3;i++){
+        if(blockT > i*0.5){
+          ctx.fillStyle = '#8B6914';
+          const bx = steveX+40 + (blockT-i*0.5)*20;
+          const by = groundY-60 - (blockT-i*0.5)*30 + (blockT-i*0.5)*(blockT-i*0.5)*20;
+          ctx.fillRect(bx, by, 12, 12);
+        }
+      }
+    }
+
+    // Crafting pickaxe
+    if(t > 11){
+      ctx.fillStyle = '#8B6914';
+      const cx = steveX + 30;
+      ctx.fillRect(cx, groundY-40, 4, 16);
+      ctx.fillRect(cx-6, groundY-44, 16, 4);
+    }
+  }
+
+  // Dialogue
+  queueDialogue(3, 'steve', 'A new world... Time to survive.', 3);
+  queueDialogue(8, 'narrator', 'In a world made of blocks, one adventurer begins a journey that will change everything.', 5);
+  checkDialogue(t, 1);
+}
+
+// SCENE 3: FIRST NIGHT
+function renderFirstNight(t){
+  playMusic('tense');
+
+  // Sky darkening
+  const darkProgress = Math.min(1, t/4);
+  const skyTop = lerpColor('#6BB5FF', '#0A0A1E', darkProgress);
+  const skyBot = lerpColor('#FF8844', '#1A1A2E', darkProgress);
+  drawSky(skyTop, skyBot);
+
+  // Stars appear
+  if(darkProgress > 0.5) drawSquareStars(t);
+
+  // Moon
+  if(darkProgress > 0.7) drawSquareMoon(900, 80, 40);
+
+  // Ground
+  const groundY = 520;
+  drawGrassGround(groundY);
+
+  // Steve's dirt house (building animation)
+  const houseProgress = Math.min(1, t > 2 ? (t-2)/3 : 0);
+  if(houseProgress > 0){
+    // Dirt walls
+    const hH = houseProgress * 60;
+    ctx.fillStyle = '#8B6914';
+    ctx.fillRect(W/2-40, groundY-hH, 80, hH);
+    // Darker texture
+    ctx.fillStyle = '#7A5C12';
+    for(let by=groundY-hH; by<groundY; by+=16){
+      for(let bx=W/2-40; bx<W/2+40; bx+=16){
+        if((bx+by)%32===0) ctx.fillRect(bx+2, by+2, 8, 8);
+      }
+    }
+    if(houseProgress > 0.5){
+      // Door (blocked)
+      ctx.fillStyle = '#6B4226';
+      ctx.fillRect(W/2-8, groundY-24, 16, 24);
+      // Torch inside
+      if(houseProgress > 0.8){
+        drawTorch(W/2-20, groundY-40, 0.8);
+        drawTorch(W/2+20, groundY-40, 0.8);
+        // Window glow
+        ctx.fillStyle = 'rgba(255,200,50,0.3)';
+        ctx.fillRect(W/2-35, groundY-50, 12, 12);
+        ctx.fillRect(W/2+24, groundY-50, 12, 12);
+      }
+    }
+
+    // Steve inside peeking
+    if(t > 6){
+      drawSteve(W/2, groundY, 1.2, {sword: true, swordColor: '#888'});
+    }
+  }
+
+  // Mobs spawning
+  if(t > 5){
+    const mobAlpha = Math.min(1, (t-5)/2);
+    ctx.globalAlpha = mobAlpha;
+    drawZombie(200, groundY, 1.3);
+    drawZombie(300, groundY, 1.1);
+    drawSkeleton(1000, groundY, 1.2);
+    drawSpider(1100, groundY+5, 1.5);
+
+    // Creeper near house!
+    if(t > 7){
+      drawCreeper(W/2+80, groundY, 1.3);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Block placing particles
+  if(t > 2 && t < 5){
+    for(let i=0;i<3;i++){
+      addParticle(W/2-30+Math.random()*60, groundY-Math.random()*50, '#8B6914',
+        (Math.random()-0.5)*2, -Math.random()*2, 0.5, 4);
+    }
+  }
+
+  queueDialogue(1, 'narrator', 'As the sun sets, danger emerges.', 3);
+  queueDialogue(5, 'steve', 'Nope. Nope. Definitely not going out there.', 3);
+  queueDialogue(10, 'narrator', 'He crafts a stone sword and waits for dawn.', 3);
+  checkDialogue(t, 2);
+}
+
+// SCENE 4: MEETING ALEX
+function renderMeetingAlex(t){
+  playMusic('calm');
+  drawSky('#6BB5FF', '#87CEEB');
+  drawBlockyClouds(t, 60);
+  drawBlockySun(300, 100, 45);
+
+  const groundY = 520;
+  drawGrassGround(groundY);
+
+  // Alex's nice house
+  drawHouse(700, groundY, 80, 60, '#AA8844');
+  // Farm next to it
+  ctx.fillStyle = '#6B4226';
+  ctx.fillRect(820, groundY-4, 80, 4);
+  ctx.fillStyle = '#5DA332';
+  for(let i=0;i<4;i++){
+    ctx.fillRect(825+i*18, groundY-16, 12, 12);
+  }
+  // Water
+  ctx.fillStyle = '#3366FF';
+  ctx.fillRect(830, groundY-8, 60, 4);
+
+  // Trees
+  drawOakTree(150, groundY);
+  drawOakTree(1100, groundY);
+
+  // Steve walking in from left
+  const steveX = Math.min(500, 100 + t*60);
+  drawSteve(steveX, groundY, 1.6, {walk: t < 7});
+
+  // Alex near her house
+  drawAlex(720, groundY, 1.6, {walk: false});
+
+  // Handshake animation
+  if(t > 10){
+    drawSteve(560, groundY, 1.6, {highfive: true});
+    drawAlex(600, groundY, 1.6, {highfive: true});
+    // Sparkle
+    for(let i=0;i<3;i++){
+      ctx.fillStyle = '#FFD700';
+      ctx.fillRect(575+Math.sin(t*4+i)*8, groundY-60+Math.cos(t*3+i)*8, 4, 4);
+    }
+  }
+
+  queueDialogue(2, 'alex', 'Oh hey! Another player! I have been here for a while.', 3);
+  queueDialogue(5.5, 'steve', 'Your base is way better than my dirt hut...', 3);
+  queueDialogue(9, 'alex', 'We should team up. I have heard rumors of a dragon in another dimension.', 3.5);
+  queueDialogue(13, 'steve', 'A dragon? Count me in!', 2);
+  checkDialogue(t, 3);
+}
+
+// SCENE 5: THE VILLAGE
+function renderVillage(t){
+  playMusic('calm');
+  drawSky('#6BB5FF', '#87CEEB');
+  drawBlockyClouds(t, 70);
+  drawBlockySun(900, 110, 45);
+
+  const groundY = 530;
+  drawGrassGround(groundY);
+
+  // Village houses
+  drawVillageHouse(100, groundY, 0);
+  drawVillageHouse(250, groundY, 1);
+  drawVillageHouse(800, groundY, 2);
+  drawVillageHouse(950, groundY, 0);
+
+  // Well
+  drawWell(550, groundY);
+
+  // Path
+  ctx.fillStyle = '#C4A060';
+  ctx.fillRect(0, groundY, W, 8);
+
+  // Farms
+  ctx.fillStyle = '#6B4226';
+  ctx.fillRect(400, groundY-4, 60, 4);
+  ctx.fillStyle = '#5DA332';
+  for(let i=0;i<3;i++) ctx.fillRect(405+i*18, groundY-14, 12, 10);
+
+  // Villagers (walking around)
+  for(let i=0;i<3;i++){
+    const vx = 300 + i*200 + Math.sin(t+i*2)*20;
+    ctx.save();
+    ctx.translate(vx, groundY);
+    ctx.scale(0.8, 0.8);
+    // Simple villager
+    ctx.fillStyle = '#D4AA70';
+    ctx.fillRect(-6, -36, 12, 14);
+    ctx.fillStyle = '#8B6914';
+    ctx.fillRect(-8, -22, 16, 30);
+    ctx.fillStyle = '#555';
+    ctx.fillRect(-5, -30, 10, 2);
+    ctx.fillStyle = '#333';
+    ctx.fillRect(-4, -32, 3, 3);
+    ctx.fillRect(2, -32, 3, 3);
+    ctx.fillStyle = '#C49960';
+    ctx.fillRect(-1, -28, 4, 5);
+    ctx.restore();
+  }
+
+  // Elder approaches
+  const elderX = t > 4 ? Math.min(640, 800-(t-4)*40) : 800;
+  drawVillagerElder(elderX, groundY, 1.5);
+
+  // Steve and Alex
+  drawSteve(500, groundY, 1.5);
+  drawAlex(560, groundY, 1.5);
+
+  queueDialogue(1, 'narrator', 'They discover a village in the plains.', 3);
+  queueDialogue(4.5, 'elder', 'Travelers! Beware. The Ender Dragon grows stronger. If it is not defeated, the darkness will consume all worlds.', 4.5);
+  queueDialogue(9.5, 'alex', 'How do we get to it?', 2);
+  queueDialogue(11.5, 'elder', 'You must find Ender Pearls from the tall dark ones, and blaze rods from the Nether fortress. It will not be easy.', 4);
+  checkDialogue(t, 4);
+}
+
+// SCENE 6: MINING MONTAGE
+function renderMining(t){
+  playMusic('tense');
+
+  // Cave background
+  ctx.fillStyle = '#333';
+  ctx.fillRect(0,0,W,H);
+
+  // Stone textures
+  for(let bx=0;bx<W;bx+=32){
+    for(let by=0;by<H;by+=32){
+      ctx.fillStyle = `rgb(${80+((bx*7+by*3)%30)},${80+((bx*3+by*7)%30)},${80+((bx*5+by*5)%30)})`;
+      ctx.fillRect(bx, by, 32, 32);
+      ctx.fillStyle = '#555';
+      ctx.fillRect(bx, by, 32, 1);
+      ctx.fillRect(bx, by, 1, 32);
+    }
+  }
+
+  // Lava pool at bottom
+  ctx.fillStyle = '#FF4400';
+  ctx.fillRect(0, 620, W, 100);
+  ctx.fillStyle = '#FF6600';
+  for(let x=0;x<W;x+=20){
+    ctx.fillRect(x, 618+Math.sin(t*2+x*0.1)*3, 16, 8);
+  }
+
+  // Torches
+  drawTorch(100, 300, 1.2);
+  drawTorch(600, 200, 1.2);
+  drawTorch(1000, 350, 1.2);
+
+  // Ores in walls
+  if(t > 1) drawCoalOre(200, 250);
+  if(t > 3) drawIronOre(400, 180);
+  if(t > 5) drawGoldOre(700, 300);
+  if(t > 7) drawRedstoneOre(850, 200);
+  if(t > 8) drawDiamondOre(500, 400);
+
+  // Mining progress
+  const phase = Math.floor(t / 2.5);
+
+  // Characters mining
+  const groundY = 500;
+  if(phase < 2){
+    drawSteve(350, groundY, 1.5, {punch: true, walk: true});
+    drawAlex(450, groundY, 1.5, {walk: true});
+  } else if(phase < 4){
+    drawSteve(550, groundY, 1.5, {punch: true});
+    drawAlex(650, groundY, 1.5, {punch: false});
+  } else {
+    // Diamond celebration!
+    drawSteve(500, groundY, 1.5, {armor: true, sword: true});
+    drawAlex(600, groundY, 1.5, {armor: true});
+    // Sparkle effects
+    for(let i=0;i<8;i++){
+      ctx.fillStyle = '#55FFFF';
+      const sx = 500 + Math.sin(t*3+i)*80;
+      const sy = groundY - 60 + Math.cos(t*4+i)*40;
+      ctx.fillRect(sx, sy, 4+Math.sin(t*5+i)*2, 4+Math.sin(t*5+i)*2);
+    }
+  }
+
+  // Lava near-miss scene
+  if(t > 6 && t < 8){
+    // Water bucket save
+    ctx.fillStyle = '#3366FF';
+    ctx.fillRect(520, 580, 40, 40);
+    ctx.fillStyle = `rgba(255,100,0,${Math.max(0,7-t)*0.5})`;
+    ctx.fillRect(480, 560, 80, 60);
+  }
+
+  // Finding text
+  if(t > 1 && t < 3){
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Coal found!', W/2, 100);
+  }
+  if(t > 3 && t < 5){
+    ctx.fillStyle = '#D4B896';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Iron found!', W/2, 100);
+  }
+  if(t > 5 && t < 7){
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 24px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Gold found!', W/2, 100);
+  }
+  if(t > 8 && t < 10){
+    ctx.fillStyle = '#55FFFF';
+    ctx.font = 'bold 32px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('DIAMONDS!!!', W/2, 100);
+    addXPOrbs(W/2, 120, 1);
+  }
+
+  queueDialogue(1, 'narrator', 'They mine deep into the earth, seeking precious resources.', 3);
+  queueDialogue(6, 'steve', 'Thanks! That was close!', 2);
+  queueDialogue(8.5, 'alex', 'Diamonds! This changes everything!', 3);
+  checkDialogue(t, 5);
+}
+
+// SCENE 7: WOLF COMPANION
+function renderWolfCompanion(t){
+  playMusic('peaceful');
+  drawSky('#6BB5FF', '#87CEEB');
+  drawBlockyClouds(t, 50);
+  drawBlockySun(800, 100, 45);
+
+  const groundY = 530;
+  drawGrassGround(groundY);
+
+  // Flower forest - lots of flowers and birch trees
+  drawBirchTree(100, groundY);
+  drawOakTree(300, groundY);
+  drawBirchTree(500, groundY);
+  drawOakTree(900, groundY);
+  drawBirchTree(1100, groundY);
+
+  // Many flowers
+  const flowerColors = ['#FF4444', '#FF44FF', '#FFFF44', '#FF8844', '#44FFFF', '#FF6688'];
+  for(let i=0;i<20;i++){
+    drawFlower(50+i*60, groundY, flowerColors[i%flowerColors.length]);
+  }
+
+  // Steve and Alex
+  drawSteve(400, groundY, 1.5, {armor: true, walk: t < 3});
+  drawAlex(480, groundY, 1.5, {armor: true, walk: t < 3});
+
+  // Wolf encounter
+  if(t > 2){
+    const wolfX = t < 5 ? 650 : 520;
+    const wolfHappy = t > 5;
+    drawWolf(wolfX, groundY, 1.8, wolfHappy);
+
+    // Bone offering
+    if(t > 3 && t < 5){
+      ctx.fillStyle = '#E8E0D0';
+      const boneX = 400 + (t-3)*60;
+      ctx.fillRect(boneX, groundY-30, 16, 4);
+      ctx.fillRect(boneX, groundY-34, 4, 8);
+      ctx.fillRect(boneX+12, groundY-34, 4, 8);
+    }
+
+    // Hearts
+    if(t > 5 && t < 8){
+      for(let i=0;i<3;i++){
+        ctx.fillStyle = '#FF4444';
+        const hx = wolfX - 10 + i*15;
+        const hy = groundY - 80 - Math.sin(t*3+i)*10;
+        ctx.fillRect(hx-3, hy, 3, 3);
+        ctx.fillRect(hx+3, hy, 3, 3);
+        ctx.fillRect(hx-4, hy+3, 4, 3);
+        ctx.fillRect(hx+3, hy+3, 4, 3);
+        ctx.fillRect(hx-3, hy+6, 3, 3);
+        ctx.fillRect(hx+3, hy+6, 3, 3);
+        ctx.fillRect(hx, hy+9, 3, 3);
+      }
+    }
+  }
+
+  // Walking together scene
+  if(t > 8){
+    const walkX = 300 + (t-8)*40;
+    drawSteve(walkX, groundY, 1.5, {armor: true, walk: true});
+    drawAlex(walkX+60, groundY, 1.5, {armor: true, walk: true});
+    drawWolf(walkX+30, groundY, 1.5, true);
+  }
+
+  queueDialogue(3, 'narrator', 'In the flower forest, they find a lone wolf.', 3);
+  queueDialogue(6.5, 'alex', 'Every adventure needs a good boy.', 3);
+  queueDialogue(9, 'wolf', 'Bark bark! Woof!', 2);
+  checkDialogue(t, 6);
+}
+
+// SCENE 8: NETHER PORTAL
+function renderNetherPortal(t){
+  if(t < 7) playMusic('tense'); else playMusic('nether');
+
+  const groundY = 530;
+
+  if(t < 7){
+    // Overworld side
+    drawSky('#6BB5FF', '#87CEEB');
+    drawBlockyClouds(t, 60);
+    drawGrassGround(groundY);
+    drawOakTree(100, groundY);
+    drawOakTree(1100, groundY);
+
+    // Portal frame
+    drawPortalFrame(W/2-40, groundY, 80, 120, t > 2);
+
+    // Characters
+    drawSteve(W/2-80, groundY, 1.5, {armor: true});
+    drawAlex(W/2+80, groundY, 1.5, {armor: true});
+    drawWolf(W/2-120, groundY, 1.3, true);
+  } else if(t < 10){
+    // Portal transition (purple vortex)
+    ctx.fillStyle = '#1A0A2E';
+    ctx.fillRect(0,0,W,H);
+    const vortexT = t - 7;
+    for(let i=0;i<20;i++){
+      const angle = vortexT*3 + i*Math.PI/10;
+      const dist = 50 + i*15 + vortexT*30;
+      const px = W/2 + Math.cos(angle)*dist;
+      const py = H/2 + Math.sin(angle)*dist*0.6;
+      ctx.fillStyle = `rgba(${150+i*5},50,${200+i*2},${0.6-i*0.02})`;
+      ctx.fillRect(px-8, py-8, 16, 16);
+    }
+    ctx.fillStyle = '#CC66FF';
+    ctx.font = 'bold 36px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('WHOOOOSH!', W/2, H/2);
+  } else {
+    // Nether side
+    // Red hellish sky
+    drawSky('#330000', '#660000');
+
+    // Netherrack ground
+    ctx.fillStyle = '#7A2020';
+    ctx.fillRect(0, groundY, W, H-groundY);
+    for(let bx=0;bx<W;bx+=32){
+      for(let by=groundY;by<H;by+=32){
+        ctx.fillStyle = `rgb(${100+((bx*3+by*7)%40)},${25+((bx*5+by*3)%15)},${25+((bx*7+by*5)%15)})`;
+        ctx.fillRect(bx, by, 32, 32);
+      }
+    }
+
+    // Lava ocean
+    ctx.fillStyle = '#FF4400';
+    ctx.fillRect(0, 580, W, 140);
+    ctx.fillStyle = '#FF6600';
+    for(let x=0;x<W;x+=16){
+      ctx.fillRect(x, 578+Math.sin(t*1.5+x*0.08)*4, 14, 8);
+    }
+
+    // Nether fortress in distance
+    ctx.fillStyle = '#3A1A1A';
+    ctx.fillRect(800, 300, 200, 230);
+    ctx.fillRect(780, 280, 40, 250);
+    ctx.fillRect(980, 300, 40, 230);
+
+    // Ghasts
+    drawGhast(300, 200, 1.5);
+    drawGhast(700, 150, 1);
+
+    // Fireball from ghast
+    if(t > 13){
+      const fbX = 300 + (t-13)*80;
+      const fbY = 200 + (t-13)*40;
+      ctx.fillStyle = '#FF4400';
+      ctx.fillRect(fbX-6, fbY-6, 12, 12);
+      ctx.fillStyle = '#FFAA00';
+      ctx.fillRect(fbX-4, fbY-4, 8, 8);
+    }
+
+    // Characters
+    drawSteve(500, groundY, 1.5, {armor: true});
+    drawAlex(560, groundY, 1.5, {armor: true});
+    drawWolf(440, groundY, 1.2, false);
+  }
+
+  queueDialogue(1, 'steve', 'Ready?', 2);
+  queueDialogue(3, 'alex', 'Born ready.', 2);
+  queueDialogue(10.5, 'alex', 'It is even worse than I imagined.', 3);
+  queueDialogue(13.5, 'narrator', 'A ghast screams and shoots a fireball!', 2);
+  checkDialogue(t, 7);
+}
+
+// SCENE 9: NETHER FORTRESS
+function renderNetherFortress(t){
+  playMusic('nether');
+
+  // Dark nether fortress interior
+  ctx.fillStyle = '#2A1010';
+  ctx.fillRect(0,0,W,H);
+
+  // Nether brick walls
+  ctx.fillStyle = '#3A1A1A';
+  for(let by=0;by<H;by+=32){
+    for(let bx=0;bx<W;bx+=32){
+      ctx.fillStyle = `rgb(${50+((bx*3+by*7)%20)},${15+((bx*5+by*3)%10)},${15+((bx*7+by*5)%10)})`;
+      ctx.fillRect(bx, by, 30, 30);
+    }
+  }
+
+  // Floor
+  ctx.fillStyle = '#3A1A1A';
+  ctx.fillRect(0, 520, W, 200);
+
+  // Corridor/room
+  ctx.fillStyle = '#1A0808';
+  ctx.fillRect(100, 200, W-200, 320);
+
+  // Lava flowing
+  ctx.fillStyle = '#FF4400';
+  ctx.fillRect(0, 560, 100, 160);
+  ctx.fillRect(W-100, 560, 100, 160);
+
+  const groundY = 520;
+
+  // Wither skeletons
+  if(t < 6){
+    drawWitherSkeleton(200, groundY, 1.3);
+    drawWitherSkeleton(350, groundY, 1.2);
+  }
+
+  // Blazes
+  if(t > 3){
+    drawBlaze(800, 350, 1.5);
+    if(t > 5) drawBlaze(650, 300, 1.2);
+  }
+
+  // Fight scene!
+  if(t > 6){
+    // Alex deflecting fireballs
+    drawAlex(500, groundY, 1.6, {armor: true, bow: true});
+
+    // Steve fighting
+    drawSteve(700, groundY, 1.6, {armor: true, sword: true});
+
+    // Fireballs
+    const fbPhase = (t-6) % 3;
+    if(fbPhase < 1){
+      ctx.fillStyle = '#FF4400';
+      ctx.fillRect(780-fbPhase*100, 340+fbPhase*30, 10, 10);
+      ctx.fillStyle = '#FFAA00';
+      ctx.fillRect(782-fbPhase*100, 342+fbPhase*30, 6, 6);
+    }
+
+    // Blaze rod drops
+    if(t > 10){
+      for(let i=0;i<3;i++){
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(700+i*30, groundY-20-Math.sin(t*3+i)*10, 3, 14);
+      }
+    }
+
+    // Wolf barking at blazes
+    drawWolf(600, groundY, 1.3, true);
+  } else {
+    drawSteve(400, groundY, 1.5, {armor: true, sword: true, walk: true});
+    drawAlex(460, groundY, 1.5, {armor: true, walk: true});
+    drawWolf(340, groundY, 1.2, false);
+  }
+
+  // Explosion effects
+  if(t > 8 && t < 10){
+    addExplosion(800, 350, '#FFAA00', 2);
+  }
+
+  queueDialogue(1, 'narrator', 'They navigate through a dangerous Nether Fortress.', 3);
+  queueDialogue(5, 'steve', 'We need those blaze rods!', 2.5);
+  queueDialogue(9, 'narrator', 'An epic fight! Alex deflects fireballs while Steve battles blazes.', 3.5);
+  queueDialogue(12.5, 'wolf', 'Bark bark!', 1.5);
+  checkDialogue(t, 8);
+}
+
+// SCENE 10: PIGLIN TRADING
+function renderPiglinTrading(t){
+  playMusic('nether');
+
+  // Bastion remnant interior
+  ctx.fillStyle = '#2A1818';
+  ctx.fillRect(0,0,W,H);
+
+  // Blackstone walls
+  for(let by=0;by<H;by+=32){
+    for(let bx=0;bx<W;bx+=32){
+      ctx.fillStyle = `rgb(${35+((bx*3+by*5)%15)},${28+((bx*7+by*3)%10)},${28+((bx*5+by*7)%10)})`;
+      ctx.fillRect(bx, by, 30, 30);
+    }
+  }
+
+  // Gold blocks scattered
+  ctx.fillStyle = '#FFD700';
+  ctx.fillRect(200, 480, 32, 32);
+  ctx.fillRect(850, 470, 32, 32);
+  ctx.fillRect(600, 490, 32, 32);
+
+  const groundY = 510;
+  ctx.fillStyle = '#2A1818';
+  ctx.fillRect(0, groundY, W, H-groundY);
+
+  // Piglins
+  drawPiglin(300, groundY, 1.4);
+  drawPiglin(700, groundY, 1.3);
+  drawPiglin(900, groundY, 1.2);
+
+  // Characters
+  const steveX = t > 8 ? W/2 + (t-8)*50 : W/2;
+  drawSteve(steveX, groundY, 1.5, {armor: true, walk: t > 8});
+  drawAlex(steveX + 60, groundY, 1.5, {armor: true, walk: t > 8});
+
+  // Gold throwing animation
+  if(t > 3 && t < 6){
+    ctx.fillStyle = '#FFD700';
+    const goldX = steveX - 30 + (t-3)*30;
+    const goldY = groundY - 40 - Math.sin((t-3)*3)*30;
+    ctx.fillRect(goldX, goldY, 12, 12);
+  }
+
+  // Piglin eyes light up
+  if(t > 5 && t < 8){
+    ctx.fillStyle = '#FFD700';
+    ctx.fillRect(296, groundY-52, 6, 4);
+    ctx.fillRect(306, groundY-52, 6, 4);
+  }
+
+  // Ender pearl received
+  if(t > 6 && t < 8){
+    ctx.fillStyle = '#115533';
+    ctx.fillRect(steveX-10, groundY-40, 10, 10);
+    ctx.fillStyle = '#33AA88';
+    ctx.fillRect(steveX-8, groundY-38, 6, 6);
+  }
+
+  // ALL PIGLINS HOSTILE (running scene)
+  if(t > 9){
+    // Red eyes on piglins
+    ctx.fillStyle = '#FF0000';
+    for(let px of [300, 700, 900]){
+      ctx.fillRect(px-6, groundY*1.0-52, 4, 4);
+      ctx.fillRect(px+3, groundY*1.0-52, 4, 4);
+    }
+    // Exclamation marks
+    ctx.fillStyle = '#FF0000';
+    ctx.font = 'bold 24px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('!!!', 300, groundY-70);
+    ctx.fillText('!!!', 700, groundY-70);
+    ctx.fillText('!!!', 900, groundY-70);
+  }
+
+  queueDialogue(2, 'narrator', 'Piglins surround them in the bastion remnant.', 3);
+  queueDialogue(5.5, 'piglin', 'Ooh! Shiny gold! Here, take ender pearl. Now give MORE gold!', 3.5);
+  queueDialogue(9, 'alex', 'These piglins are obsessed with gold.', 2.5);
+  queueDialogue(10, 'narrator', 'Steve accidentally picks up a gold block. All Piglins turn hostile! They RUN!', 3);
+  checkDialogue(t, 9);
+}
+
+// SCENE 11: BACK TO OVERWORLD
+function renderBackOverworld(t){
+  playMusic('calm');
+  drawSky('#6BB5FF', '#87CEEB');
+  drawBlockyClouds(t, 60);
+  drawBlockySun(700, 120, 45);
+
+  const groundY = 530;
+  drawGrassGround(groundY);
+  drawOakTree(100, groundY);
+  drawOakTree(1100, groundY);
+
+  // Portal behind them
+  drawPortalFrame(200, groundY, 60, 90, true);
+
+  // Characters panting (early)
+  if(t < 4){
+    drawSteve(350, groundY, 1.5, {armor: true});
+    drawAlex(420, groundY, 1.5, {armor: true});
+    drawWolf(300, groundY, 1.2, true);
+  }
+
+  // Crafting Eyes of Ender
+  if(t > 4 && t < 8){
+    drawCraftingTable(600, groundY-16, 1.5);
+    drawSteve(550, groundY, 1.5, {armor: true});
+    drawAlex(660, groundY, 1.5, {armor: true});
+
+    // Eyes of Ender floating
+    if(t > 6){
+      for(let i=0;i<3;i++){
+        const eyeX = 600 + Math.sin(t*2+i*2)*30;
+        const eyeY = groundY - 80 - (t-6)*20 - i*15;
+        ctx.fillStyle = '#115533';
+        ctx.fillRect(eyeX-5, eyeY-5, 10, 10);
+        ctx.fillStyle = '#33CC88';
+        ctx.fillRect(eyeX-3, eyeY-3, 6, 6);
+        // Purple pupil
+        ctx.fillStyle = '#9933CC';
+        ctx.fillRect(eyeX-1, eyeY-1, 3, 3);
+      }
+    }
+  }
+
+  // Following eyes across landscape
+  if(t > 8){
+    const followX = 400 + (t-8)*60;
+    drawSteve(followX, groundY, 1.3, {armor: true, walk: true});
+    drawAlex(followX+50, groundY, 1.3, {armor: true, walk: true});
+    drawWolf(followX+25, groundY, 1, true);
+
+    // Eye flying ahead
+    const eyeX = followX + 100 + Math.sin(t*3)*15;
+    const eyeY = groundY - 120 + Math.sin(t*2)*10;
+    ctx.fillStyle = '#115533';
+    ctx.fillRect(eyeX-5, eyeY-5, 10, 10);
+    ctx.fillStyle = '#33CC88';
+    ctx.fillRect(eyeX-3, eyeY-3, 6, 6);
+    // Trail
+    for(let i=0;i<5;i++){
+      ctx.fillStyle = `rgba(50,200,130,${0.5-i*0.1})`;
+      ctx.fillRect(eyeX-10-i*8, eyeY+i*2, 4, 4);
+    }
+  }
+
+  queueDialogue(1, 'steve', 'Note to self: do not touch Piglin gold.', 3);
+  queueDialogue(5, 'narrator', 'Alex crafts Eyes of Ender. They float up toward the stronghold.', 3.5);
+  queueDialogue(9, 'steve', 'Follow those eyes!', 2);
+  checkDialogue(t, 10);
+}
+
+// SCENE 12: THE STRONGHOLD
+function renderStronghold(t){
+  playMusic('tense');
+
+  // Underground stone brick
+  ctx.fillStyle = '#666';
+  ctx.fillRect(0,0,W,H);
+
+  // Stone brick pattern
+  for(let by=0;by<H;by+=32){
+    for(let bx=0;bx<W;bx+=32){
+      ctx.fillStyle = `rgb(${90+((bx+by*3)%25)},${90+((bx*3+by)%25)},${90+((bx*5+by*7)%25)})`;
+      ctx.fillRect(bx+1, by+1, 30, 30);
+      ctx.fillStyle = '#555';
+      ctx.fillRect(bx+1, by+1, 14, 14);
+      ctx.fillRect(bx+17, by+17, 14, 14);
+    }
+  }
+
+  // Dark corridor
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(0, 0, 120, H);
+  ctx.fillRect(W-120, 0, 120, H);
+
+  // Torches on walls
+  drawTorch(150, 250, 1);
+  drawTorch(W-170, 250, 1);
+  drawTorch(150, 450, 1);
+
+  const groundY = 520;
+
+  // Bookshelves (library)
+  if(t < 6){
+    ctx.fillStyle = '#6B4226';
+    for(let bx=200;bx<500;bx+=32){
+      for(let by=200;by<400;by+=32){
+        ctx.fillRect(bx, by, 30, 30);
+        // Book spines
+        const colors = ['#882222','#222288','#228822','#888822'];
+        for(let i=0;i<4;i++){
+          ctx.fillStyle = colors[(bx+by+i)%4];
+          ctx.fillRect(bx+4+i*6, by+4, 4, 22);
+        }
+        ctx.fillStyle = '#6B4226';
+      }
+    }
+  }
+
+  // Silverfish
+  if(t > 2 && t < 5){
+    for(let i=0;i<3;i++){
+      ctx.fillStyle = '#888';
+      const sfx = 300+i*50+Math.sin(t*5+i)*20;
+      ctx.fillRect(sfx, groundY-5, 8, 4);
+      ctx.fillRect(sfx+2, groundY-7, 4, 2);
+    }
+  }
+
+  // Characters exploring
+  if(t < 8){
+    const walkX = 300 + t*30;
+    drawSteve(walkX, groundY, 1.4, {armor: true, walk: true, sword: true});
+    drawAlex(walkX+50, groundY, 1.4, {armor: true, walk: true});
+  }
+
+  // END PORTAL ROOM
+  if(t > 7){
+    // Portal frame
+    ctx.fillStyle = '#D4C896';
+    for(let i=0;i<7;i++){
+      ctx.fillRect(W/2-105+i*30, 480, 28, 16);
+    }
+    // Lava pool below
+    ctx.fillStyle = '#FF4400';
+    ctx.fillRect(W/2-100, 496, 200, 30);
+
+    // Eyes being placed
+    const eyesPlaced = Math.min(7, Math.floor((t-8)*2));
+    for(let i=0;i<eyesPlaced;i++){
+      ctx.fillStyle = '#115533';
+      ctx.fillRect(W/2-100+i*30+8, 478, 12, 8);
+      ctx.fillStyle = '#33CC88';
+      ctx.fillRect(W/2-100+i*30+10, 480, 8, 4);
+    }
+
+    // Portal activates
+    if(t > 11){
+      ctx.fillStyle = `rgba(0,0,20,${0.5+Math.sin(t*3)*0.2})`;
+      ctx.fillRect(W/2-95, 400, 190, 80);
+      // Stars in portal
+      for(let i=0;i<20;i++){
+        ctx.fillStyle = `rgba(200,200,255,${0.5+Math.sin(t*4+i)*0.3})`;
+        ctx.fillRect(W/2-85+((i*37)%170), 410+((i*23)%60), 3, 3);
+      }
+    }
+
+    drawSteve(W/2-50, groundY, 1.4, {armor: true});
+    drawAlex(W/2+50, groundY, 1.4, {armor: true});
+  }
+
+  queueDialogue(1, 'steve', 'This place is ancient...', 2.5);
+  queueDialogue(5, 'narrator', 'They navigate the maze-like stronghold, finding the End Portal room.', 3.5);
+  queueDialogue(9, 'alex', 'This is it. We place the Eyes of Ender...', 3);
+  queueDialogue(12, 'narrator', 'The portal activates. A dark swirling gateway opens before them.', 3);
+  checkDialogue(t, 11);
+}
+
+// SCENE 13: THE END
+function renderTheEnd(t){
+  playMusic('epic');
+
+  // The End - dark purple void
+  ctx.fillStyle = '#0A0015';
+  ctx.fillRect(0,0,W,H);
+
+  // End void particles
+  for(let i=0;i<30;i++){
+    ctx.fillStyle = `rgba(100,50,150,${0.1+Math.sin(t+i)*0.1})`;
+    ctx.fillRect((i*97+t*10)%W, (i*53+t*5)%H, 4, 4);
+  }
+
+  // End stone island
+  ctx.fillStyle = '#D4D098';
+  ctx.fillRect(100, 520, W-200, 200);
+  // Texture
+  for(let bx=100;bx<W-200;bx+=32){
+    ctx.fillStyle = `rgb(${200+((bx*3)%20)},${196+((bx*7)%20)},${140+((bx*5)%20)})`;
+    ctx.fillRect(bx, 520, 30, 16);
+  }
+
+  // Obsidian pillars with ender crystals
+  const pillars = [200, 400, 600, 800, 1000];
+  const pillarHeights = [200, 280, 160, 240, 190];
+  for(let i=0;i<pillars.length;i++){
+    drawObsidianPillar(pillars[i], 520, pillarHeights[i]);
+    drawEndCrystal(pillars[i], 520-pillarHeights[i]-20, 0.8);
+    // Healing beam to dragon
+    if(t > 5){
+      ctx.strokeStyle = `rgba(255,100,200,${0.2+Math.sin(t*3+i)*0.1})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(pillars[i], 520-pillarHeights[i]-20);
+      ctx.lineTo(W/2, 200+Math.sin(t)*30);
+      ctx.stroke();
+    }
+  }
+
+  // Endermen standing around
+  drawEnderman(250, 520, 0.8, true);
+  drawEnderman(550, 520, 0.9, false);
+  drawEnderman(850, 520, 0.7, true);
+  drawEnderman(1050, 520, 0.85, false);
+
+  // THE ENDER DRAGON
+  if(t > 3){
+    const dragonX = W/2 + Math.sin(t*0.5)*200;
+    const dragonY = 200 + Math.sin(t)*30;
+    drawEnderDragon(dragonX, dragonY, 2);
+  }
+
+  // Characters on island
+  const groundY = 520;
+  drawSteve(W/2-30, groundY, 1.4, {armor: true, sword: true});
+  drawAlex(W/2+30, groundY, 1.4, {armor: true, bow: true});
+  drawWolf(W/2-70, groundY, 1, false);
+
+  queueDialogue(1, 'narrator', 'They enter The End. An eerie dark void surrounds them.', 3);
+  queueDialogue(5, 'narrator', 'The Ender Dragon circles overhead. Massive, dark, terrifying.', 3.5);
+  queueDialogue(9, 'steve', 'It is... bigger than I expected.', 2.5);
+  queueDialogue(12, 'alex', 'We need to destroy those crystals first!', 3);
+  checkDialogue(t, 12);
+}
+
+// SCENE 14: BOSS BATTLE BEGINS
+function renderBossBattle(t){
+  playMusic('epic');
+
+  // The End background
+  ctx.fillStyle = '#0A0015';
+  ctx.fillRect(0,0,W,H);
+  for(let i=0;i<20;i++){
+    ctx.fillStyle = `rgba(100,50,150,${0.1+Math.sin(t+i)*0.1})`;
+    ctx.fillRect((i*97+t*10)%W, (i*53+t*5)%H, 4, 4);
+  }
+
+  // End stone
+  ctx.fillStyle = '#D4D098';
+  ctx.fillRect(50, 520, W-100, 200);
+
+  // Pillars (some destroyed)
+  const pillars = [200, 400, 600, 800, 1000];
+  const pillarHeights = [200, 280, 160, 240, 190];
+  const destroyTimes = [3, 6, 9, 12, 15];
+
+  for(let i=0;i<pillars.length;i++){
+    drawObsidianPillar(pillars[i], 520, pillarHeights[i]);
+    if(t < destroyTimes[i]){
+      drawEndCrystal(pillars[i], 520-pillarHeights[i]-20, 0.8);
+    } else if(t < destroyTimes[i]+0.5){
+      // Explosion
+      addExplosion(pillars[i], 520-pillarHeights[i]-20, '#FF66CC', 3);
+    }
+  }
+
+  // Dragon swooping
+  const dragonX = W/2 + Math.sin(t*0.8)*300;
+  const dragonY = 180 + Math.sin(t*0.5)*60;
+  const breathing = t > 10 && t < 13;
+  drawEnderDragon(dragonX, dragonY, 2, {breathing});
+
+  // Alex shooting (bow)
+  const alexX = 350 + Math.sin(t*0.3)*50;
+  drawAlex(alexX, 520, 1.5, {armor: true, bow: true});
+
+  // Arrow projectiles
+  if(t > 2){
+    const arrowPhase = (t*2)%3;
+    if(arrowPhase < 1){
+      ctx.fillStyle = '#666';
+      const ax = alexX + 30 + arrowPhase*200;
+      const ay = 520 - 30 - arrowPhase*150;
+      ctx.fillRect(ax, ay, 12, 2);
+      ctx.fillStyle = '#8B6914';
+      ctx.fillRect(ax-4, ay-1, 4, 4);
+    }
+  }
+
+  // Steve fighting
+  const steveX = 700 + Math.sin(t*0.4)*60;
+  drawSteve(steveX, 520, 1.5, {armor: true, sword: true});
+
+  // Dragon knocks Steve
+  if(t > 7 && t < 9){
+    const knockX = steveX + (t-7)*100;
+    const knockY = 520 - Math.sin((t-7)*Math.PI)*80;
+    drawSteve(knockX, knockY, 1.5, {armor: true});
+  }
+
+  // Buddy attacks tail
+  drawWolf(dragonX+60, 520, 1.2, true);
+
+  // Dragon acid breath dodge
+  if(breathing){
+    ctx.fillStyle = '#9933CC';
+    for(let i=0;i<10;i++){
+      ctx.fillRect(dragonX-100-i*25+Math.sin(t*5+i)*5, dragonY+20+Math.sin(t*3+i)*10, 15, 8);
+    }
+  }
+
+  queueDialogue(1, 'narrator', 'The epic battle begins! Alex shoots ender crystals with her bow.', 3.5);
+  queueDialogue(5, 'narrator', 'Crystal after crystal explodes!', 2);
+  queueDialogue(8, 'steve', 'Keep going! We are getting there!', 2.5);
+  queueDialogue(11, 'narrator', 'The dragon breathes purple acid! They dodge and fight.', 3);
+  queueDialogue(15, 'narrator', 'The dragon screams as its healing sources are destroyed.', 3);
+  checkDialogue(t, 13);
+}
+
+// SCENE 15: DARKEST MOMENT
+function renderDarkestMoment(t){
+  playMusic('tense');
+
+  // Dark End
+  ctx.fillStyle = '#050010';
+  ctx.fillRect(0,0,W,H);
+
+  // Void below
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 580, W, 140);
+
+  // End stone island (edge visible)
+  ctx.fillStyle = '#D4D098';
+  ctx.fillRect(200, 480, 880, 100);
+  // Edge crumbling
+  ctx.fillStyle = '#B0AC80';
+  ctx.fillRect(200, 540, 40, 40);
+  ctx.fillRect(1040, 540, 40, 40);
+
+  const groundY = 480;
+
+  // Dragon charge attack
+  if(t < 4){
+    const chargeX = 1200 - t*300;
+    drawEnderDragon(chargeX, 350, 2.5);
+    // Screen shake effect
+    ctx.save();
+    if(t > 2) ctx.translate(Math.sin(t*20)*5, Math.cos(t*15)*3);
+  }
+
+  // Steve knocked off edge
+  if(t > 3 && t < 8){
+    // Steve dangling
+    const dangleX = 210;
+    const dangleY = 520 + Math.sin(t*2)*5;
+    ctx.fillStyle = '#C4A072'; // hand
+    ctx.fillRect(dangleX, dangleY-10, 12, 8);
+    // Body hanging below edge
+    drawSteve(dangleX+5, dangleY+40, 1.3, {armor: true});
+
+    // Diamond sword falling into void
+    if(t > 4 && t < 6){
+      const swordY = 520 + (t-4)*100;
+      drawDiamondSword(250, swordY, (t-4)*2, 1);
+      ctx.globalAlpha = Math.max(0, 1-(t-4));
+      drawDiamondSword(250, swordY, (t-4)*2, 1);
+      ctx.globalAlpha = 1;
+    }
+
+    // Buddy pulling sleeve
+    drawWolf(230, groundY, 1.3, true);
+  }
+
+  // Alex fighting alone
+  if(t > 4){
+    const dragonX = W/2 + Math.sin(t)*200;
+    drawEnderDragon(dragonX, 250, 2, {breathing: t > 6 && t < 8});
+    drawAlex(600, groundY, 1.5, {armor: true, bow: true});
+  }
+
+  // Steve climbs back
+  if(t > 8){
+    drawSteve(300, groundY, 1.5, {armor: true, sword: true, swordColor: '#C8C8C8'});
+    // Iron sword
+  }
+
+  // Infinite darkness below
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 580, W, 140);
+  // Void particles
+  for(let i=0;i<10;i++){
+    ctx.fillStyle = `rgba(50,0,80,${0.2+Math.sin(t+i)*0.1})`;
+    ctx.fillRect((i*127)%W, 585+(i*23)%50, 6, 6);
+  }
+
+  if(t < 4) ctx.restore();
+
+  queueDialogue(2, 'narrator', 'The dragon does a massive charge attack!', 2.5);
+  queueDialogue(4.5, 'alex', 'STEVE! NO!', 2);
+  queueDialogue(7, 'narrator', 'Buddy grabs Steve\'s sleeve and pulls. Alex fights the dragon alone.', 3.5);
+  queueDialogue(11, 'steve', 'I am not done yet.', 2);
+  queueDialogue(13, 'narrator', 'He pulls out his last weapon - a humble iron sword.', 2.5);
+  checkDialogue(t, 14);
+}
+
+// SCENE 16: FINAL STAND
+function renderFinalStand(t){
+  playMusic('epic');
+
+  // The End
+  ctx.fillStyle = '#0A0015';
+  ctx.fillRect(0,0,W,H);
+
+  // End stone island
+  ctx.fillStyle = '#D4D098';
+  ctx.fillRect(100, 500, W-200, 220);
+
+  // Destroyed pillar stumps
+  for(let px of [200,400,600,800,1000]){
+    ctx.fillStyle = '#1A0A2E';
+    ctx.fillRect(px-12, 460, 24, 40);
+  }
+
+  // Dragon fountain/bedrock portal
+  ctx.fillStyle = '#333';
+  ctx.fillRect(W/2-30, 480, 60, 20);
+  ctx.fillStyle = '#444';
+  ctx.fillRect(W/2-20, 474, 40, 8);
+
+  const groundY = 500;
+
+  // Dragon landed on fountain
+  if(t < 10){
+    drawEnderDragon(W/2, 420, 2.5, {breathing: t > 3 && t < 6});
+  }
+
+  // Characters charging
+  if(t < 6){
+    const chargeProgress = Math.min(1, t/4);
+    const steveX = 200 + chargeProgress * 250;
+    const alexX = 900 - chargeProgress * 250;
+    drawSteve(steveX, groundY, 1.6, {armor: true, sword: true, swordColor: '#C8C8C8', walk: true});
+    drawAlex(alexX, groundY, 1.6, {armor: true, bow: true, walk: true});
+    drawWolf(steveX-40, groundY, 1.2, true);
+  }
+
+  // Acid dodge
+  if(t > 3 && t < 6){
+    ctx.fillStyle = '#9933CC';
+    for(let i=0;i<8;i++){
+      ctx.fillRect(W/2-60-i*30, 440+Math.sin(t*5+i)*15, 12, 8);
+    }
+  }
+
+  // Steve hits dragon head
+  if(t > 6 && t < 8){
+    drawSteve(W/2-40, groundY-20, 1.6, {armor: true, sword: true, swordColor: '#C8C8C8'});
+    // Impact sparks
+    addExplosion(W/2-20, 430, '#FFAA00', 2);
+  }
+
+  // Alex shooting arrows
+  if(t > 6){
+    drawAlex(W/2+100, groundY, 1.6, {armor: true, bow: true});
+    // Arrows hitting
+    if((t*3)%2 < 1){
+      ctx.fillStyle = '#666';
+      ctx.fillRect(W/2+10, 420, 8, 2);
+    }
+  }
+
+  // Wolf distracting
+  drawWolf(W/2+40, groundY, 1.3, true);
+
+  // EPIC SLOW MOTION JUMP (t > 10)
+  if(t > 10){
+    const jumpT = (t-10)/4;
+    const jumpX = W/2 - 100 + jumpT*100;
+    const jumpY = groundY - Math.sin(jumpT*Math.PI)*200;
+
+    // Pillar Steve jumps from
+    ctx.fillStyle = '#1A0A2E';
+    ctx.fillRect(W/2-112, 380, 24, 120);
+
+    // Steve in air
+    drawSteve(jumpX, jumpY, 2, {armor: true, sword: true, swordColor: '#C8C8C8'});
+    drawIronSword(jumpX+30, jumpY-50, -0.5, 1.5);
+
+    // Speed lines
+    for(let i=0;i<6;i++){
+      ctx.fillStyle = `rgba(255,255,255,${0.3-i*0.05})`;
+      ctx.fillRect(jumpX-20-i*15, jumpY+10+i*5, 12, 2);
+    }
+
+    // CRITICAL HIT!
+    if(t > 13){
+      ctx.fillStyle = '#FF0000';
+      ctx.font = 'bold 48px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('CRITICAL HIT!', W/2, 300);
+
+      // Dragon cracks
+      drawEnderDragon(W/2, 420, 2.5);
+      ctx.strokeStyle = '#FF00FF';
+      ctx.lineWidth = 3;
+      for(let i=0;i<5;i++){
+        const cx = W/2-30+Math.random()*60;
+        const cy = 400+Math.random()*40;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx+Math.random()*20-10, cy+Math.random()*20);
+        ctx.stroke();
+      }
+    }
+  }
+
+  queueDialogue(1, 'narrator', 'All crystals destroyed. The dragon lands on the fountain.', 3);
+  queueDialogue(4, 'narrator', 'Steve and Alex charge together!', 2);
+  queueDialogue(8, 'narrator', 'Steve strikes the dragon\'s head! Alex rains arrows!', 3);
+  queueDialogue(11, 'narrator', 'Steve leaps from a pillar, iron sword raised high...', 3);
+  queueDialogue(14, 'narrator', 'The final blow! CRITICAL HIT! The dragon screams!', 3);
+  checkDialogue(t, 15);
+}
+
+// SCENE 17: DRAGON DEFEATED
+function renderDragonDefeated(t){
+  playMusic('triumph');
+
+  // The End background
+  ctx.fillStyle = '#0A0015';
+  ctx.fillRect(0,0,W,H);
+
+  // End stone
+  ctx.fillStyle = '#D4D098';
+  ctx.fillRect(100, 500, W-200, 220);
+
+  const groundY = 500;
+
+  // Dragon exploding (early)
+  if(t < 5){
+    // Dragon breaking apart
+    const explodeT = t;
+    ctx.globalAlpha = Math.max(0, 1-explodeT/3);
+    drawEnderDragon(W/2, 300-explodeT*20, 2.5-explodeT*0.3);
+    ctx.globalAlpha = 1;
+
+    // Cracks spreading
+    ctx.strokeStyle = '#FF00FF';
+    ctx.lineWidth = 2;
+    for(let i=0;i<10;i++){
+      ctx.beginPath();
+      ctx.moveTo(W/2+Math.cos(i)*30*explodeT, 300+Math.sin(i)*20*explodeT);
+      ctx.lineTo(W/2+Math.cos(i+0.5)*50*explodeT, 300+Math.sin(i+0.5)*40*explodeT);
+      ctx.stroke();
+    }
+
+    // XP orbs explosion
+    if(t > 2) addXPOrbs(W/2, 300, 3);
+  }
+
+  // XP orbs everywhere
+  if(t > 3){
+    for(let i=0;i<20;i++){
+      const orbX = W/2 + Math.sin(t*2+i*0.7)*300;
+      const orbY = 300 + Math.cos(t*1.5+i*0.9)*150;
+      const c = i%3===0 ? '#FFD700' : '#7FFF00';
+      ctx.fillStyle = c;
+      ctx.globalAlpha = 0.6+Math.sin(t*3+i)*0.3;
+      ctx.fillRect(orbX-4, orbY-4, 8, 8);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Dragon egg on fountain
+  if(t > 5){
+    ctx.fillStyle = '#333';
+    ctx.fillRect(W/2-25, 475, 50, 25);
+    // Egg
+    ctx.fillStyle = '#1A0A2E';
+    ctx.fillRect(W/2-8, 460, 16, 20);
+    ctx.fillRect(W/2-6, 455, 12, 8);
+    ctx.fillStyle = '#2A1A3E';
+    ctx.fillRect(W/2-4, 462, 8, 10);
+  }
+
+  // Beam of light
+  if(t > 6){
+    ctx.fillStyle = `rgba(255,255,200,${0.2+Math.sin(t*2)*0.1})`;
+    ctx.fillRect(W/2-15, 0, 30, 475);
+    ctx.fillStyle = `rgba(255,255,255,${0.1+Math.sin(t*3)*0.05})`;
+    ctx.fillRect(W/2-8, 0, 16, 475);
+  }
+
+  // Characters celebrating
+  if(t > 5){
+    drawSteve(W/2-50, groundY, 1.6, {armor: true, highfive: t > 8});
+    drawAlex(W/2+20, groundY, 1.6, {armor: true, highfive: t > 8});
+    drawWolf(W/2-90, groundY, 1.3, true);
+
+    // High five spark
+    if(t > 8){
+      for(let i=0;i<4;i++){
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(W/2-15+Math.sin(t*5+i)*10, groundY-70+Math.cos(t*4+i)*10, 4, 4);
+      }
+    }
+  }
+
+  // Endermen watching respectfully
+  drawEnderman(200, groundY, 0.7, false);
+  drawEnderman(1000, groundY, 0.8, false);
+
+  queueDialogue(1, 'narrator', 'The Ender Dragon explodes into thousands of experience orbs!', 3.5);
+  queueDialogue(6, 'steve', 'We... we did it.', 2.5);
+  queueDialogue(9, 'alex', 'WE did it.', 2);
+  queueDialogue(11, 'wolf', 'Awooooo!', 2);
+  queueDialogue(13, 'narrator', 'The dragon egg appears. A beam of light shoots from the portal home.', 3);
+  checkDialogue(t, 16);
+}
+
+// SCENE 18: THE END POEM
+function renderEndPoem(t){
+  playMusic('peaceful');
+
+  // Starfield
+  ctx.fillStyle = '#000008';
+  ctx.fillRect(0,0,W,H);
+
+  // Beautiful stars
+  for(let i=0;i<100;i++){
+    const sx = (i*97+i*i*3)%W;
+    const sy = (i*53+i*i*7)%H;
+    const brightness = 0.3 + Math.sin(t*1.5+i*0.3)*0.3;
+    const size = 1 + (i%3);
+    ctx.fillStyle = `rgba(255,255,255,${brightness})`;
+    ctx.fillRect(sx, sy, size, size);
+  }
+
+  // Swirling portal light
+  if(t < 4){
+    for(let i=0;i<12;i++){
+      const angle = t*2 + i*Math.PI/6;
+      const dist = 100 + t*30;
+      ctx.fillStyle = `rgba(200,200,255,${0.3-t*0.05})`;
+      ctx.fillRect(W/2+Math.cos(angle)*dist-4, H/2+Math.sin(angle)*dist*0.5-4, 8, 8);
+    }
+  }
+
+  // End Poem text scrolling
+  const poems = [
+    "And the player dreamed of sunlight...",
+    "of trees and rivers and mountains...",
+    "of building and creating...",
+    "of adventures with friends...",
+    "And the player was happy.",
+    "And the player was content.",
+    "The universe said: You are the universe,",
+    "experiencing itself."
+  ];
+
+  const scrollSpeed = 0.6;
+  const lineHeight = 50;
+  const startY = H - t * scrollSpeed * 60;
+
+  ctx.font = '22px monospace';
+  ctx.textAlign = 'center';
+
+  for(let i=0;i<poems.length;i++){
+    const py = startY + i*lineHeight;
+    if(py > -50 && py < H+50){
+      const dist = Math.abs(py - H/2);
+      const alpha = Math.max(0, 1 - dist/(H/2));
+      ctx.fillStyle = `rgba(200,220,255,${alpha})`;
+      ctx.fillText(poems[i], W/2, py);
+    }
+  }
+
+  queueDialogue(0.5, 'narrator', 'And the player dreamed of sunlight... of trees and rivers and mountains.', 5);
+  queueDialogue(7, 'narrator', 'And the player was content. The universe said: You are the universe, experiencing itself.', 6);
+  checkDialogue(t, 17);
+}
+
+// SCENE 19: HOME
+function renderHome(t){
+  playMusic('peaceful');
+
+  // Beautiful sunrise
+  const skyTop = lerpColor('#1A0A2E', '#6BB5FF', Math.min(1, t/5));
+  const skyBot = lerpColor('#FF6644', '#AADDFF', Math.min(1, t/5));
+  drawSky(skyTop, skyBot);
+
+  // Sun
+  const sunY = 300 - Math.min(1, t/5)*180;
+  drawBlockySun(W/2, sunY, 50);
+
+  drawBlockyClouds(t, 60);
+
+  const groundY = 530;
+  drawGrassGround(groundY);
+
+  // Trees
+  drawOakTree(80, groundY);
+  drawBirchTree(300, groundY);
+  drawOakTree(1000, groundY);
+  drawOakTree(1200, groundY);
+
+  // Village in background
+  drawVillageHouse(400, groundY, 0);
+  drawVillageHouse(550, groundY, 1);
+
+  // Villagers cheering
+  for(let i=0;i<5;i++){
+    const vx = 350+i*80;
+    ctx.save();
+    ctx.translate(vx, groundY);
+    ctx.scale(0.7, 0.7);
+    ctx.fillStyle = '#D4AA70';
+    ctx.fillRect(-6, -36, 12, 14);
+    ctx.fillStyle = '#8B6914';
+    ctx.fillRect(-8, -22, 16, 30);
+    // Arms up (cheering)
+    ctx.fillRect(-14, -36, 6, 10);
+    ctx.fillRect(8, -36, 6, 10);
+    ctx.restore();
+  }
+
+  // Elder
+  drawVillagerElder(640, groundY, 1.3);
+
+  // Steve and Alex
+  drawSteve(W/2, groundY, 1.6, {armor: true});
+  drawAlex(W/2+60, groundY, 1.6, {armor: true});
+  drawWolf(W/2-40, groundY, 1.3, true);
+
+  // Building a castle (late scene)
+  if(t > 10){
+    const buildProgress = (t-10)/5;
+    const castleH = buildProgress * 80;
+    ctx.fillStyle = '#888';
+    ctx.fillRect(850, groundY-castleH, 120, castleH);
+    ctx.fillStyle = '#777';
+    ctx.fillRect(850, groundY-castleH, 120, 8);
+    // Battlements
+    if(castleH > 40){
+      for(let i=0;i<5;i++){
+        ctx.fillRect(852+i*24, groundY-castleH-12, 16, 12);
+      }
+    }
+    // Blocks placing particles
+    addParticle(880+Math.random()*60, groundY-castleH, '#888', 0, -1, 0.5, 4);
+  }
+
+  queueDialogue(1, 'narrator', 'They return to the Overworld. The world seems brighter.', 3.5);
+  queueDialogue(5, 'elder', 'You have saved all worlds from the darkness. You are heroes.', 3.5);
+  queueDialogue(9, 'alex', 'So... what do we do now?', 2);
+  queueDialogue(11.5, 'steve', 'What we always do. Build.', 2.5);
+  checkDialogue(t, 18);
+}
+
+// SCENE 20: ENDING + CREDITS
+function renderCredits(t){
+  playMusic('peaceful');
+
+  if(t < 10){
+    // Castle time-lapse
+    drawSky('#FF8844', '#FFD488');
+    drawBlockyClouds(t, 50);
+
+    // Sunset
+    drawBlockySun(W-200, 200, 60);
+
+    const groundY = 530;
+    drawGrassGround(groundY);
+
+    // Epic castle
+    const castleProgress = Math.min(1, t/8);
+    ctx.fillStyle = '#888';
+    // Main tower
+    const h1 = castleProgress*150;
+    ctx.fillRect(W/2-40, groundY-h1, 80, h1);
+    // Side towers
+    const h2 = castleProgress*100;
+    ctx.fillRect(W/2-120, groundY-h2, 50, h2);
+    ctx.fillRect(W/2+70, groundY-h2, 50, h2);
+    // Walls
+    ctx.fillRect(W/2-120, groundY-60*castleProgress, 240, 16);
+    // Battlements
+    if(castleProgress > 0.5){
+      for(let i=0;i<4;i++){
+        ctx.fillRect(W/2-36+i*20, groundY-h1-12, 12, 12);
+      }
+      ctx.fillRect(W/2-116, groundY-h2-10, 12, 10);
+      ctx.fillRect(W/2-100, groundY-h2-10, 12, 10);
+      ctx.fillRect(W/2+74, groundY-h2-10, 12, 10);
+      ctx.fillRect(W/2+90, groundY-h2-10, 12, 10);
+    }
+    // Windows
+    ctx.fillStyle = '#88CCFF';
+    if(castleProgress > 0.3){
+      ctx.fillRect(W/2-20, groundY-h1+20, 12, 16);
+      ctx.fillRect(W/2+10, groundY-h1+20, 12, 16);
+    }
+    // Door
+    ctx.fillStyle = '#6B4226';
+    ctx.fillRect(W/2-10, groundY-30, 20, 30);
+    // Flag on top
+    if(castleProgress > 0.8){
+      ctx.fillStyle = '#6B4226';
+      ctx.fillRect(W/2, groundY-h1-30, 2, 30);
+      ctx.fillStyle = '#FF2222';
+      ctx.fillRect(W/2+2, groundY-h1-28, 14, 10);
+    }
+
+    // Gardens
+    if(castleProgress > 0.4){
+      for(let i=0;i<6;i++){
+        drawFlower(W/2-150+i*50, groundY, ['#FF4444','#FFFF44','#FF44FF','#FF8844','#44FF44','#44FFFF'][i]);
+      }
+    }
+
+    // Water feature
+    if(castleProgress > 0.6){
+      ctx.fillStyle = '#3366FF';
+      ctx.fillRect(W/2+130, groundY-10, 40, 10);
+      ctx.fillRect(W/2+140, groundY-20, 20, 10);
+    }
+
+    // Animal pens
+    if(castleProgress > 0.7){
+      // Fence
+      ctx.fillStyle = '#8B6914';
+      ctx.fillRect(200, groundY-12, 100, 2);
+      ctx.fillRect(200, groundY-12, 2, 12);
+      ctx.fillRect(300, groundY-12, 2, 12);
+      // Chickens in pen
+      drawChicken(230, groundY-7, 0.8);
+      drawChicken(260, groundY-7, 0.8);
+    }
+
+    // Characters on roof watching sunset
+    if(t > 5){
+      drawSteve(W/2-10, groundY-h1-10, 1, {armor: true});
+      drawAlex(W/2+20, groundY-h1-10, 1, {armor: true});
+      drawWolf(W/2+40, groundY-h1-5, 0.7, true);
+    }
+
+    // CREEPER SNEAK!
+    if(t > 8){
+      const creeperX = W/2-60 + (t-8)*15;
+      drawCreeper(creeperX, groundY-h1-5, 0.8);
+    }
+
+    // BOOM!
+    if(t > 9.5){
+      addExplosion(W/2, groundY-h1, '#55AA33', 5);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 36px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('BOOM!', W/2, groundY-h1-40);
+    }
+  } else if(t < 12){
+    // Steve respawns, Alex laughing
+    drawSky('#FF8844', '#FFD488');
+    const groundY = 530;
+    drawGrassGround(groundY);
+
+    // Destroyed castle area
+    ctx.fillStyle = '#555';
+    for(let i=0;i<10;i++){
+      ctx.fillRect(W/2-100+i*25, groundY-Math.random()*20, 16, 16);
+    }
+
+    // Spawn particles around Steve
+    for(let i=0;i<4;i++){
+      ctx.fillStyle = `rgba(255,255,255,${0.5+Math.sin(t*4+i)*0.3})`;
+      ctx.fillRect(400+Math.sin(t*5+i)*15, groundY-50+Math.cos(t*4+i)*15, 4, 4);
+    }
+
+    drawSteve(400, groundY, 1.5, {armor: true});
+    drawAlex(500, groundY, 1.5, {armor: true});
+    drawWolf(450, groundY, 1.2, true);
+  } else {
+    // Credits
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(0,0,W,H);
+
+    // "THE END" title
+    if(t < 15){
+      const alpha = Math.min(1, (t-12)/1.5);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#55FF55';
+      ctx.font = 'bold 64px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('THE END', W/2, H/2-40);
+      ctx.fillStyle = '#aaa';
+      ctx.font = '20px monospace';
+      ctx.fillText('...or is it?', W/2, H/2+10);
+      ctx.globalAlpha = 1;
+    }
+
+    // Credits scroll
+    if(t > 14){
+      const creditsY = H - (t-14)*40;
+      const credits = [
+        'A StreamFlix Original',
+        '',
+        'Created by Petru',
+        '',
+        'MINECRAFT: THE LEGEND OF THE ENDER DRAGON',
+        '',
+        'Starring:',
+        'Steve - The Brave Adventurer',
+        'Alex - The Smart Explorer',
+        'Buddy - The Best Boy',
+        'The Ender Dragon - Ancient Evil',
+        'Villager Elder - Wise Guide',
+        '',
+        'Built with HTML5 Canvas',
+        'Voice Acting by Web Speech API',
+        'Music by Web Audio API',
+        '',
+        'Thank you for watching!'
+      ];
+
+      ctx.font = '18px monospace';
+      ctx.textAlign = 'center';
+      for(let i=0;i<credits.length;i++){
+        const cy = creditsY + i*35;
+        if(cy > -30 && cy < H+30){
+          ctx.fillStyle = i===0||i===4 ? '#FFD700' : '#ccc';
+          if(i===0||i===4) ctx.font = 'bold 22px monospace';
+          else ctx.font = '18px monospace';
+          ctx.fillText(credits[i], W/2, cy);
+        }
+      }
+    }
+
+    // Post-credits: Dragon egg cracks
+    if(t > 18){
+      ctx.fillStyle = '#1A0A2E';
+      ctx.fillRect(W/2-12, H/2+60, 24, 30);
+      ctx.fillRect(W/2-8, H/2+55, 16, 8);
+      ctx.fillStyle = '#2A1A3E';
+      ctx.fillRect(W/2-6, H/2+65, 12, 15);
+      // Crack!
+      ctx.strokeStyle = '#CC44FF';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(W/2, H/2+58);
+      ctx.lineTo(W/2+4, H/2+65);
+      ctx.lineTo(W/2-2, H/2+72);
+      ctx.lineTo(W/2+3, H/2+80);
+      ctx.stroke();
+      // Glow from crack
+      ctx.fillStyle = `rgba(200,100,255,${0.3+Math.sin(t*3)*0.2})`;
+      ctx.fillRect(W/2-2, H/2+63, 6, 10);
+    }
+  }
+
+  queueDialogue(0.5, 'narrator', 'They build the most amazing castle together.', 3);
+  queueDialogue(8, 'creeper', 'Sssssssss...', 2);
+  queueDialogue(10, 'steve', 'Every. Single. Time.', 2.5);
+  queueDialogue(12.5, 'narrator', 'The End. Thank you for watching.', 3);
+  checkDialogue(t, 19);
+}
+
+// ===== COLOR HELPERS =====
+function lerpColor(c1, c2, t){
+  const r1 = parseInt(c1.slice(1,3),16), g1 = parseInt(c1.slice(3,5),16), b1 = parseInt(c1.slice(5,7),16);
+  const r2 = parseInt(c2.slice(1,3),16), g2 = parseInt(c2.slice(3,5),16), b2 = parseInt(c2.slice(5,7),16);
+  const r = Math.round(r1+(r2-r1)*t), g = Math.round(g1+(g2-g1)*t), b = Math.round(b1+(b2-b1)*t);
+  return `rgb(${r},${g},${b})`;
+}
+
+// ===== RESIZE =====
+function resize(){
+  const ratio = W/H;
+  let cw = window.innerWidth, ch = window.innerHeight;
+  let scale;
+  if(cw/ch > ratio){
+    scale = ch/H;
+  } else {
+    scale = cw/W;
+  }
+  const dw = W*scale, dh = H*scale;
+  canvas.style.width = dw+'px';
+  canvas.style.height = dh+'px';
+  const barH = Math.max(0,(ch-dh)/2);
+  document.getElementById('letterbox-top').style.height = barH+'px';
+  document.getElementById('letterbox-bottom').style.height = barH+'px';
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ===== MAIN LOOP =====
+function getSceneAt(time){
+  let t = 0;
+  for(let i=0;i<scenes.length;i++){
+    if(time < t+scenes[i].duration) return {index:i, localTime: time-t};
+    t += scenes[i].duration;
+  }
+  return {index:scenes.length-1, localTime: scenes[scenes.length-1].duration};
+}
+
+function update(timestamp){
+  requestAnimationFrame(update);
+
+  if(!lastTimestamp) lastTimestamp = timestamp;
+  const dt = (timestamp - lastTimestamp)/1000;
+  lastTimestamp = timestamp;
+
+  if(playing){
+    globalTime += dt;
+    if(globalTime >= totalDuration){
+      globalTime = totalDuration;
+      playing = false;
+      playBtn.textContent = '\u25B6';
+    }
+  }
+
+  const {index, localTime} = getSceneAt(globalTime);
+  currentScene = index;
+  sceneTime = localTime;
+
+  // Clear
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fillRect(0,0,W,H);
+
+  // Render scene
+  renderScene(index, localTime);
+
+  // Particles
+  updateParticles(dt);
+  drawParticles();
+
+  // Check dialogue
+  checkDialogue(localTime, index);
+
+  // Fade transitions
+  const sceneDuration = scenes[index].duration;
+  if(localTime < TRANSITION_TIME){
+    const alpha = 1 - localTime/TRANSITION_TIME;
+    ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+    ctx.fillRect(0,0,W,H);
+  }
+  if(localTime > sceneDuration - TRANSITION_TIME){
+    const alpha = (localTime - (sceneDuration-TRANSITION_TIME))/TRANSITION_TIME;
+    ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // UI updates
+  updateUI();
+}
+
+function updateUI(){
+  const progress = (globalTime/totalDuration)*100;
+  progressBar.style.width = progress+'%';
+
+  const curr = formatTime(globalTime);
+  const total = formatTime(totalDuration);
+  timeDisplay.textContent = `${curr} / ${total}`;
+
+  sceneIndicator.textContent = `Scene ${currentScene+1}/${scenes.length}: ${scenes[currentScene].name}`;
+}
+
+function formatTime(s){
+  const m = Math.floor(s/60);
+  const sec = Math.floor(s%60);
+  return m+':'+(sec<10?'0':'')+sec;
+}
+
+// ===== CONTROLS =====
+const playBtn = document.getElementById('play-btn');
+const voiceBtn = document.getElementById('voice-btn');
+const fsBtn = document.getElementById('fs-btn');
+const progressContainer = document.getElementById('progress-container');
+const progressBar = document.getElementById('progress-bar');
+const timeDisplay = document.getElementById('time-display');
+const sceneIndicator = document.getElementById('scene-indicator');
+const controlsEl = document.getElementById('controls');
+
+playBtn.addEventListener('click', togglePlay);
+
+function togglePlay(){
+  initAudio();
+  if(globalTime >= totalDuration){
+    // Restart
+    globalTime = 0;
+    spokenLines.clear();
+    particles = [];
+    stopSpeech();
+    stopMusic();
+  }
+  playing = !playing;
+  playBtn.textContent = playing ? '\u23F8' : '\u25B6';
+  if(!playing){
+    stopSpeech();
+  }
+  controlsEl.classList.remove('show');
+}
+
+voiceBtn.addEventListener('click', ()=>{
+  voiceEnabled = !voiceEnabled;
+  voiceBtn.textContent = voiceEnabled ? '\uD83D\uDD0A' : '\uD83D\uDD07';
+  if(!voiceEnabled) stopSpeech();
+});
+
+fsBtn.addEventListener('click', ()=>{
+  if(!document.fullscreenElement){
+    document.documentElement.requestFullscreen().catch(()=>{});
+  } else {
+    document.exitFullscreen();
+  }
+});
+
+progressContainer.addEventListener('click', (e)=>{
+  initAudio();
+  const rect = progressContainer.getBoundingClientRect();
+  const pct = (e.clientX - rect.left)/rect.width;
+  globalTime = pct * totalDuration;
+  spokenLines.clear();
+  particles = [];
+  stopSpeech();
+  stopMusic();
+  currentMusicType = '';
+});
+
+document.addEventListener('keydown', (e)=>{
+  if(e.code === 'Space'){
+    e.preventDefault();
+    togglePlay();
+  }
+  if(e.code === 'ArrowRight'){
+    globalTime = Math.min(totalDuration, globalTime + 5);
+    spokenLines.clear();
+    stopSpeech();
+  }
+  if(e.code === 'ArrowLeft'){
+    globalTime = Math.max(0, globalTime - 5);
+    spokenLines.clear();
+    stopSpeech();
+  }
+});
+
+// Mouse movement for controls
+let hideTimeout;
+document.addEventListener('mousemove', ()=>{
+  controlsEl.style.opacity = '1';
+  clearTimeout(hideTimeout);
+  hideTimeout = setTimeout(()=>{
+    if(playing) controlsEl.style.opacity = '';
+  }, 3000);
+});
+
+// Start
+requestAnimationFrame(update);
+</script>
+</body>
+</html>
