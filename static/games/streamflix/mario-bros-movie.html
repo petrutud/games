@@ -1,0 +1,2637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Super Mario Bros. Movie - StreamFlix</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;width:100vw;user-select:none}
+#cinema{position:relative;width:100vw;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#letterbox-top,#letterbox-bottom{position:absolute;left:0;width:100%;background:#000;z-index:10;pointer-events:none}
+#letterbox-top{top:0}
+#letterbox-bottom{bottom:0}
+canvas{display:block;z-index:1}
+#controls{position:absolute;bottom:0;left:0;right:0;z-index:20;background:linear-gradient(transparent,rgba(0,0,0,.9));padding:12px 20px 18px;display:flex;flex-direction:column;gap:8px;opacity:0;transition:opacity .3s}
+#cinema:hover #controls,#controls.show{opacity:1}
+#progress-container{width:100%;height:6px;background:rgba(255,255,255,.2);border-radius:3px;cursor:pointer;position:relative}
+#progress-container:hover{height:10px;margin-top:-2px}
+#progress-bar{height:100%;background:linear-gradient(90deg,#e52521,#fbd000);border-radius:3px;width:0%;transition:width .1s linear;pointer-events:none}
+#progress-buffer{position:absolute;top:0;left:0;height:100%;background:rgba(255,255,255,.1);border-radius:3px;pointer-events:none}
+#btn-row{display:flex;align-items:center;gap:16px}
+.ctrl-btn{background:none;border:none;color:#fff;cursor:pointer;font-size:20px;padding:4px 8px;opacity:.85;transition:opacity .2s}
+.ctrl-btn:hover{opacity:1}
+#time-display{font-size:13px;color:#ccc;font-variant-numeric:tabular-nums}
+#title-display{flex:1;text-align:center;font-size:14px;color:#aaa;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#back-btn{position:absolute;top:20px;left:20px;z-index:30;background:rgba(0,0,0,.6);border:none;color:#fff;padding:8px 16px;border-radius:20px;cursor:pointer;font-size:14px;opacity:0;transition:opacity .3s;text-decoration:none;display:flex;align-items:center;gap:6px}
+#cinema:hover #back-btn{opacity:.8}
+#back-btn:hover{opacity:1;background:rgba(255,255,255,.15)}
+#scene-indicator{position:absolute;top:20px;right:20px;z-index:30;color:#aaa;font-size:12px;opacity:0;transition:opacity .3s}
+#cinema:hover #scene-indicator{opacity:.7}
+</style>
+</head>
+<body>
+<div id="cinema">
+  <div id="letterbox-top"></div>
+  <canvas id="c"></canvas>
+  <div id="letterbox-bottom"></div>
+  <a href="/games/streamflix/" id="back-btn">&#9664; Back</a>
+  <div id="scene-indicator"></div>
+  <div id="controls" class="show">
+    <div id="progress-container"><div id="progress-buffer"></div><div id="progress-bar"></div></div>
+    <div id="btn-row">
+      <button class="ctrl-btn" id="play-btn">&#9654;</button>
+      <span id="time-display">0:00 / 0:00</span>
+      <span id="title-display">The Super Mario Bros. Movie</span>
+      <button class="ctrl-btn" id="fs-btn">&#x26F6;</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== MOVIE ENGINE =====
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 1280, H = 720;
+canvas.width = W; canvas.height = H;
+
+let playing = false, globalTime = 0, lastTimestamp = 0;
+let currentScene = 0, sceneTime = 0;
+let fadeAlpha = 0, fadeDir = 0, fadePause = 0;
+let controlsTimeout;
+
+// Scene definitions
+const scenes = [
+  {name:"Title Sequence", duration:15},
+  {name:"Brooklyn", duration:15},
+  {name:"The Plumbing Job", duration:12},
+  {name:"The Mysterious Pipe", duration:15},
+  {name:"Separated", duration:15},
+  {name:"Mushroom Kingdom", duration:15},
+  {name:"Bowser's Dark Lands", duration:15},
+  {name:"Princess Peach", duration:15},
+  {name:"Training Montage", duration:15},
+  {name:"Journey to Kong Kingdom", duration:12},
+  {name:"Cranky Kong's Challenge", duration:15},
+  {name:"Mario vs Donkey Kong", duration:18},
+  {name:"Rainbow Road", duration:15},
+  {name:"Rainbow Road Battle", duration:15},
+  {name:"Belly of the Beast", duration:12},
+  {name:"Bowser Invades", duration:15},
+  {name:"Mario Returns", duration:15},
+  {name:"Final Battle", duration:18},
+  {name:"Victory", duration:15},
+  {name:"Ending + Credits", duration:20}
+];
+const TRANSITION_TIME = 1.5;
+const totalDuration = scenes.reduce((s,sc)=>s+sc.duration,0);
+
+// ===== AUDIO ENGINE =====
+let audioCtx, masterGain;
+let currentMusicNodes = [];
+
+function initAudio(){
+  if(audioCtx) return;
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.25;
+  masterGain.connect(audioCtx.destination);
+}
+
+function stopMusic(){
+  currentMusicNodes.forEach(n=>{try{n.stop();n.disconnect()}catch(e){}});
+  currentMusicNodes=[];
+}
+
+function playNote(freq, startTime, duration, type='square', gainVal=0.12){
+  if(!audioCtx)return;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  g.gain.setValueAtTime(gainVal, startTime);
+  g.gain.exponentialRampToValueAtTime(0.001, startTime+duration-0.01);
+  osc.connect(g);
+  g.connect(masterGain);
+  osc.start(startTime);
+  osc.stop(startTime+duration);
+  currentMusicNodes.push(osc);
+  return osc;
+}
+
+function playBass(freq, startTime, duration, gainVal=0.15){
+  return playNote(freq, startTime, duration, 'triangle', gainVal);
+}
+
+function playDrum(startTime, type='kick'){
+  if(!audioCtx)return;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  if(type==='kick'){
+    osc.type='sine';
+    osc.frequency.setValueAtTime(150,startTime);
+    osc.frequency.exponentialRampToValueAtTime(40,startTime+0.15);
+    g.gain.setValueAtTime(0.3,startTime);
+    g.gain.exponentialRampToValueAtTime(0.001,startTime+0.15);
+  } else {
+    osc.type='square';
+    osc.frequency.setValueAtTime(800,startTime);
+    osc.frequency.exponentialRampToValueAtTime(200,startTime+0.05);
+    g.gain.setValueAtTime(0.08,startTime);
+    g.gain.exponentialRampToValueAtTime(0.001,startTime+0.06);
+  }
+  osc.connect(g);g.connect(masterGain);
+  osc.start(startTime);osc.stop(startTime+0.2);
+  currentMusicNodes.push(osc);
+}
+
+const NOTE={C3:130.81,D3:146.83,E3:164.81,F3:174.61,G3:196,A3:220,B3:246.94,C4:261.63,D4:293.66,E4:329.63,F4:349.23,G4:392,A4:440,B4:493.88,C5:523.25,D5:587.33,E5:659.26,F5:698.46,G5:783.99,A5:880,Bb3:233.08,Eb4:311.13,Ab3:207.65,Bb4:466.16,Db4:277.18,Gb4:369.99,Fs4:369.99,Fs3:185,Cs4:277.18};
+
+let lastSceneMusic = -1;
+
+function updateMusic(sceneIdx){
+  if(sceneIdx === lastSceneMusic) return;
+  lastSceneMusic = sceneIdx;
+  stopMusic();
+  if(!audioCtx) return;
+  const t = audioCtx.currentTime + 0.05;
+  const bpm = 140;
+  const beat = 60/bpm;
+
+  if(sceneIdx===0){ // Title - upbeat Mario theme
+    const melody=[NOTE.E5,NOTE.E5,0,NOTE.E5,0,NOTE.C5,NOTE.E5,0,NOTE.G5,0,0,0,NOTE.G4,0,0,0];
+    const bassLine=[NOTE.G3,0,0,NOTE.G3,0,0,NOTE.G3,0,NOTE.C3,0,0,NOTE.C3,0,0,NOTE.C3,0];
+    for(let loop=0;loop<4;loop++){
+      for(let i=0;i<melody.length;i++){
+        const nt=t+loop*melody.length*beat*0.5+i*beat*0.5;
+        if(melody[i])playNote(melody[i],nt,beat*0.45,'square',0.1);
+        if(bassLine[i])playBass(bassLine[i],nt,beat*0.45,0.12);
+        if(i%4===0)playDrum(nt,'kick');
+        if(i%4===2)playDrum(nt,'snare');
+      }
+    }
+  } else if(sceneIdx===1||sceneIdx===2){ // Brooklyn - jazzy urban
+    const melody=[NOTE.C4,NOTE.E4,NOTE.G4,NOTE.A4,NOTE.G4,NOTE.E4,NOTE.C4,NOTE.D4,NOTE.F4,NOTE.A4,NOTE.G4,NOTE.F4,NOTE.E4,NOTE.D4,NOTE.C4,0];
+    for(let loop=0;loop<4;loop++){
+      for(let i=0;i<melody.length;i++){
+        const nt=t+loop*melody.length*beat*0.5+i*beat*0.5;
+        if(melody[i])playNote(melody[i],nt,beat*0.45,'triangle',0.1);
+        if(i%4===0)playBass(NOTE.C3,nt,beat*0.9,0.1);
+        if(i%8===4)playBass(NOTE.F3,nt,beat*0.9,0.1);
+        if(i%4===0)playDrum(nt,'kick');
+        if(i%4===2)playDrum(nt,'snare');
+      }
+    }
+  } else if(sceneIdx===3||sceneIdx===4){ // Mysterious/tense
+    const melody=[NOTE.E4,0,NOTE.G4,0,NOTE.Bb4,0,NOTE.A4,0,NOTE.E4,0,NOTE.Db4,0,NOTE.E4,0,0,0];
+    for(let loop=0;loop<5;loop++){
+      for(let i=0;i<melody.length;i++){
+        const nt=t+loop*melody.length*beat*0.6+i*beat*0.6;
+        if(melody[i])playNote(melody[i],nt,beat*0.55,'sine',0.08);
+        if(i%8===0)playBass(NOTE.E3,nt,beat*2,0.1);
+        if(i%4===0)playDrum(nt,'kick');
+      }
+    }
+  } else if(sceneIdx===5){ // Mushroom Kingdom - magical/wonder
+    const melody=[NOTE.C5,NOTE.E5,NOTE.G5,NOTE.E5,NOTE.C5,NOTE.D5,NOTE.F5,NOTE.A5,NOTE.G5,NOTE.E5,NOTE.D5,NOTE.C5,NOTE.E5,NOTE.G5,NOTE.C5,0];
+    for(let loop=0;loop<4;loop++){
+      for(let i=0;i<melody.length;i++){
+        const nt=t+loop*melody.length*beat*0.45+i*beat*0.45;
+        if(melody[i])playNote(melody[i],nt,beat*0.4,'square',0.07);
+        if(melody[i])playNote(melody[i]*1.5,nt+0.05,beat*0.2,'sine',0.04);
+        if(i%4===0)playBass(NOTE.C3,nt,beat*0.8,0.1);
+        if(i%4===0)playDrum(nt,'kick');
+        if(i%4===2)playDrum(nt,'snare');
+      }
+    }
+  } else if(sceneIdx===6){ // Bowser's Dark Lands - dark/menacing
+    const melody=[NOTE.E3,0,NOTE.E3,NOTE.G3,NOTE.E3,0,NOTE.Bb3,NOTE.A3,NOTE.E3,0,NOTE.E3,NOTE.G3,NOTE.Fs3,0,NOTE.E3,0];
+    for(let loop=0;loop<5;loop++){
+      for(let i=0;i<melody.length;i++){
+        const nt=t+loop*melody.length*beat*0.55+i*beat*0.55;
+        if(melody[i])playNote(melody[i],nt,beat*0.5,'sawtooth',0.06);
+        if(i%4===0)playBass(NOTE.E3*0.5,nt,beat*1.5,0.15);
+        if(i%2===0)playDrum(nt,'kick');
+      }
+    }
+  } else if(sceneIdx===7||sceneIdx===8){ // Peach/Training - heroic/energetic
+    const melody=[NOTE.G4,NOTE.A4,NOTE.B4,NOTE.D5,NOTE.B4,NOTE.A4,NOTE.G4,NOTE.A4,NOTE.G4,NOTE.E4,NOTE.D4,NOTE.E4,NOTE.G4,NOTE.A4,NOTE.B4,NOTE.D5];
+    for(let loop=0;loop<4;loop++){
+      for(let i=0;i<melody.length;i++){
+        const nt=t+loop*melody.length*beat*0.4+i*beat*0.4;
+        if(melody[i])playNote(melody[i],nt,beat*0.35,'square',0.08);
+        if(i%4===0)playBass(NOTE.G3,nt,beat*0.75,0.12);
+        if(i%8===4)playBass(NOTE.D3,nt,beat*0.75,0.12);
+        if(i%4===0)playDrum(nt,'kick');
+        if(i%4===2)playDrum(nt,'snare');
+      }
+    }
+  } else if(sceneIdx===9||sceneIdx===10||sceneIdx===11){ // Kong Kingdom - tribal/battle
+    const melody=[NOTE.D4,NOTE.F4,NOTE.A4,NOTE.D5,NOTE.A4,NOTE.F4,NOTE.D4,NOTE.E4,NOTE.G4,NOTE.B4,NOTE.E5,NOTE.B4,NOTE.G4,NOTE.E4,NOTE.D4,0];
+    for(let loop=0;loop<4;loop++){
+      for(let i=0;i<melody.length;i++){
+        const nt=t+loop*melody.length*beat*0.4+i*beat*0.4;
+        if(melody[i])playNote(melody[i],nt,beat*0.35,'square',0.08);
+        if(i%2===0)playBass(NOTE.D3,nt,beat*0.35,0.12);
+        playDrum(nt,i%2===0?'kick':'snare');
+      }
+    }
+  } else if(sceneIdx===12||sceneIdx===13){ // Rainbow Road - exciting/racing
+    const melody=[NOTE.C5,NOTE.D5,NOTE.E5,NOTE.G5,NOTE.E5,NOTE.D5,NOTE.C5,NOTE.G4,NOTE.A4,NOTE.B4,NOTE.D5,NOTE.E5,NOTE.D5,NOTE.B4,NOTE.A4,NOTE.G4];
+    for(let loop=0;loop<4;loop++){
+      for(let i=0;i<melody.length;i++){
+        const nt=t+loop*melody.length*beat*0.35+i*beat*0.35;
+        if(melody[i])playNote(melody[i],nt,beat*0.3,'square',0.07);
+        if(melody[i])playNote(melody[i]*2,nt,beat*0.15,'sine',0.03);
+        if(i%4===0)playBass(NOTE.C3,nt,beat*0.65,0.12);
+        if(i%4===2)playBass(NOTE.G3,nt,beat*0.65,0.12);
+        playDrum(nt,i%2===0?'kick':'snare');
+      }
+    }
+  } else if(sceneIdx===14||sceneIdx===15){ // Dark/invasion - intense
+    const melody=[NOTE.E4,NOTE.E4,NOTE.Bb4,NOTE.A4,NOTE.E4,NOTE.E4,NOTE.G4,NOTE.Fs4,NOTE.E4,NOTE.E4,NOTE.Bb4,NOTE.A4,NOTE.G4,NOTE.Fs4,NOTE.E4,0];
+    for(let loop=0;loop<4;loop++){
+      for(let i=0;i<melody.length;i++){
+        const nt=t+loop*melody.length*beat*0.45+i*beat*0.45;
+        if(melody[i])playNote(melody[i],nt,beat*0.4,'sawtooth',0.07);
+        if(i%4===0)playBass(NOTE.E3*0.5,nt,beat*1.2,0.14);
+        playDrum(nt,i%2===0?'kick':'snare');
+      }
+    }
+  } else if(sceneIdx===16||sceneIdx===17){ // Epic battle - heroic/intense
+    const melody=[NOTE.E5,NOTE.E5,NOTE.D5,NOTE.E5,NOTE.G5,NOTE.A5,NOTE.G5,NOTE.E5,NOTE.D5,NOTE.C5,NOTE.D5,NOTE.E5,NOTE.G5,NOTE.E5,NOTE.D5,NOTE.C5];
+    for(let loop=0;loop<4;loop++){
+      for(let i=0;i<melody.length;i++){
+        const nt=t+loop*melody.length*beat*0.38+i*beat*0.38;
+        if(melody[i])playNote(melody[i],nt,beat*0.33,'square',0.09);
+        if(melody[i])playNote(melody[i]*0.5,nt,beat*0.33,'sawtooth',0.05);
+        if(i%2===0)playBass(NOTE.C3,nt,beat*0.7,0.14);
+        playDrum(nt,i%2===0?'kick':'snare');
+      }
+    }
+  } else if(sceneIdx===18||sceneIdx===19){ // Victory/Credits - triumphant
+    const melody=[NOTE.C5,NOTE.E5,NOTE.G5,NOTE.C5,NOTE.E5,NOTE.G5,NOTE.A5,NOTE.G5,NOTE.E5,NOTE.C5,NOTE.D5,NOTE.F5,NOTE.A5,NOTE.G5,NOTE.E5,NOTE.C5];
+    for(let loop=0;loop<4;loop++){
+      for(let i=0;i<melody.length;i++){
+        const nt=t+loop*melody.length*beat*0.5+i*beat*0.5;
+        if(melody[i])playNote(melody[i],nt,beat*0.45,'square',0.08);
+        if(melody[i])playNote(melody[i]*1.5,nt+0.1,beat*0.25,'sine',0.04);
+        if(i%4===0)playBass(NOTE.C3,nt,beat*1.5,0.12);
+        if(i%4===0)playDrum(nt,'kick');
+        if(i%4===2)playDrum(nt,'snare');
+      }
+    }
+  }
+}
+
+// ===== DRAWING UTILITIES =====
+function drawText(text, x, y, size, color='#fff', align='center', outline=true){
+  ctx.save();
+  ctx.font=`bold ${size}px 'Segoe UI', Arial, sans-serif`;
+  ctx.textAlign=align;
+  ctx.textBaseline='middle';
+  if(outline){
+    ctx.strokeStyle='#000';
+    ctx.lineWidth=size>24?5:3;
+    ctx.lineJoin='round';
+    ctx.strokeText(text,x,y);
+  }
+  ctx.fillStyle=color;
+  ctx.fillText(text,x,y);
+  ctx.restore();
+}
+
+function drawDialogue(speaker, text, color='#fff'){
+  const y = H - 80;
+  ctx.save();
+  ctx.fillStyle='rgba(0,0,0,0.7)';
+  ctx.fillRect(0, y-35, W, 80);
+  if(speaker){
+    drawText(speaker+":", 80, y-12, 18, color, 'left');
+    drawText(text, 80, y+15, 20, '#fff', 'left');
+  } else {
+    drawText(text, W/2, y+2, 22, '#fff', 'center');
+  }
+  ctx.restore();
+}
+
+function easeInOut(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2}
+function easeOut(t){return 1-Math.pow(1-t,3)}
+function lerp(a,b,t){return a+(b-a)*t}
+
+// Particles
+let particles = [];
+function addParticle(x,y,vx,vy,life,color,size){
+  particles.push({x,y,vx,vy,life,maxLife:life,color,size:size||3});
+}
+function updateParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx*dt;p.y+=p.vy*dt;
+    p.vy+=200*dt;
+    p.life-=dt;
+    if(p.life<=0)particles.splice(i,1);
+  }
+}
+function drawParticles(){
+  particles.forEach(p=>{
+    const a=p.life/p.maxLife;
+    ctx.globalAlpha=a;
+    ctx.fillStyle=p.color;
+    ctx.fillRect(p.x-p.size/2,p.y-p.size/2,p.size,p.size);
+  });
+  ctx.globalAlpha=1;
+}
+
+// Stars background
+function drawStars(t, count=80){
+  for(let i=0;i<count;i++){
+    const x=(i*137.5+t*10*(i%3+1))%W;
+    const y=(i*97.3+Math.sin(i+t)*20)%H;
+    const brightness=0.3+0.7*Math.abs(Math.sin(t*2+i));
+    ctx.globalAlpha=brightness;
+    ctx.fillStyle='#fff';
+    const s=1+i%3;
+    ctx.fillRect(x,y,s,s);
+  }
+  ctx.globalAlpha=1;
+}
+
+// ===== CHARACTER DRAWING =====
+function drawMario(x, y, scale=1, facing=1, frame=0){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(scale*facing, scale);
+  const s=1; // base scale
+  // Shoes
+  ctx.fillStyle='#5C3317';
+  ctx.fillRect(-12*s, 45*s, 11*s, 8*s);
+  ctx.fillRect(2*s, 45*s, 11*s, 8*s);
+  // Legs (blue overalls)
+  ctx.fillStyle='#1560BD';
+  ctx.fillRect(-10*s, 28*s, 9*s, 18*s);
+  ctx.fillRect(2*s, 28*s, 9*s, 18*s);
+  // Overall body
+  ctx.fillStyle='#1560BD';
+  ctx.fillRect(-12*s, 15*s, 25*s, 16*s);
+  // Overall straps
+  ctx.fillStyle='#FFD700';
+  ctx.fillRect(-8*s, 15*s, 3*s, 3*s);
+  ctx.fillRect(6*s, 15*s, 3*s, 3*s);
+  // Red shirt
+  ctx.fillStyle='#E52521';
+  ctx.fillRect(-14*s, 8*s, 29*s, 12*s);
+  // Arms
+  ctx.fillStyle='#E52521';
+  ctx.fillRect(-18*s, 10*s, 6*s, 14*s);
+  ctx.fillRect(13*s, 10*s, 6*s, 14*s);
+  // Gloves
+  ctx.fillStyle='#fff';
+  ctx.fillRect(-19*s, 22*s, 7*s, 6*s);
+  ctx.fillRect(13*s, 22*s, 7*s, 6*s);
+  // Head (skin)
+  ctx.fillStyle='#FDBCB4';
+  ctx.beginPath();
+  ctx.arc(0, -5*s, 16*s, 0, Math.PI*2);
+  ctx.fill();
+  // Nose
+  ctx.fillStyle='#FDBCB4';
+  ctx.beginPath();
+  ctx.arc(12*s, -2*s, 6*s, 0, Math.PI*2);
+  ctx.fill();
+  // Mustache
+  ctx.fillStyle='#5C3317';
+  ctx.beginPath();
+  ctx.ellipse(6*s, 4*s, 14*s, 5*s, 0, 0, Math.PI);
+  ctx.fill();
+  // Eyes
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(5*s, -8*s, 5*s, 0, Math.PI*2);ctx.fill();
+  ctx.fillStyle='#2244AA';
+  ctx.beginPath();ctx.arc(7*s, -8*s, 3*s, 0, Math.PI*2);ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.arc(7.5*s, -8*s, 1.5*s, 0, Math.PI*2);ctx.fill();
+  // Cap
+  ctx.fillStyle='#E52521';
+  ctx.beginPath();
+  ctx.arc(0, -10*s, 16*s, Math.PI, 0);
+  ctx.fill();
+  ctx.fillRect(-16*s, -10*s, 32*s, 4*s);
+  // Cap brim
+  ctx.fillStyle='#E52521';
+  ctx.fillRect(5*s, -10*s, 18*s, 5*s);
+  // M logo
+  ctx.fillStyle='#fff';
+  ctx.beginPath();
+  ctx.arc(2*s, -18*s, 7*s, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle='#E52521';
+  ctx.font=`bold ${11*s}px Arial`;
+  ctx.textAlign='center';
+  ctx.fillText('M', 2*s, -14*s);
+  ctx.restore();
+}
+
+function drawLuigi(x, y, scale=1, facing=1, scared=false){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(scale*facing, scale);
+  const s=1;
+  // Shoes
+  ctx.fillStyle='#5C3317';
+  ctx.fillRect(-10*s, 52*s, 10*s, 8*s);
+  ctx.fillRect(1*s, 52*s, 10*s, 8*s);
+  // Legs (darker blue)
+  ctx.fillStyle='#1a3a6a';
+  ctx.fillRect(-8*s, 32*s, 8*s, 21*s);
+  ctx.fillRect(1*s, 32*s, 8*s, 21*s);
+  // Overall body
+  ctx.fillStyle='#1a3a6a';
+  ctx.fillRect(-10*s, 18*s, 21*s, 17*s);
+  ctx.fillStyle='#FFD700';
+  ctx.fillRect(-6*s,18*s,3*s,3*s);
+  ctx.fillRect(4*s,18*s,3*s,3*s);
+  // Green shirt
+  ctx.fillStyle='#049B0A';
+  ctx.fillRect(-12*s, 8*s, 25*s, 14*s);
+  // Arms
+  ctx.fillStyle='#049B0A';
+  ctx.fillRect(-16*s, 10*s, 5*s, 14*s);
+  ctx.fillRect(12*s, 10*s, 5*s, 14*s);
+  // Gloves
+  ctx.fillStyle='#fff';
+  ctx.fillRect(-17*s, 22*s, 6*s, 6*s);
+  ctx.fillRect(12*s, 22*s, 6*s, 6*s);
+  // Head
+  ctx.fillStyle='#FDBCB4';
+  ctx.beginPath();ctx.arc(0,-5*s,15*s,0,Math.PI*2);ctx.fill();
+  // Nose
+  ctx.fillStyle='#FDBCB4';
+  ctx.beginPath();ctx.arc(10*s,-2*s,5*s,0,Math.PI*2);ctx.fill();
+  // Mustache (thinner)
+  ctx.fillStyle='#5C3317';
+  ctx.beginPath();ctx.ellipse(5*s,4*s,11*s,3*s,0,0,Math.PI);ctx.fill();
+  // Eyes
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(5*s,-8*s,5*s,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#2244AA';
+  ctx.beginPath();ctx.arc(7*s,-8*s,3*s,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.arc(7.5*s,-8*s,1.5*s,0,Math.PI*2);ctx.fill();
+  if(scared){
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(5*s,-8*s,6*s,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#000';
+    ctx.beginPath();ctx.arc(6*s,-8*s,3.5*s,0,Math.PI*2);ctx.fill();
+    // Open mouth
+    ctx.fillStyle='#000';
+    ctx.beginPath();ctx.ellipse(6*s,5*s,5*s,4*s,0,0,Math.PI*2);ctx.fill();
+  }
+  // Cap
+  ctx.fillStyle='#049B0A';
+  ctx.beginPath();ctx.arc(0,-10*s,15*s,Math.PI,0);ctx.fill();
+  ctx.fillRect(-15*s,-10*s,30*s,4*s);
+  ctx.fillRect(5*s,-10*s,16*s,5*s);
+  // L logo
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(2*s,-18*s,7*s,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#049B0A';
+  ctx.font=`bold ${11*s}px Arial`;ctx.textAlign='center';
+  ctx.fillText('L',2*s,-14*s);
+  ctx.restore();
+}
+
+function drawPeach(x, y, scale=1, facing=1){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(scale*facing, scale);
+  const s=1;
+  // Dress bottom (wide)
+  ctx.fillStyle='#FF69B4';
+  const dressGrad = ctx.createLinearGradient(0,15*s,0,55*s);
+  dressGrad.addColorStop(0,'#FF69B4');
+  dressGrad.addColorStop(1,'#FF1493');
+  ctx.fillStyle=dressGrad;
+  ctx.beginPath();
+  ctx.moveTo(-8*s,15*s);
+  ctx.lineTo(-22*s,55*s);
+  ctx.lineTo(22*s,55*s);
+  ctx.lineTo(8*s,15*s);
+  ctx.closePath();
+  ctx.fill();
+  // Shoes
+  ctx.fillStyle='#FF1493';
+  ctx.fillRect(-14*s,52*s,10*s,5*s);
+  ctx.fillRect(5*s,52*s,10*s,5*s);
+  // Body/torso
+  ctx.fillStyle='#FF69B4';
+  ctx.fillRect(-10*s,5*s,20*s,14*s);
+  // Gemstone
+  ctx.fillStyle='#4169E1';
+  ctx.beginPath();ctx.arc(0,10*s,4*s,0,Math.PI*2);ctx.fill();
+  // Arms
+  ctx.fillStyle='#FDBCB4';
+  ctx.fillRect(-14*s,6*s,5*s,16*s);
+  ctx.fillRect(9*s,6*s,5*s,16*s);
+  // Gloves
+  ctx.fillStyle='#fff';
+  ctx.fillRect(-15*s,18*s,6*s,6*s);
+  ctx.fillRect(9*s,18*s,6*s,6*s);
+  // Head
+  ctx.fillStyle='#FDBCB4';
+  ctx.beginPath();ctx.arc(0,-10*s,14*s,0,Math.PI*2);ctx.fill();
+  // Hair (blonde, long)
+  ctx.fillStyle='#FFD700';
+  ctx.beginPath();
+  ctx.arc(0,-14*s,15*s,Math.PI+0.3,0-0.3);
+  ctx.fill();
+  // Hair sides flowing down
+  ctx.fillStyle='#FFD700';
+  ctx.fillRect(-16*s,-12*s,5*s,35*s);
+  ctx.fillRect(11*s,-12*s,5*s,35*s);
+  // Crown
+  ctx.fillStyle='#FFD700';
+  ctx.fillRect(-8*s,-28*s,16*s,6*s);
+  ctx.beginPath();
+  ctx.moveTo(-8*s,-28*s);ctx.lineTo(-6*s,-34*s);ctx.lineTo(-4*s,-28*s);
+  ctx.moveTo(-2*s,-28*s);ctx.lineTo(0,-36*s);ctx.lineTo(2*s,-28*s);
+  ctx.moveTo(4*s,-28*s);ctx.lineTo(6*s,-34*s);ctx.lineTo(8*s,-28*s);
+  ctx.fill();
+  // Crown gems
+  ctx.fillStyle='#E52521';
+  ctx.beginPath();ctx.arc(0,-30*s,2*s,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#4169E1';
+  ctx.beginPath();ctx.arc(-6*s,-29*s,1.5*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(6*s,-29*s,1.5*s,0,Math.PI*2);ctx.fill();
+  // Eyes
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(-4*s,-12*s,4*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(6*s,-12*s,4*s,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#4169E1';
+  ctx.beginPath();ctx.arc(-3*s,-12*s,2.5*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(7*s,-12*s,2.5*s,0,Math.PI*2);ctx.fill();
+  // Lips
+  ctx.fillStyle='#E52521';
+  ctx.beginPath();ctx.ellipse(2*s,-2*s,5*s,2*s,0,0,Math.PI);ctx.fill();
+  // Earrings
+  ctx.fillStyle='#4169E1';
+  ctx.beginPath();ctx.arc(-14*s,-6*s,3*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(14*s,-6*s,3*s,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+
+function drawBowser(x, y, scale=1, invincible=false){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(scale,scale);
+  const s=1;
+  if(invincible){
+    ctx.shadowColor=`hsl(${(globalTime*200)%360},100%,50%)`;
+    ctx.shadowBlur=30;
+  }
+  // Shell
+  ctx.fillStyle='#228B22';
+  ctx.beginPath();ctx.ellipse(0,10*s,30*s,25*s,0,0,Math.PI*2);ctx.fill();
+  // Shell spikes
+  ctx.fillStyle='#fff';
+  for(let i=-2;i<=2;i++){
+    ctx.beginPath();
+    const sx=i*12*s, sy=-8*s+Math.abs(i)*5*s;
+    ctx.moveTo(sx-4*s,sy);ctx.lineTo(sx,sy-12*s);ctx.lineTo(sx+4*s,sy);
+    ctx.closePath();ctx.fill();
+  }
+  // Body
+  ctx.fillStyle='#F4A460';
+  ctx.beginPath();ctx.ellipse(0,20*s,25*s,20*s,0,0.3,Math.PI-0.3);ctx.fill();
+  // Belly
+  ctx.fillStyle='#FFECD2';
+  ctx.beginPath();ctx.ellipse(0,22*s,16*s,14*s,0,0.3,Math.PI-0.3);ctx.fill();
+  // Legs
+  ctx.fillStyle='#F4A460';
+  ctx.fillRect(-20*s,35*s,14*s,15*s);
+  ctx.fillRect(6*s,35*s,14*s,15*s);
+  // Feet
+  ctx.fillStyle='#F4A460';
+  ctx.fillRect(-22*s,47*s,17*s,8*s);
+  ctx.fillRect(5*s,47*s,17*s,8*s);
+  // Claws
+  ctx.fillStyle='#fff';
+  for(let i=0;i<3;i++){
+    ctx.fillRect(-22*s+i*5*s,47*s,3*s,4*s);
+    ctx.fillRect(7*s+i*5*s,47*s,3*s,4*s);
+  }
+  // Arms
+  ctx.fillStyle='#F4A460';
+  ctx.fillRect(-32*s,8*s,10*s,18*s);
+  ctx.fillRect(22*s,8*s,10*s,18*s);
+  // Spiked arm bands
+  ctx.fillStyle='#333';
+  ctx.fillRect(-33*s,12*s,12*s,6*s);
+  ctx.fillRect(21*s,12*s,12*s,6*s);
+  ctx.fillStyle='#C0C0C0';
+  for(let i=0;i<3;i++){
+    ctx.beginPath();ctx.arc(-27*s+i*4*s,12*s,2*s,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(24*s+i*4*s,12*s,2*s,0,Math.PI*2);ctx.fill();
+  }
+  // Head
+  ctx.fillStyle='#F4A460';
+  ctx.beginPath();ctx.ellipse(0,-18*s,22*s,18*s,0,0,Math.PI*2);ctx.fill();
+  // Snout
+  ctx.fillStyle='#FFECD2';
+  ctx.beginPath();ctx.ellipse(8*s,-12*s,14*s,10*s,0,0,Math.PI*2);ctx.fill();
+  // Nostrils
+  ctx.fillStyle='#333';
+  ctx.beginPath();ctx.arc(12*s,-14*s,2*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(18*s,-14*s,2*s,0,Math.PI*2);ctx.fill();
+  // Mouth/teeth
+  ctx.fillStyle='#8B0000';
+  ctx.beginPath();ctx.ellipse(8*s,-5*s,12*s,5*s,0,0,Math.PI);ctx.fill();
+  ctx.fillStyle='#fff';
+  for(let i=0;i<5;i++){
+    ctx.beginPath();
+    ctx.moveTo(-2*s+i*5*s,-5*s);
+    ctx.lineTo(0.5*s+i*5*s,-1*s);
+    ctx.lineTo(3*s+i*5*s,-5*s);
+    ctx.fill();
+  }
+  // Eyes
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.ellipse(-6*s,-22*s,6*s,7*s,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(10*s,-22*s,6*s,7*s,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#E52521';
+  ctx.beginPath();ctx.arc(-5*s,-22*s,3.5*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(11*s,-22*s,3.5*s,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.arc(-4*s,-22*s,2*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(12*s,-22*s,2*s,0,Math.PI*2);ctx.fill();
+  // Eyebrows (angry)
+  ctx.fillStyle='#D2691E';
+  ctx.save();ctx.translate(-6*s,-30*s);ctx.rotate(-0.3);
+  ctx.fillRect(-6*s,0,12*s,3*s);ctx.restore();
+  ctx.save();ctx.translate(10*s,-30*s);ctx.rotate(0.3);
+  ctx.fillRect(-6*s,0,12*s,3*s);ctx.restore();
+  // Horns
+  ctx.fillStyle='#FFFACD';
+  ctx.beginPath();ctx.moveTo(-14*s,-30*s);ctx.lineTo(-10*s,-48*s);ctx.lineTo(-6*s,-30*s);ctx.fill();
+  ctx.beginPath();ctx.moveTo(14*s,-30*s);ctx.lineTo(18*s,-48*s);ctx.lineTo(22*s,-30*s);ctx.fill();
+  // Red hair
+  ctx.fillStyle='#FF4500';
+  ctx.beginPath();
+  ctx.moveTo(-12*s,-33*s);
+  for(let i=0;i<6;i++){
+    ctx.lineTo(-8*s+i*5*s,-40*s-Math.sin(i*1.5+globalTime*3)*4*s);
+    ctx.lineTo(-5*s+i*5*s,-33*s);
+  }
+  ctx.closePath();ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.restore();
+}
+
+function drawToad(x, y, scale=1, facing=1){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(scale*facing, scale);
+  const s=1;
+  // Shoes
+  ctx.fillStyle='#5C3317';
+  ctx.fillRect(-8*s,28*s,7*s,5*s);
+  ctx.fillRect(1*s,28*s,7*s,5*s);
+  // Legs
+  ctx.fillStyle='#fff';
+  ctx.fillRect(-6*s,20*s,5*s,10*s);
+  ctx.fillRect(1*s,20*s,5*s,10*s);
+  // Body (vest)
+  ctx.fillStyle='#4169E1';
+  ctx.fillRect(-8*s,8*s,16*s,14*s);
+  // White undershirt
+  ctx.fillStyle='#fff';
+  ctx.fillRect(-4*s,8*s,8*s,14*s);
+  // Arms
+  ctx.fillStyle='#FDBCB4';
+  ctx.fillRect(-12*s,10*s,5*s,10*s);
+  ctx.fillRect(7*s,10*s,5*s,10*s);
+  // Head
+  ctx.fillStyle='#FDBCB4';
+  ctx.beginPath();ctx.arc(0,2*s,10*s,0,Math.PI*2);ctx.fill();
+  // Eyes
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.ellipse(-4*s,-1*s,2.5*s,3*s,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(4*s,-1*s,2.5*s,3*s,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(-4*s,-2*s,1*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(4*s,-2*s,1*s,0,Math.PI*2);ctx.fill();
+  // Mouth (happy)
+  ctx.strokeStyle='#000';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(0,3*s,4*s,0.1,Math.PI-0.1);ctx.stroke();
+  // Mushroom cap
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.ellipse(0,-8*s,18*s,14*s,0,Math.PI,0);ctx.fill();
+  // Red spots
+  ctx.fillStyle='#E52521';
+  ctx.beginPath();ctx.arc(-8*s,-16*s,6*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(8*s,-16*s,6*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(0,-22*s,5*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(-13*s,-10*s,4*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(13*s,-10*s,4*s,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+
+function drawDK(x, y, scale=1, facing=1){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(scale*facing, scale);
+  const s=1;
+  // Feet
+  ctx.fillStyle='#5C3317';
+  ctx.beginPath();ctx.ellipse(-14*s,55*s,10*s,6*s,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(14*s,55*s,10*s,6*s,0,0,Math.PI*2);ctx.fill();
+  // Legs
+  ctx.fillStyle='#8B4513';
+  ctx.fillRect(-18*s,35*s,12*s,22*s);
+  ctx.fillRect(6*s,35*s,12*s,22*s);
+  // Body
+  ctx.fillStyle='#8B4513';
+  ctx.beginPath();ctx.ellipse(0,18*s,22*s,22*s,0,0,Math.PI*2);ctx.fill();
+  // Belly
+  ctx.fillStyle='#D2B48C';
+  ctx.beginPath();ctx.ellipse(0,22*s,14*s,14*s,0,0,Math.PI*2);ctx.fill();
+  // Arms (big!)
+  ctx.fillStyle='#8B4513';
+  ctx.fillRect(-34*s,2*s,14*s,28*s);
+  ctx.fillRect(20*s,2*s,14*s,28*s);
+  // Hands
+  ctx.fillStyle='#5C3317';
+  ctx.beginPath();ctx.ellipse(-27*s,32*s,8*s,6*s,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(27*s,32*s,8*s,6*s,0,0,Math.PI*2);ctx.fill();
+  // Head
+  ctx.fillStyle='#8B4513';
+  ctx.beginPath();ctx.ellipse(0,-12*s,18*s,18*s,0,0,Math.PI*2);ctx.fill();
+  // Face
+  ctx.fillStyle='#D2B48C';
+  ctx.beginPath();ctx.ellipse(4*s,-8*s,14*s,13*s,0,0,Math.PI*2);ctx.fill();
+  // Eyes
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.ellipse(-4*s,-16*s,5*s,6*s,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(8*s,-16*s,5*s,6*s,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.arc(-3*s,-16*s,3*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(9*s,-16*s,3*s,0,Math.PI*2);ctx.fill();
+  // Grin
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.ellipse(4*s,-2*s,10*s,5*s,0,0.1,Math.PI-0.1);ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.fillRect(-4*s,-4*s,16*s,3*s);
+  // Brow ridge
+  ctx.fillStyle='#5C3317';
+  ctx.fillRect(-10*s,-24*s,24*s,4*s);
+  // Hair tuft
+  ctx.fillStyle='#8B4513';
+  ctx.beginPath();
+  ctx.moveTo(-10*s,-28*s);ctx.lineTo(-5*s,-36*s);ctx.lineTo(0,-28*s);
+  ctx.lineTo(5*s,-38*s);ctx.lineTo(10*s,-28*s);ctx.fill();
+  // DK Tie
+  ctx.fillStyle='#E52521';
+  ctx.beginPath();
+  ctx.moveTo(-5*s,2*s);ctx.lineTo(5*s,2*s);
+  ctx.lineTo(7*s,22*s);ctx.lineTo(0,26*s);ctx.lineTo(-7*s,22*s);
+  ctx.closePath();ctx.fill();
+  ctx.fillStyle='#FFD700';
+  ctx.font=`bold ${10*s}px Arial`;ctx.textAlign='center';
+  ctx.fillText('DK',0,16*s);
+  ctx.restore();
+}
+
+function drawCrankyKong(x, y, scale=1){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(scale,scale);
+  const s=1;
+  // Body (old ape, smaller)
+  ctx.fillStyle='#8B7355';
+  ctx.beginPath();ctx.ellipse(0,15*s,18*s,18*s,0,0,Math.PI*2);ctx.fill();
+  // Belly
+  ctx.fillStyle='#C4B18C';
+  ctx.beginPath();ctx.ellipse(0,18*s,11*s,11*s,0,0,Math.PI*2);ctx.fill();
+  // Head
+  ctx.fillStyle='#8B7355';
+  ctx.beginPath();ctx.ellipse(0,-10*s,16*s,16*s,0,0,Math.PI*2);ctx.fill();
+  // Face
+  ctx.fillStyle='#C4B18C';
+  ctx.beginPath();ctx.ellipse(3*s,-8*s,12*s,11*s,0,0,Math.PI*2);ctx.fill();
+  // White beard
+  ctx.fillStyle='#E8E8E8';
+  ctx.beginPath();
+  ctx.moveTo(-8*s,0);ctx.lineTo(-12*s,18*s);ctx.lineTo(0,22*s);
+  ctx.lineTo(12*s,18*s);ctx.lineTo(8*s,0);
+  ctx.closePath();ctx.fill();
+  // Eyes (grumpy, half-closed)
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.ellipse(-4*s,-14*s,4*s,3*s,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(8*s,-14*s,4*s,3*s,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.arc(-3*s,-14*s,2*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(9*s,-14*s,2*s,0,Math.PI*2);ctx.fill();
+  // Grumpy eyebrows
+  ctx.fillStyle='#E8E8E8';
+  ctx.fillRect(-9*s,-19*s,10*s,3*s);
+  ctx.fillRect(3*s,-19*s,10*s,3*s);
+  // Crown
+  ctx.fillStyle='#FFD700';
+  ctx.fillRect(-8*s,-28*s,16*s,5*s);
+  ctx.beginPath();
+  ctx.moveTo(-8*s,-28*s);ctx.lineTo(-5*s,-34*s);ctx.lineTo(-2*s,-28*s);
+  ctx.moveTo(2*s,-28*s);ctx.lineTo(5*s,-34*s);ctx.lineTo(8*s,-28*s);ctx.fill();
+  // Cane
+  ctx.strokeStyle='#8B4513';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(18*s,0);ctx.lineTo(20*s,40*s);ctx.stroke();
+  ctx.beginPath();ctx.arc(18*s,-2*s,4*s,Math.PI,0);ctx.stroke();
+  ctx.restore();
+}
+
+function drawKamek(x, y, scale=1){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(scale,scale);
+  const s=1;
+  // Robe
+  ctx.fillStyle='#1E40AF';
+  ctx.beginPath();
+  ctx.moveTo(-8*s,0);ctx.lineTo(-16*s,40*s);ctx.lineTo(16*s,40*s);ctx.lineTo(8*s,0);
+  ctx.closePath();ctx.fill();
+  // White trim
+  ctx.fillStyle='#fff';
+  ctx.fillRect(-6*s,0,12*s,4*s);
+  // Head
+  ctx.fillStyle='#9ACD32';
+  ctx.beginPath();ctx.ellipse(0,-10*s,12*s,12*s,0,0,Math.PI*2);ctx.fill();
+  // Snout
+  ctx.fillStyle='#FFECD2';
+  ctx.beginPath();ctx.ellipse(6*s,-6*s,8*s,6*s,0,0,Math.PI*2);ctx.fill();
+  // Glasses
+  ctx.strokeStyle='#000';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(-3*s,-12*s,5*s,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(7*s,-12*s,5*s,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(2*s,-12*s);ctx.lineTo(3*s,-12*s);ctx.stroke();
+  // Eyes behind glasses
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.arc(-3*s,-12*s,2*s,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(7*s,-12*s,2*s,0,Math.PI*2);ctx.fill();
+  // Hat
+  ctx.fillStyle='#1E40AF';
+  ctx.beginPath();
+  ctx.moveTo(-14*s,-16*s);ctx.lineTo(0,-38*s);ctx.lineTo(14*s,-16*s);
+  ctx.closePath();ctx.fill();
+  // Star on hat
+  ctx.fillStyle='#FFD700';
+  ctx.font='bold 10px Arial';ctx.textAlign='center';
+  ctx.fillText('\u2605',0,-26*s);
+  // Wand
+  ctx.strokeStyle='#8B4513';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(14*s,5*s);ctx.lineTo(28*s,-15*s);ctx.stroke();
+  // Wand sparkle
+  ctx.fillStyle='#FFD700';
+  const sparkleT = globalTime*5;
+  for(let i=0;i<3;i++){
+    const a=sparkleT+i*2.1;
+    const sx=28*s+Math.cos(a)*5*s;
+    const sy=-15*s+Math.sin(a)*5*s;
+    ctx.beginPath();ctx.arc(sx,sy,2*s,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawSuperStar(x, y, size=20, glow=true){
+  ctx.save();
+  ctx.translate(x,y);
+  if(glow){
+    ctx.shadowColor=`hsl(${(globalTime*100)%360},100%,70%)`;
+    ctx.shadowBlur=20;
+  }
+  ctx.fillStyle='#FFD700';
+  ctx.beginPath();
+  for(let i=0;i<5;i++){
+    const a=i*Math.PI*2/5-Math.PI/2;
+    const r=size;
+    ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
+    const a2=a+Math.PI/5;
+    ctx.lineTo(Math.cos(a2)*r*0.4,Math.sin(a2)*r*0.4);
+  }
+  ctx.closePath();ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.arc(-4,-3,2,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(4,-3,2,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.restore();
+}
+
+function drawQuestionBlock(x, y, size=30){
+  ctx.fillStyle='#FFD700';
+  ctx.fillRect(x-size/2,y-size/2,size,size);
+  ctx.strokeStyle='#B8860B';
+  ctx.lineWidth=2;
+  ctx.strokeRect(x-size/2,y-size/2,size,size);
+  ctx.fillStyle='#B8860B';
+  ctx.font=`bold ${size*0.6}px Arial`;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('?',x,y+1);
+}
+
+function drawCoin(x, y, size=12, t=0){
+  const sx=Math.abs(Math.sin(t*3+x*0.1))*size;
+  ctx.fillStyle='#FFD700';
+  ctx.beginPath();ctx.ellipse(x,y,sx,size,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#B8860B';ctx.lineWidth=1;
+  ctx.beginPath();ctx.ellipse(x,y,sx,size,0,0,Math.PI*2);ctx.stroke();
+}
+
+function drawPipe(x, y, height=60, width=50){
+  ctx.fillStyle='#049B0A';
+  ctx.fillRect(x-width/2,y-height,width,height);
+  ctx.fillRect(x-width/2-5,y-height,width+10,15);
+  ctx.fillStyle='#06C90E';
+  ctx.fillRect(x-width/2+4,y-height+15,8,height-15);
+  ctx.strokeStyle='#036B03';ctx.lineWidth=2;
+  ctx.strokeRect(x-width/2,y-height,width,height);
+  ctx.strokeRect(x-width/2-5,y-height,width+10,15);
+}
+
+function drawBrick(x, y, w=30, h=20){
+  ctx.fillStyle='#B8553A';
+  ctx.fillRect(x,y,w,h);
+  ctx.strokeStyle='#8B3A2A';ctx.lineWidth=1;
+  ctx.strokeRect(x,y,w,h);
+  ctx.strokeRect(x+w/2,y,0.5,h);
+  ctx.strokeRect(x,y+h/2,w,0.5);
+}
+
+function drawMushroom(x, y, scale=1, color='#E52521'){
+  ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
+  ctx.fillStyle='#FFECD2';
+  ctx.fillRect(-6,2,12,10);
+  ctx.fillStyle=color;
+  ctx.beginPath();ctx.ellipse(0,-2,14,12,0,Math.PI,0);ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(-6,-6,4,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(6,-6,4,0,Math.PI*2);ctx.fill();
+  // Eyes
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.arc(-3,4,1.5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(3,4,1.5,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+
+function drawFireball(x, y, size=8){
+  ctx.fillStyle='#FF4500';
+  ctx.beginPath();ctx.arc(x,y,size,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#FFD700';
+  ctx.beginPath();ctx.arc(x-1,y-1,size*0.6,0,Math.PI*2);ctx.fill();
+}
+
+function drawYoshiEgg(x, y, scale=1){
+  ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
+  ctx.fillStyle='#90EE90';
+  ctx.beginPath();ctx.ellipse(0,0,16,20,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(-5,-5,5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(5,-3,4,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(0,5,5,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+
+function drawYoshi(x, y, scale=1){
+  ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
+  // Body
+  ctx.fillStyle='#32CD32';
+  ctx.beginPath();ctx.ellipse(0,10,16,14,0,0,Math.PI*2);ctx.fill();
+  // Belly
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.ellipse(2,12,10,10,0,0,Math.PI*2);ctx.fill();
+  // Head
+  ctx.fillStyle='#32CD32';
+  ctx.beginPath();ctx.ellipse(8,-10,14,12,0.2,0,Math.PI*2);ctx.fill();
+  // Nose/snout
+  ctx.fillStyle='#32CD32';
+  ctx.beginPath();ctx.ellipse(22,-10,8,6,0,0,Math.PI*2);ctx.fill();
+  // Nostril
+  ctx.fillStyle='#228B22';
+  ctx.beginPath();ctx.arc(26,-10,2,0,Math.PI*2);ctx.fill();
+  // Eye
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.ellipse(10,-16,6,8,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.arc(12,-16,3,0,Math.PI*2);ctx.fill();
+  // Shell (red)
+  ctx.fillStyle='#E52521';
+  ctx.beginPath();ctx.ellipse(-2,4,10,8,0,0,Math.PI*2);ctx.fill();
+  // Arms
+  ctx.fillStyle='#32CD32';
+  ctx.fillRect(-12,4,6,10);
+  ctx.fillRect(10,4,6,10);
+  // Shoes
+  ctx.fillStyle='#FF8C00';
+  ctx.fillRect(-10,22,10,5);
+  ctx.fillRect(4,22,10,5);
+  ctx.restore();
+}
+
+// ===== BACKGROUND DRAWING =====
+function drawSky(topColor='#87CEEB',bottomColor='#B0E0E6'){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,topColor);g.addColorStop(1,bottomColor);
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+}
+
+function drawSunset(){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#1a0533');g.addColorStop(0.3,'#FF6B35');
+  g.addColorStop(0.5,'#FF8C42');g.addColorStop(0.7,'#FFA07A');
+  g.addColorStop(1,'#2a1a3a');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+}
+
+function drawDarkLands(){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#1a0000');g.addColorStop(0.5,'#330000');
+  g.addColorStop(0.8,'#4a1500');g.addColorStop(1,'#FF4500');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+}
+
+function drawGround(y=H-60, color='#228B22', dirtColor='#8B4513'){
+  ctx.fillStyle=dirtColor;ctx.fillRect(0,y,W,H-y);
+  ctx.fillStyle=color;ctx.fillRect(0,y,W,15);
+}
+
+function drawHills(y, t, color1='#2E8B57', color2='#3CB371'){
+  for(let i=0;i<6;i++){
+    const hx = ((i*280-t*15)%1600+1600)%1600-200;
+    const hh = 60+Math.sin(i*1.5)*30;
+    ctx.fillStyle=i%2===0?color1:color2;
+    ctx.beginPath();
+    ctx.arc(hx,y,hh,Math.PI,0);
+    ctx.fill();
+  }
+}
+
+function drawClouds(y, t, count=5){
+  ctx.fillStyle='rgba(255,255,255,0.8)';
+  for(let i=0;i<count;i++){
+    const cx=((i*310+t*20*(i%2+1))%1500+1500)%1500-100;
+    const cy=y+Math.sin(i*2)*30;
+    ctx.beginPath();
+    ctx.arc(cx,cy,25,0,Math.PI*2);
+    ctx.arc(cx+20,cy-10,20,0,Math.PI*2);
+    ctx.arc(cx+40,cy,22,0,Math.PI*2);
+    ctx.arc(cx+18,cy+5,18,0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function drawBuilding(x, y, w, h, color='#444'){
+  ctx.fillStyle=color;
+  ctx.fillRect(x,y-h,w,h);
+  // Windows
+  ctx.fillStyle='#FFD700';
+  const ww=6, wh=8, gap=14;
+  for(let wy=y-h+15;wy<y-10;wy+=gap){
+    for(let wx=x+8;wx<x+w-8;wx+=gap){
+      if(Math.random()>0.2){
+        ctx.fillStyle=Math.random()>0.5?'#FFD700':'#FFA500';
+        ctx.fillRect(wx,wy,ww,wh);
+      }
+    }
+  }
+}
+
+function drawBrooklynSkyline(t){
+  drawSunset();
+  // Sun
+  ctx.fillStyle='#FF6347';
+  ctx.beginPath();ctx.arc(W*0.7,H*0.35,60,0,Math.PI*2);ctx.fill();
+  // Bridge silhouette
+  ctx.fillStyle='#1a1a2e';
+  ctx.fillRect(0,H-140,W,10);
+  // Bridge towers
+  ctx.fillRect(200,H-250,20,120);
+  ctx.fillRect(500,H-250,20,120);
+  // Bridge cables
+  ctx.strokeStyle='#1a1a2e';ctx.lineWidth=3;
+  ctx.beginPath();
+  ctx.moveTo(200,H-250);
+  ctx.quadraticCurveTo(350,H-160,500,H-250);
+  ctx.stroke();
+  // Buildings
+  const buildings=[
+    {x:30,h:200,w:60,c:'#2a2a3e'},{x:100,h:280,w:45,c:'#333355'},
+    {x:160,h:180,w:70,c:'#2d2d44'},{x:600,h:250,w:55,c:'#2a2a3e'},
+    {x:670,h:320,w:50,c:'#333355'},{x:740,h:200,w:65,c:'#2d2d44'},
+    {x:820,h:260,w:55,c:'#2a2a3e'},{x:900,h:190,w:70,c:'#333355'},
+    {x:980,h:300,w:50,c:'#2d2d44'},{x:1050,h:220,w:60,c:'#2a2a3e'},
+    {x:1130,h:270,w:55,c:'#333355'},
+  ];
+  buildings.forEach(b=>drawBuilding(b.x,H-60,b.w,b.h,b.c));
+  // Water
+  ctx.fillStyle='rgba(30,40,80,0.7)';
+  ctx.fillRect(0,H-60,W,60);
+  // Water reflections
+  for(let i=0;i<20;i++){
+    ctx.fillStyle=`rgba(255,165,0,${0.1+Math.sin(t*2+i)*0.05})`;
+    ctx.fillRect(i*65+Math.sin(t+i)*10,H-55+Math.sin(t*1.5+i)*3,40,2);
+  }
+}
+
+function drawMushroomKingdom(t){
+  drawSky();
+  drawClouds(60,t);
+  // Floating ? blocks
+  for(let i=0;i<4;i++){
+    drawQuestionBlock(200+i*250, 200+Math.sin(t*2+i)*15);
+  }
+  // Hills with eyes
+  drawHills(H-60,t);
+  for(let i=0;i<5;i++){
+    const hx=((i*280-t*15)%1600+1600)%1600-200;
+    const hh=60+Math.sin(i*1.5)*30;
+    // Hill eyes
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(hx-10,H-60-hh*0.6,6,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(hx+10,H-60-hh*0.6,6,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#000';
+    ctx.beginPath();ctx.arc(hx-8,H-60-hh*0.6,3,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(hx+12,H-60-hh*0.6,3,0,Math.PI*2);ctx.fill();
+  }
+  // Giant mushrooms
+  for(let i=0;i<3;i++){
+    const mx=300+i*350;
+    ctx.fillStyle='#DEB887';
+    ctx.fillRect(mx-8,H-140,16,80);
+    ctx.fillStyle='#E52521';
+    ctx.beginPath();ctx.ellipse(mx,H-140,40,25,0,Math.PI,0);ctx.fill();
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(mx-15,H-152,8,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(mx+15,H-152,8,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(mx,H-160,6,0,Math.PI*2);ctx.fill();
+  }
+  // Coins floating
+  for(let i=0;i<6;i++){
+    drawCoin(150+i*180, 150+Math.sin(t*3+i*1.5)*20, 10, t);
+  }
+  drawGround();
+  // Pipes
+  drawPipe(100, H-60, 50);
+  drawPipe(W-100, H-60, 70);
+}
+
+// ===== SCENE RENDERERS =====
+const sceneRenderers = [];
+
+// Scene 0: Title Sequence
+sceneRenderers[0] = function(t){
+  // Pipe green background with pixel effect
+  const pixelPhase = Math.min(1, t/4);
+  ctx.fillStyle='#049B0A';
+  ctx.fillRect(0,0,W,H);
+  // Pixel grid effect fading out
+  if(pixelPhase<1){
+    const blockSize = Math.max(1, Math.floor(20*(1-pixelPhase)));
+    if(blockSize>1){
+      for(let py=0;py<H;py+=blockSize){
+        for(let px=0;px<W;px+=blockSize){
+          const shade=Math.sin(px*0.01+py*0.01)*20;
+          ctx.fillStyle=`rgb(${4+shade},${155+shade},${10+shade})`;
+          ctx.fillRect(px,py,blockSize,blockSize);
+        }
+      }
+    }
+  }
+  // Brick pattern
+  for(let by=0;by<H;by+=24){
+    for(let bx=0;bx<W;bx+=34){
+      const offset=(Math.floor(by/24)%2)*17;
+      ctx.strokeStyle='rgba(0,80,0,0.3)';ctx.lineWidth=1;
+      ctx.strokeRect(bx+offset,by,34,24);
+    }
+  }
+  // Floating coins and mushrooms
+  for(let i=0;i<10;i++){
+    const cx=(i*140+50)%W;
+    const cy=((i*97+t*40)%H+H)%H;
+    if(i%3===0){
+      drawCoin(cx,cy,8,t);
+    } else if(i%3===1){
+      // Mushroom icon
+      ctx.fillStyle='#E52521';
+      ctx.beginPath();ctx.ellipse(cx,cy-6,10,8,0,Math.PI,0);ctx.fill();
+      ctx.fillStyle='#fff';
+      ctx.beginPath();ctx.arc(cx-4,cy-9,3,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(cx+4,cy-9,3,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#FFECD2';
+      ctx.fillRect(cx-5,cy-6,10,8);
+    } else {
+      drawSuperStar(cx,cy,10,false);
+    }
+  }
+  // "STREAMFLIX PRESENTS"
+  if(t>1 && t<5){
+    const alpha=t<2?t-1:t>4?5-t:1;
+    ctx.globalAlpha=alpha;
+    drawText('STREAMFLIX PRESENTS', W/2, H/2-60, 28, '#E52521');
+    ctx.globalAlpha=1;
+  }
+  // Title
+  if(t>4){
+    const titleProgress = Math.min(1, (t-4)/2);
+    const titleY = H/2 + 20 - (1-easeOut(titleProgress))*100;
+    const alpha = Math.min(1, (t-4)/1.5);
+    ctx.globalAlpha=alpha;
+    // Title shadow
+    drawText('THE SUPER MARIO BROS.', W/2+3, titleY-18+3, 48, '#000',  'center', false);
+    drawText('MOVIE', W/2+3, titleY+38+3, 64, '#000', 'center', false);
+    // Title
+    drawText('THE SUPER MARIO BROS.', W/2, titleY-18, 48, '#FFD700');
+    drawText('MOVIE', W/2, titleY+38, 64, '#E52521');
+    ctx.globalAlpha=1;
+  }
+  // Pipes from bottom
+  if(t>3){
+    const pipeH = Math.min(80, (t-3)*60);
+    drawPipe(200, H, pipeH, 40);
+    drawPipe(W-200, H, pipeH, 40);
+  }
+};
+
+// Scene 1: Brooklyn
+sceneRenderers[1] = function(t){
+  drawBrooklynSkyline(t);
+  // Plumbing van
+  const vanX = 400 + t*8;
+  ctx.fillStyle='#fff';
+  ctx.fillRect(vanX,H-120,120,50);
+  ctx.fillRect(vanX+90,H-140,40,70);
+  // Van wheels
+  ctx.fillStyle='#333';
+  ctx.beginPath();ctx.arc(vanX+25,H-65,12,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(vanX+105,H-65,12,0,Math.PI*2);ctx.fill();
+  // Van text
+  ctx.fillStyle='#E52521';
+  ctx.font='bold 8px Arial';ctx.textAlign='center';
+  ctx.fillText('SUPER MARIO BROS.',vanX+55,H-100);
+  ctx.fillText('PLUMBING',vanX+55,H-90);
+  // Mario and Luigi in van
+  drawMario(vanX+95, H-155, 0.5, 1);
+  drawLuigi(vanX+115, H-158, 0.45, 1);
+  // Dialogue
+  if(t<5){
+    drawDialogue('Mario', 'Luigi, this is our big chance! Our own plumbing business!', '#E52521');
+  } else if(t<10){
+    drawDialogue('Luigi', "Are you sure about this, Mario? Dad thinks we're crazy...", '#049B0A');
+  } else {
+    drawDialogue('Mario', 'Trust me, bro. We got this!', '#E52521');
+  }
+};
+
+// Scene 2: Plumbing Job
+sceneRenderers[2] = function(t){
+  // Fancy house interior
+  ctx.fillStyle='#F5F5DC';ctx.fillRect(0,0,W,H);
+  // Wallpaper pattern
+  for(let py=0;py<H;py+=40){
+    for(let px=0;px<W;px+=40){
+      ctx.fillStyle='rgba(200,180,150,0.3)';
+      ctx.beginPath();ctx.arc(px+20,py+20,8,0,Math.PI*2);ctx.fill();
+    }
+  }
+  // Floor
+  ctx.fillStyle='#DEB887';ctx.fillRect(0,H-100,W,100);
+  for(let i=0;i<W;i+=60){
+    ctx.strokeStyle='#C8A868';ctx.lineWidth=1;
+    ctx.strokeRect(i,H-100,60,100);
+  }
+  // Pipes on wall
+  ctx.fillStyle='#808080';
+  ctx.fillRect(300,100,20,400);
+  ctx.fillRect(600,80,20,420);
+  ctx.fillRect(300,250,320,20);
+  // Water spray!
+  const sprayIntensity = Math.sin(t*5)*0.5+0.5;
+  for(let i=0;i<30;i++){
+    const angle = (i/30)*Math.PI*2+t*3;
+    const dist = 30+Math.random()*50*sprayIntensity;
+    const wx = 450+Math.cos(angle)*dist;
+    const wy = 250+Math.sin(angle)*dist;
+    ctx.fillStyle=`rgba(100,150,255,${0.3+Math.random()*0.4})`;
+    ctx.beginPath();ctx.arc(wx,wy,2+Math.random()*3,0,Math.PI*2);ctx.fill();
+  }
+  // Water on floor
+  ctx.fillStyle='rgba(100,150,255,0.3)';
+  ctx.fillRect(200,H-100,600,100);
+  // Mario with wrench
+  drawMario(380, H-160, 0.9, 1);
+  // Luigi getting sprayed
+  drawLuigi(520, H-165, 0.9, -1, t>4&&t<8);
+  // Water hitting Luigi
+  if(t>3&&t<8){
+    for(let i=0;i<10;i++){
+      ctx.fillStyle='rgba(100,150,255,0.5)';
+      ctx.beginPath();ctx.arc(520+Math.random()*30-15,H-165+Math.random()*40-20,3,0,Math.PI*2);ctx.fill();
+    }
+  }
+  if(t<5){
+    drawDialogue(null, '* Water sprays everywhere! *');
+  } else if(t<9){
+    // Drip on Mario's head
+    ctx.fillStyle='rgba(100,150,255,0.7)';
+    ctx.beginPath();ctx.arc(380,H-200+Math.sin(t*4)*5,4,0,Math.PI*2);ctx.fill();
+    drawDialogue('Mario', "See? Nailed it!", '#E52521');
+  }
+};
+
+// Scene 3: Mysterious Pipe
+sceneRenderers[3] = function(t){
+  // Sewer/underground
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#1a1a2e');g.addColorStop(1,'#2a2a3e');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // Sewer walls
+  for(let i=0;i<W;i+=40){
+    ctx.fillStyle=i%80===0?'#3a3a4e':'#2d2d40';
+    ctx.fillRect(i,0,40,H);
+  }
+  // Water
+  ctx.fillStyle='rgba(30,60,90,0.6)';
+  ctx.fillRect(0,H-80,W,80);
+  for(let i=0;i<W;i+=30){
+    ctx.fillStyle=`rgba(60,100,140,${0.3+Math.sin(t*2+i*0.1)*0.2})`;
+    ctx.fillRect(i,H-80+Math.sin(t*1.5+i*0.05)*3,25,3);
+  }
+  // THE MASSIVE GREEN PIPE - glowing!
+  const pipeGlow = Math.sin(t*3)*0.3+0.7;
+  ctx.shadowColor='#00FF00';
+  ctx.shadowBlur=30*pipeGlow;
+  drawPipe(W/2, H-80, 200, 80);
+  ctx.shadowBlur=0;
+  // Swirling energy inside pipe
+  for(let i=0;i<8;i++){
+    const angle=t*2+i*Math.PI/4;
+    const r=20+Math.sin(t*3+i)*10;
+    ctx.fillStyle=`rgba(0,255,100,${0.3+Math.sin(t+i)*0.2})`;
+    ctx.beginPath();
+    ctx.arc(W/2+Math.cos(angle)*r, H-180+Math.sin(angle)*r, 4, 0, Math.PI*2);
+    ctx.fill();
+  }
+  // Mario and Luigi approaching
+  const walkProgress = Math.min(1, t/6);
+  const marioX = lerp(150, W/2-60, easeInOut(walkProgress));
+  const luigiX = lerp(100, W/2-120, easeInOut(walkProgress));
+  drawMario(marioX, H-140, 0.8, 1);
+  drawLuigi(luigiX, H-145, 0.8, 1, true);
+  // Suction effect in later part
+  if(t>10){
+    const suckPhase = (t-10)/5;
+    for(let i=0;i<15;i++){
+      const sx=W/2+Math.cos(t*5+i)*100*(1-suckPhase);
+      const sy=H-180+Math.sin(t*5+i)*60*(1-suckPhase);
+      ctx.fillStyle=`rgba(0,255,100,${0.5*suckPhase})`;
+      ctx.beginPath();ctx.arc(sx,sy,3,0,Math.PI*2);ctx.fill();
+    }
+  }
+  if(t<5){
+    drawDialogue('Luigi', "Mario... maybe we shouldn't...", '#049B0A');
+  } else if(t<10){
+    drawDialogue('Mario', "Come on, Luigi! Where's your sense of adventure?", '#E52521');
+  } else {
+    drawDialogue(null, '* The pipe pulls them in with incredible force! *');
+  }
+};
+
+// Scene 4: Separated
+sceneRenderers[4] = function(t){
+  // Warp tunnel background
+  for(let ring=0;ring<20;ring++){
+    const r=ring*40+t*100;
+    const hue=(ring*30+t*100)%360;
+    ctx.strokeStyle=`hsla(${hue},80%,50%,${0.5-ring*0.025})`;
+    ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.ellipse(W/2,H/2,(r%800)*0.8,(r%800)*0.5,t*0.5,0,Math.PI*2);
+    ctx.stroke();
+  }
+  if(t<6){
+    // Together in tunnel
+    const wobble=Math.sin(t*8)*20;
+    drawMario(W/2-30+wobble, H/2+Math.sin(t*6)*30, 0.7, 1);
+    drawLuigi(W/2+30-wobble, H/2+Math.cos(t*6)*30, 0.7, -1, true);
+    drawDialogue(null, '* Spinning through the warp tunnel! *');
+  } else if(t<10){
+    // Split! Mario going right, Luigi going left
+    const splitProgress = (t-6)/4;
+    drawMario(W/2+splitProgress*300, H/2-splitProgress*100, 0.7*(1-splitProgress*0.3), 1);
+    drawLuigi(W/2-splitProgress*300, H/2+splitProgress*100, 0.7*(1-splitProgress*0.3), -1, true);
+    drawDialogue('Luigi', 'MARIOOO!', '#049B0A');
+  } else {
+    // Split screen
+    ctx.save();
+    // Left: Luigi in dark lands
+    ctx.beginPath();ctx.rect(0,0,W/2,H);ctx.clip();
+    drawDarkLands();
+    // Ash and bones
+    ctx.fillStyle='#666';
+    for(let i=0;i<8;i++){
+      ctx.fillRect(50+i*60,H-80+Math.random()*20,30,8);
+    }
+    drawLuigi(W/4, H-135, 0.8, 1, true);
+    ctx.restore();
+    // Right: Mario in mushroom kingdom
+    ctx.save();
+    ctx.beginPath();ctx.rect(W/2,0,W/2,H);ctx.clip();
+    drawSky();
+    drawClouds(60,t);
+    drawHills(H-60,t);
+    drawGround();
+    drawMario(W*3/4, H-120, 0.8, -1);
+    ctx.restore();
+    // Divider
+    ctx.strokeStyle='#fff';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(W/2,0);ctx.lineTo(W/2,H);ctx.stroke();
+    drawDialogue(null, '* Separated! Mario and Luigi land in different worlds *');
+  }
+};
+
+// Scene 5: Mushroom Kingdom
+sceneRenderers[5] = function(t){
+  drawMushroomKingdom(t);
+  // Mario jaw-dropped
+  const marioX=200+Math.min(t*15,200);
+  drawMario(marioX, H-120, 0.9, 1);
+  // Toad bouncing in
+  if(t>4){
+    const toadX=lerp(W+50, marioX+120, Math.min(1,(t-4)/2));
+    const toadBounce=Math.abs(Math.sin((t-4)*6))*20;
+    drawToad(toadX, H-98-toadBounce, 0.9, -1);
+  }
+  if(t<4){
+    drawDialogue('Mario', 'Where... where am I?', '#E52521');
+  } else if(t<9){
+    drawDialogue('Toad', "HEY! Are you OK? You fell from the sky! That was AWESOME!", '#4169E1');
+  } else {
+    drawDialogue('Toad', "Welcome to the Mushroom Kingdom! I'm Toad! Come on, you gotta see the princess!", '#4169E1');
+  }
+};
+
+// Scene 6: Bowser's Dark Lands
+sceneRenderers[6] = function(t){
+  drawDarkLands();
+  // Bowser's castle
+  ctx.fillStyle='#2a2a2a';
+  // Castle body
+  ctx.fillRect(W/2-150,H-350,300,290);
+  // Towers
+  ctx.fillRect(W/2-180,H-400,60,340);
+  ctx.fillRect(W/2+120,H-400,60,340);
+  // Skull entrance
+  ctx.fillStyle='#1a1a1a';
+  ctx.beginPath();ctx.arc(W/2,H-120,50,Math.PI,0);ctx.fill();
+  ctx.fillRect(W/2-50,H-120,100,60);
+  // Skull eyes
+  ctx.fillStyle='#FF4500';
+  ctx.beginPath();ctx.arc(W/2-20,H-145,12,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(W/2+20,H-145,12,0,Math.PI*2);ctx.fill();
+  // Lava moat
+  ctx.fillStyle='#FF4500';
+  ctx.fillRect(0,H-60,W,60);
+  for(let i=0;i<W;i+=20){
+    ctx.fillStyle=`rgb(255,${69+Math.sin(t*3+i*0.1)*30},0)`;
+    ctx.fillRect(i,H-60+Math.sin(t*2+i*0.05)*5,18,60);
+  }
+  // Lava bubbles
+  for(let i=0;i<5;i++){
+    const bx=(i*260+t*30)%W;
+    const by=H-60-Math.abs(Math.sin(t*2+i*1.5))*30;
+    ctx.fillStyle='#FFD700';
+    ctx.beginPath();ctx.arc(bx,by,5+Math.sin(t*4+i)*2,0,Math.PI*2);ctx.fill();
+  }
+  // Bowser on throne (interior suggested)
+  drawBowser(W/2, H-200, 1.2);
+  // Kamek with Luigi
+  if(t>4){
+    drawKamek(W/2-200, H-130, 0.8);
+    drawLuigi(W/2-130, H-130, 0.7, 1, true);
+    // Chains on Luigi
+    ctx.strokeStyle='#888';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(W/2-145,H-120);ctx.lineTo(W/2-145,H-80);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(W/2-115,H-120);ctx.lineTo(W/2-115,H-80);ctx.stroke();
+  }
+  // Super Star
+  if(t>10){
+    drawSuperStar(W/2+80, H-280, 15+Math.sin(t*3)*3);
+  }
+  if(t<4){
+    drawDialogue('Bowser', "A human? In MY kingdom? Throw him in the dungeon.", '#FF8C00');
+  } else if(t<8){
+    drawDialogue('Luigi', "Please! My brother will come for me! He always does!", '#049B0A');
+  } else if(t<12){
+    drawDialogue('Bowser', "Your brother? Ha! He'll be no match for me.", '#FF8C00');
+  } else {
+    drawDialogue('Bowser', 'With this... I will be INVINCIBLE.', '#FF8C00');
+  }
+};
+
+// Scene 7: Princess Peach
+sceneRenderers[7] = function(t){
+  // Peach's castle interior
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#FFE4E1');g.addColorStop(1,'#FFC0CB');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // Mushroom pillars
+  for(let i=0;i<5;i++){
+    const px=100+i*280;
+    ctx.fillStyle='#FFECD2';
+    ctx.fillRect(px-15,200,30,400);
+    ctx.fillStyle='#E52521';
+    ctx.beginPath();ctx.ellipse(px,200,35,20,0,Math.PI,0);ctx.fill();
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(px-10,190,6,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(px+10,190,6,0,Math.PI*2);ctx.fill();
+  }
+  // Grand floor
+  ctx.fillStyle='#FFB6C1';
+  ctx.fillRect(0,H-100,W,100);
+  // Carpet
+  ctx.fillStyle='#FF1493';
+  ctx.fillRect(W/2-60,H-100,120,100);
+  // Stained glass window
+  ctx.fillStyle='rgba(255,255,200,0.3)';
+  ctx.beginPath();ctx.arc(W/2,100,80,Math.PI,0);ctx.fill();
+  ctx.fillStyle='rgba(255,100,150,0.2)';
+  ctx.beginPath();ctx.arc(W/2,100,80,0,Math.PI);ctx.fill();
+  // Characters
+  // Toad leading Mario
+  drawToad(W/2-150, H-130, 0.8, 1);
+  drawMario(W/2-80, H-160, 0.85, 1);
+  // Peach (athletic, in training gear vibe)
+  drawPeach(W/2+100, H-160, 0.95, -1);
+  if(t<4){
+    drawDialogue('Peach', "So you're from the human world? And Bowser has your brother?", '#FF69B4');
+  } else if(t<8){
+    drawDialogue('Peach', "Bowser is planning to invade the Mushroom Kingdom. We need allies.", '#FF69B4');
+  } else if(t<12){
+    drawDialogue('Peach', "The Kong Kingdom has a powerful army. If we get them on our side...", '#FF69B4');
+  } else {
+    drawDialogue('Peach', "But first, you need to learn how to survive in this world.", '#FF69B4');
+  }
+};
+
+// Scene 8: Training Montage
+sceneRenderers[8] = function(t){
+  drawSky('#87CEEB','#90EE90');
+  drawClouds(50,t);
+  // Training course platforms
+  for(let i=0;i<6;i++){
+    ctx.fillStyle='#8B4513';
+    ctx.fillRect(100+i*180, H-150-i*40, 100, 15);
+  }
+  // Question blocks
+  drawQuestionBlock(250, H-250);
+  drawQuestionBlock(450, H-300);
+  drawGround();
+  if(t<4){
+    // Mario failing - bonking head
+    const bonkPhase=Math.sin(t*6);
+    drawMario(250, H-250+Math.abs(bonkPhase)*30, 0.8, 1);
+    // Stars around head
+    for(let i=0;i<3;i++){
+      const a=t*3+i*2.1;
+      ctx.fillStyle='#FFD700';
+      ctx.font='12px Arial';ctx.textAlign='center';
+      ctx.fillText('\u2605', 250+Math.cos(a)*20, H-280+Math.sin(a)*10);
+    }
+    drawDialogue(null, '* Mario bonks his head on a ? Block! *');
+  } else if(t<8){
+    // Super Mushroom - grow big
+    const growPhase=Math.min(1,(t-4)/2);
+    const marioScale=0.8+growPhase*0.5;
+    drawMario(450, H-120-growPhase*30, marioScale, 1);
+    // Mushroom floating nearby
+    if(t<5.5){
+      ctx.fillStyle='#E52521';
+      ctx.beginPath();ctx.ellipse(420,H-180,12,9,0,Math.PI,0);ctx.fill();
+      ctx.fillStyle='#fff';
+      ctx.beginPath();ctx.arc(416,H-185,4,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(424,H-185,4,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#FFECD2';
+      ctx.fillRect(412,H-180,16,10);
+    }
+    drawDialogue(null, '* Mario gets a Super Mushroom and grows BIG! *');
+  } else if(t<12){
+    // Fire Flower
+    drawMario(600, H-120, 0.85, 1);
+    // Fireballs
+    for(let i=0;i<3;i++){
+      const fx=650+i*60+(t-8)*80;
+      const fy=H-140+Math.abs(Math.sin((t-8)*5+i))*40;
+      if(fx<W)drawFireball(fx,fy);
+    }
+    // Toad getting scorched
+    drawToad(900, H-98, 0.8, -1);
+    // Smoke on Toad
+    for(let i=0;i<5;i++){
+      ctx.fillStyle=`rgba(100,100,100,${0.3-i*0.05})`;
+      ctx.beginPath();ctx.arc(900+Math.sin(t+i)*10, H-110-i*12, 5+i*2, 0, Math.PI*2);ctx.fill();
+    }
+    drawDialogue(null, '* Fire Flower! Mario accidentally scorches Toad! *');
+  } else {
+    // Victory pose
+    drawMario(W/2, H-120, 1, 1);
+    // Peach coaching
+    drawPeach(W/2+150, H-160, 0.85, -1);
+    // Toad cheering
+    const toadBounce=Math.abs(Math.sin(t*8))*15;
+    drawToad(W/2-150, H-98-toadBounce, 0.8, 1);
+    // Confetti
+    for(let i=0;i<20;i++){
+      const cx=(i*67+t*100)%W;
+      const cy=(i*43+t*80)%H;
+      ctx.fillStyle=`hsl(${i*36},80%,60%)`;
+      ctx.fillRect(cx,cy,6,4);
+    }
+    drawDialogue('Toad', 'WOOHOO! You did it, Mario!', '#4169E1');
+  }
+};
+
+// Scene 9: Journey to Kong Kingdom
+sceneRenderers[9] = function(t){
+  drawSky('#6495ED','#87CEEB');
+  drawClouds(40,t*1.5);
+  // Rainbow road connecting floating islands
+  ctx.lineWidth=30;
+  const rainbowColors=['#FF0000','#FF7F00','#FFFF00','#00FF00','#0000FF','#8B00FF'];
+  for(let c=0;c<rainbowColors.length;c++){
+    ctx.strokeStyle=rainbowColors[c];
+    ctx.lineWidth=6;
+    ctx.beginPath();
+    ctx.moveTo(-50,H-200+c*6);
+    for(let x=0;x<W+50;x+=10){
+      ctx.lineTo(x, H-200+c*6+Math.sin(x*0.005+t*0.5)*50);
+    }
+    ctx.stroke();
+  }
+  // Floating islands
+  for(let i=0;i<3;i++){
+    const ix=200+i*400;
+    const iy=300+Math.sin(t+i)*20;
+    ctx.fillStyle='#8B4513';
+    ctx.beginPath();ctx.ellipse(ix,iy+30,60,20,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#228B22';
+    ctx.beginPath();ctx.ellipse(ix,iy+15,55,15,0,0,Math.PI*2);ctx.fill();
+    // Trees
+    ctx.fillStyle='#006400';
+    ctx.beginPath();ctx.arc(ix,iy-10,20,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#8B4513';
+    ctx.fillRect(ix-3,iy,6,20);
+  }
+  // Kong Kingdom ahead (jungle)
+  if(t>6){
+    const jungleAlpha=Math.min(1,(t-6)/4);
+    ctx.globalAlpha=jungleAlpha;
+    // DK banners
+    ctx.fillStyle='#8B4513';
+    ctx.fillRect(W-200,H-350,15,250);
+    ctx.fillRect(W-100,H-350,15,250);
+    ctx.fillStyle='#FFD700';
+    ctx.fillRect(W-200,H-350,115,60);
+    ctx.fillStyle='#8B4513';
+    ctx.font='bold 24px Arial';ctx.textAlign='center';
+    ctx.fillText('DK',W-143,H-310);
+    ctx.globalAlpha=1;
+  }
+  drawGround(H-60,'#228B22','#8B4513');
+  // Characters walking
+  const walkX=100+t*50;
+  drawMario(walkX, H-120, 0.7, 1);
+  drawPeach(walkX+70, H-118, 0.65, 1);
+  drawToad(walkX+130, H-98, 0.6, 1);
+  drawDialogue(null, '* The heroes journey to the Kong Kingdom *');
+};
+
+// Scene 10: Cranky Kong's Challenge
+sceneRenderers[10] = function(t){
+  // Jungle palace interior
+  ctx.fillStyle='#2d1b00';ctx.fillRect(0,0,W,H);
+  // Bamboo/vine decorations
+  for(let i=0;i<8;i++){
+    ctx.fillStyle='#228B22';
+    ctx.fillRect(i*170+20,0,8,H);
+    // Leaves
+    for(let j=0;j<5;j++){
+      ctx.fillStyle='#32CD32';
+      ctx.beginPath();
+      const lx=i*170+24;
+      const ly=j*120+50;
+      ctx.ellipse(lx+(j%2?15:-15),ly,12,6,j%2?0.5:-0.5,0,Math.PI*2);
+      ctx.fill();
+    }
+  }
+  // Banana decorations
+  for(let i=0;i<6;i++){
+    ctx.fillStyle='#FFD700';
+    ctx.beginPath();
+    ctx.ellipse(150+i*200,80,8,20,0.3+i*0.2,0,Math.PI*2);
+    ctx.fill();
+  }
+  // Throne
+  ctx.fillStyle='#8B4513';
+  ctx.fillRect(W/2-80,H-280,160,220);
+  ctx.fillStyle='#FFD700';
+  ctx.fillRect(W/2-90,H-290,180,20);
+  // Cranky on throne
+  drawCrankyKong(W/2, H-300, 1.2);
+  // Mario, Peach, Toad at bottom
+  drawMario(W/2-200, H-120, 0.8, 1);
+  drawPeach(W/2-120, H-130, 0.75, 1);
+  drawToad(W/2-280, H-98, 0.7, 1);
+  drawGround(H-60,'#5C3317','#3d2000');
+  if(t<4){
+    drawDialogue('Cranky Kong', 'You want MY army? Prove your worth!', '#8B7355');
+  } else if(t<8){
+    drawDialogue('Cranky Kong', 'Beat my son in the arena, and you\'ll have our support.', '#8B7355');
+  } else if(t<11){
+    drawDialogue('Mario', 'Your son? How tough can he be?', '#E52521');
+  } else {
+    // DK entrance
+    const doorOpenPhase=Math.min(1,(t-11)/2);
+    // Big doors
+    ctx.fillStyle='#5C3317';
+    ctx.fillRect(W-250,H-300,-200*doorOpenPhase,250);
+    ctx.fillRect(W-50,H-300,200*doorOpenPhase,250);
+    if(doorOpenPhase>0.5){
+      drawDK(W-150, H-125, 1.1*(doorOpenPhase), 1);
+    }
+    drawDialogue('DK', "Oh yeah! Let's-a go! ...Wait, that's YOUR line?", '#8B4513');
+  }
+};
+
+// Scene 11: Mario vs DK
+sceneRenderers[11] = function(t){
+  // Arena
+  ctx.fillStyle='#1a0a00';ctx.fillRect(0,0,W,H);
+  // Arena ring
+  ctx.fillStyle='#8B4513';
+  ctx.beginPath();ctx.ellipse(W/2,H-80,350,60,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#DEB887';
+  ctx.beginPath();ctx.ellipse(W/2,H-80,330,50,0,0,Math.PI*2);ctx.fill();
+  // Crowd (simple)
+  for(let i=0;i<30;i++){
+    const cx=50+i*42;
+    const cy=100+Math.sin(i*2+t*8)*8;
+    ctx.fillStyle=`hsl(${30+Math.sin(i)*15},50%,35%)`;
+    ctx.beginPath();ctx.arc(cx,cy,10,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=`hsl(${30+Math.sin(i)*15},50%,45%)`;
+    ctx.beginPath();ctx.arc(cx,cy-8,8,0,Math.PI*2);ctx.fill();
+  }
+  // "FIGHT!" text
+  if(t<2){
+    const fightAlpha=t<1?t:2-t;
+    ctx.globalAlpha=fightAlpha;
+    drawText('FIGHT!', W/2, H/2-50, 80, '#FFD700');
+    ctx.globalAlpha=1;
+  }
+  if(t<6){
+    // DK swings, Mario dodges
+    const swingPhase=Math.sin(t*3);
+    drawDK(W/2+100, H-140, 1.1, -1);
+    drawMario(W/2-100+swingPhase*30, H-140+Math.abs(Math.sin(t*5))*20, 0.85, 1);
+  } else if(t<10){
+    // Barrels!
+    drawDK(W/2+150, H-140, 1.1, -1);
+    for(let i=0;i<3;i++){
+      const bx=W/2+100-(t-6)*80-i*100;
+      if(bx>0&&bx<W){
+        ctx.fillStyle='#8B4513';
+        ctx.beginPath();ctx.ellipse(bx,H-100,18,22,0,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle='#5C3317';ctx.lineWidth=2;
+        ctx.beginPath();ctx.ellipse(bx,H-100,18,22,0,0,Math.PI*2);ctx.stroke();
+        ctx.strokeRect(bx-15,H-100,30,2);
+      }
+    }
+    // Mario jumping over barrels
+    const jumpPhase=Math.abs(Math.sin(t*4));
+    drawMario(W/2-80, H-140-jumpPhase*60, 0.85, 1);
+    drawDialogue(null, '* DK throws barrels - classic style! *');
+  } else if(t<14){
+    // Cat suit power-up!
+    drawDK(W/2+100, H-140, 1.1, -1);
+    // Cat Mario (add cat ears and whiskers)
+    ctx.save();
+    drawMario(W/2-80, H-140, 0.85, 1);
+    // Cat ears
+    ctx.fillStyle='#FFD700';
+    ctx.beginPath();
+    ctx.moveTo(W/2-90,H-190);ctx.lineTo(W/2-100,H-210);ctx.lineTo(W/2-80,H-195);ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(W/2-65,H-190);ctx.lineTo(W/2-55,H-210);ctx.lineTo(W/2-75,H-195);ctx.fill();
+    // Whiskers
+    ctx.strokeStyle='#333';ctx.lineWidth=1;
+    for(let w=-1;w<=1;w++){
+      ctx.beginPath();ctx.moveTo(W/2-90,H-170+w*4);ctx.lineTo(W/2-110,H-172+w*8);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(W/2-65,H-170+w*4);ctx.lineTo(W/2-45,H-172+w*8);ctx.stroke();
+    }
+    ctx.restore();
+    drawDialogue(null, '* Cat Mario! Scratching and pouncing! *');
+  } else {
+    // Victory! Fist bump
+    drawMario(W/2-40, H-140, 0.85, 1);
+    drawDK(W/2+40, H-140, 1, -1);
+    // Fist bump effect
+    for(let i=0;i<8;i++){
+      const a=t*3+i*Math.PI/4;
+      ctx.fillStyle=`hsl(${i*45},80%,60%)`;
+      ctx.beginPath();ctx.arc(W/2+Math.cos(a)*30, H-160+Math.sin(a)*30, 4, 0, Math.PI*2);ctx.fill();
+    }
+    if(t<16){
+      drawDialogue('DK', 'Not bad, tiny man! I like you!', '#8B4513');
+    } else {
+      drawDialogue(null, '* Alliance formed! *');
+    }
+  }
+};
+
+// Scene 12: Rainbow Road
+sceneRenderers[12] = function(t){
+  // Space background
+  ctx.fillStyle='#0a0020';ctx.fillRect(0,0,W,H);
+  drawStars(t);
+  // Rainbow road
+  const roadY=H-200;
+  for(let rx=0;rx<W;rx+=4){
+    const ry=roadY+Math.sin(rx*0.008+t*2)*40;
+    const hue=(rx*0.3+t*50)%360;
+    ctx.fillStyle=`hsl(${hue},80%,60%)`;
+    ctx.fillRect(rx,ry,6,20);
+  }
+  // Road glow
+  ctx.shadowColor='rgba(255,255,255,0.3)';
+  ctx.shadowBlur=20;
+  ctx.strokeStyle='rgba(255,255,255,0.3)';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  for(let rx=0;rx<W;rx+=10){
+    const ry=roadY+Math.sin(rx*0.008+t*2)*40;
+    if(rx===0)ctx.moveTo(rx,ry);else ctx.lineTo(rx,ry);
+  }
+  ctx.stroke();
+  ctx.shadowBlur=0;
+  // Karts
+  const kartPositions = [
+    {x:200+t*30,color:'#E52521',char:'mario'},
+    {x:350+t*30,color:'#FF69B4',char:'peach'},
+    {x:500+t*30,color:'#8B4513',char:'dk'},
+    {x:600+t*30,color:'#4169E1',char:'toad'},
+  ];
+  kartPositions.forEach(k=>{
+    const kx=(k.x%1200);
+    const ky=roadY+Math.sin(kx*0.008+t*2)*40-30;
+    // Kart body
+    ctx.fillStyle=k.color;
+    ctx.fillRect(kx-18,ky,36,16);
+    // Wheels
+    ctx.fillStyle='#333';
+    ctx.beginPath();ctx.arc(kx-12,ky+16,6,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(kx+12,ky+16,6,0,Math.PI*2);ctx.fill();
+    // Mini character
+    ctx.fillStyle=k.color;
+    ctx.beginPath();ctx.arc(kx,ky-5,8,0,Math.PI*2);ctx.fill();
+  });
+  // Bowser's airships appearing
+  if(t>10){
+    const shipAlpha=Math.min(1,(t-10)/3);
+    ctx.globalAlpha=shipAlpha;
+    for(let s=0;s<3;s++){
+      const sx=W-200+s*100;
+      const sy=100+s*50+Math.sin(t+s)*15;
+      // Airship
+      ctx.fillStyle='#5C3317';
+      ctx.beginPath();ctx.ellipse(sx,sy,60,20,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#333';
+      ctx.fillRect(sx-10,sy-30,20,30);
+      // Skull flag
+      ctx.fillStyle='#fff';
+      ctx.font='16px Arial';ctx.textAlign='center';
+      ctx.fillText('\u2620',sx,sy-22);
+    }
+    ctx.globalAlpha=1;
+    drawDialogue('Bowser', 'Going somewhere? ATTACK!', '#FF8C00');
+  } else {
+    drawDialogue(null, '* Racing across Rainbow Road in karts! *');
+  }
+};
+
+// Scene 13: Rainbow Road Battle
+sceneRenderers[13] = function(t){
+  ctx.fillStyle='#0a0020';ctx.fillRect(0,0,W,H);
+  drawStars(t);
+  // Crumbling rainbow road
+  const roadY=H-200;
+  for(let rx=0;rx<W;rx+=6){
+    const ry=roadY+Math.sin(rx*0.01+t*2)*50;
+    const crumble = rx < t*80 ? Math.random()*100 : 0;
+    if(crumble<60){
+      const hue=(rx*0.3+t*50)%360;
+      ctx.fillStyle=`hsl(${hue},80%,60%)`;
+      ctx.fillRect(rx,ry+crumble,8,18);
+    }
+  }
+  // Explosions
+  for(let i=0;i<5;i++){
+    const ex=(i*250+t*100)%W;
+    const ey=roadY-50+Math.sin(t*3+i)*80;
+    // Explosion
+    const explodeSize=20+Math.sin(t*8+i*2)*15;
+    ctx.fillStyle='#FF4500';
+    ctx.beginPath();ctx.arc(ex,ey,explodeSize,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#FFD700';
+    ctx.beginPath();ctx.arc(ex,ey,explodeSize*0.6,0,Math.PI*2);ctx.fill();
+  }
+  // Characters fighting
+  drawMario(W/2-100, roadY-70+Math.sin(t*3)*20, 0.7, 1);
+  drawDK(W/2+50, roadY-80+Math.cos(t*3)*20, 0.8, 1);
+  drawPeach(W/2-200, roadY-70, 0.65, 1);
+  // Peach with boomerang
+  const boomerangAngle=t*6;
+  ctx.fillStyle='#00BFFF';
+  ctx.save();ctx.translate(W/2-160,roadY-100);ctx.rotate(boomerangAngle);
+  ctx.beginPath();ctx.moveTo(-8,0);ctx.lineTo(0,-15);ctx.lineTo(8,0);ctx.lineTo(0,5);ctx.closePath();ctx.fill();
+  ctx.restore();
+  if(t>10){
+    // Mario and DK falling!
+    const fallPhase=(t-10)/5;
+    drawMario(W/2+fallPhase*50, roadY+fallPhase*200, 0.7*(1-fallPhase*0.3), 1);
+    drawDK(W/2+80+fallPhase*30, roadY+fallPhase*180, 0.8*(1-fallPhase*0.3), -1);
+    drawDialogue('Peach', 'MARIO! NO!', '#FF69B4');
+  } else {
+    drawDialogue(null, '* Intense battle on crumbling Rainbow Road! *');
+  }
+};
+
+// Scene 14: Belly of the Beast
+sceneRenderers[14] = function(t){
+  // Dark underwater cave
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#001a33');g.addColorStop(1,'#003366');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // Underwater particles
+  for(let i=0;i<40;i++){
+    const bx=(i*37+t*20)%W;
+    const by=(H-i*18+t*10)%H;
+    ctx.fillStyle=`rgba(100,200,255,${0.1+Math.sin(t+i)*0.1})`;
+    ctx.beginPath();ctx.arc(bx,by,2+Math.sin(t+i),0,Math.PI*2);ctx.fill();
+  }
+  // Cave rocks
+  ctx.fillStyle='#2a2a3e';
+  for(let i=0;i<8;i++){
+    ctx.fillRect(i*170,H-40-Math.random()*30,160,80);
+  }
+  ctx.fillStyle='#1a1a2e';
+  for(let i=0;i<8;i++){
+    ctx.fillRect(i*170,0,160,40+Math.sin(i)*20);
+  }
+  // Giant fish shadow
+  if(t<5){
+    ctx.globalAlpha=0.3;
+    ctx.fillStyle='#FF4500';
+    ctx.beginPath();
+    ctx.ellipse(W-200+Math.sin(t)*50, H/2, 80, 40, 0, 0, Math.PI*2);
+    ctx.fill();
+    // Fish eye
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(W-150+Math.sin(t)*50,H/2-15,10,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#000';
+    ctx.beginPath();ctx.arc(W-145+Math.sin(t)*50,H/2-15,5,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  // Mario and DK working together
+  const walkX=100+t*60;
+  drawDK(walkX+80, H-110, 0.9, 1);
+  drawMario(walkX, H-100, 0.8, 1);
+  // Fireballs lighting the way
+  if(t>4){
+    for(let i=0;i<3;i++){
+      drawFireball(walkX+150+i*40, H-120+Math.sin(t*3+i)*20, 6);
+    }
+  }
+  if(t<5){
+    drawDialogue(null, '* Mario and DK land in a dark underwater cavern *');
+  } else if(t<9){
+    drawDialogue('DK', "You know, for a little plumber, you're pretty cool.", '#8B4513');
+  } else {
+    drawDialogue('Mario', "Thanks, DK. Now let's go save everyone.", '#E52521');
+  }
+};
+
+// Scene 15: Bowser Invades
+sceneRenderers[15] = function(t){
+  // Mushroom Kingdom under attack
+  drawSky('#8B0000','#FF4500');
+  // Smoke/fire in sky
+  for(let i=0;i<10;i++){
+    ctx.fillStyle=`rgba(50,50,50,${0.3+Math.sin(t+i)*0.1})`;
+    ctx.beginPath();ctx.arc(i*140+Math.sin(t+i)*30, 60+Math.cos(t*0.5+i)*20, 40+Math.sin(t+i)*10, 0, Math.PI*2);ctx.fill();
+  }
+  // Damaged buildings/mushroom houses
+  for(let i=0;i<4;i++){
+    const bx=100+i*300;
+    ctx.fillStyle='#DEB887';
+    ctx.fillRect(bx,H-200,60,140);
+    // Fire on buildings
+    ctx.fillStyle='#FF4500';
+    ctx.beginPath();ctx.arc(bx+30,H-210,15+Math.sin(t*5+i)*5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#FFD700';
+    ctx.beginPath();ctx.arc(bx+30,H-215,8+Math.sin(t*6+i)*3,0,Math.PI*2);ctx.fill();
+  }
+  drawGround(H-60,'#6B3A1F','#4a2800');
+  // Bowser's army
+  for(let i=0;i<8;i++){
+    // Goombas
+    ctx.fillStyle='#8B4513';
+    const gx=800+i*50+Math.sin(t+i)*10;
+    ctx.beginPath();ctx.ellipse(gx,H-78,12,10,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#FFECD2';
+    ctx.beginPath();ctx.ellipse(gx,H-75,8,5,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(gx-3,H-80,3,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(gx+3,H-80,3,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#000';
+    ctx.beginPath();ctx.arc(gx-2,H-80,1.5,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(gx+4,H-80,1.5,0,Math.PI*2);ctx.fill();
+    // Feet
+    ctx.fillStyle='#5C3317';
+    ctx.fillRect(gx-8,H-68,6,8);
+    ctx.fillRect(gx+2,H-68,6,8);
+  }
+  // Bowser
+  drawBowser(W/2, H-130, 1.3);
+  // Luigi in cage
+  ctx.strokeStyle='#888';ctx.lineWidth=3;
+  ctx.strokeRect(W/2-25,H-320,50,50);
+  for(let i=0;i<5;i++){
+    ctx.beginPath();ctx.moveTo(W/2-25+i*12.5,H-320);ctx.lineTo(W/2-25+i*12.5,H-270);ctx.stroke();
+  }
+  drawLuigi(W/2, H-285, 0.35, 1, true);
+  // Peach standing defiant
+  drawPeach(200, H-120, 0.85, 1);
+  if(t<5){
+    drawDialogue('Bowser', "Princess Peach! Marry me, or your precious kingdom BURNS!", '#FF8C00');
+  } else if(t<10){
+    drawDialogue('Peach', 'NEVER!', '#FF69B4');
+  } else {
+    drawDialogue(null, '* Everything looks hopeless... *');
+  }
+};
+
+// Scene 16: Mario Returns
+sceneRenderers[16] = function(t){
+  drawSky('#8B0000','#FF4500');
+  drawGround(H-60,'#6B3A1F','#4a2800');
+  // Battle smoke
+  for(let i=0;i<8;i++){
+    ctx.fillStyle=`rgba(100,100,100,${0.2+Math.sin(t*2+i)*0.1})`;
+    ctx.beginPath();ctx.arc(i*170+Math.sin(t+i)*40, H-180+Math.cos(t+i)*30, 30, 0, Math.PI*2);ctx.fill();
+  }
+  if(t<4){
+    // Green pipe bursting from ground
+    const pipeRise=Math.min(1,t/2)*120;
+    ctx.save();
+    // Ground crack effect
+    ctx.strokeStyle='#4a2800';ctx.lineWidth=4;
+    for(let i=0;i<6;i++){
+      const a=i*Math.PI/3;
+      ctx.beginPath();
+      ctx.moveTo(300,H-60);
+      ctx.lineTo(300+Math.cos(a)*pipeRise*0.5, H-60+Math.sin(a)*pipeRise*0.3);
+      ctx.stroke();
+    }
+    drawPipe(300, H-60, pipeRise, 60);
+    ctx.restore();
+    drawDialogue(null, '* A green pipe bursts from the ground! *');
+  } else if(t<8){
+    // Mario and DK emerge
+    drawPipe(300, H-60, 120, 60);
+    const emergePhase=Math.min(1,(t-4)/2);
+    drawMario(260, H-60-120-emergePhase*40, 0.9*emergePhase, 1);
+    drawDK(340, H-60-120-emergePhase*50, 0.9*emergePhase, 1);
+    // Kong army behind
+    for(let i=0;i<6;i++){
+      ctx.fillStyle=`hsl(25,${40+i*5}%,${30+i*5}%)`;
+      ctx.beginPath();ctx.arc(100+i*35, H-80-emergePhase*20, 12, 0, Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(100+i*35, H-92-emergePhase*20, 10, 0, Math.PI*2);ctx.fill();
+    }
+    drawDialogue('Mario', 'Hey Bowser! Nobody messes with MY brother!', '#E52521');
+  } else {
+    // EPIC BATTLE
+    drawPipe(300, H-60, 120, 60);
+    // Kong army vs Koopa army
+    for(let i=0;i<8;i++){
+      // Kongs
+      const kx=100+i*40+Math.sin(t*3+i)*20;
+      ctx.fillStyle='#8B4513';
+      ctx.beginPath();ctx.arc(kx, H-85, 12, 0, Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(kx, H-100, 10, 0, Math.PI*2);ctx.fill();
+      // Koopas on right
+      const cx=W-100-i*40-Math.sin(t*3+i)*20;
+      ctx.fillStyle='#228B22';
+      ctx.beginPath();ctx.arc(cx, H-78, 10, 0, Math.PI*2);ctx.fill();
+      ctx.fillStyle='#FFECD2';
+      ctx.beginPath();ctx.arc(cx, H-90, 8, 0, Math.PI*2);ctx.fill();
+    }
+    // Battle effects
+    for(let i=0;i<10;i++){
+      const ex=200+Math.random()*800;
+      const ey=H-120+Math.random()*60;
+      if(Math.random()>0.7){
+        ctx.fillStyle='#FFD700';
+        ctx.font='12px Arial';ctx.textAlign='center';
+        ctx.fillText('\u2605',ex,ey);
+      }
+    }
+    // Main characters fighting
+    drawMario(400, H-120, 0.8, 1);
+    drawDK(500, H-130, 0.9, 1);
+    drawPeach(300, H-120, 0.75, 1);
+    // Peach ice powers
+    ctx.fillStyle='rgba(100,200,255,0.5)';
+    for(let i=0;i<5;i++){
+      const ix=350+i*30+t*20;
+      ctx.beginPath();ctx.arc(ix%W, H-140+Math.sin(t*4+i)*20, 6, 0, Math.PI*2);ctx.fill();
+    }
+    // Toad with frying pan
+    drawToad(250, H-98, 0.7, 1);
+    ctx.fillStyle='#808080';
+    ctx.beginPath();ctx.ellipse(265, H-110, 10, 5, 0.5+Math.sin(t*6), 0, Math.PI*2);ctx.fill();
+    drawBowser(W-200, H-130, 1.1);
+    drawDialogue(null, '* EPIC BATTLE! Everyone fights together! *');
+  }
+};
+
+// Scene 17: Final Battle - Super Star
+sceneRenderers[17] = function(t){
+  // Dark dramatic sky
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#1a0033');g.addColorStop(0.5,'#330044');g.addColorStop(1,'#4a1500');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  drawGround(H-60,'#4a2800','#2a1500');
+  // Lightning flashes
+  if(Math.sin(t*7)>0.95){
+    ctx.fillStyle='rgba(255,255,255,0.3)';ctx.fillRect(0,0,W,H);
+  }
+  if(t<5){
+    // Invincible Bowser!
+    drawBowser(W/2, H-160, 1.5, true);
+    // Rainbow glow around Bowser
+    ctx.strokeStyle=`hsla(${(t*100)%360},100%,50%,0.5)`;
+    ctx.lineWidth=4;
+    ctx.beginPath();ctx.arc(W/2,H-160,100+Math.sin(t*5)*20,0,Math.PI*2);ctx.stroke();
+    drawDialogue(null, '* Bowser uses the Super Star - INVINCIBLE! *');
+  } else if(t<9){
+    // Mario knocked down
+    drawBowser(W/2+100, H-160, 1.5, true);
+    drawMario(W/2-150, H-90, 0.8, 1); // On ground
+    // Luigi freed, running to Mario
+    const luigiX=lerp(W-100,W/2-120,Math.min(1,(t-5)/3));
+    drawLuigi(luigiX, H-125, 0.8, -1);
+    if(t<7){
+      drawDialogue('Luigi', 'MARIO!', '#049B0A');
+    } else {
+      // Toad freeing Luigi (implied)
+      drawToad(W-80, H-98, 0.6, -1);
+      drawDialogue(null, '* Luigi runs to his brother\'s side! *');
+    }
+  } else if(t<14){
+    // SUPER STAR power - both brothers grab it
+    const starPhase=(t-9)/2;
+    drawBowser(W/2+200, H-160, 1.4, true);
+    // Star floating between them
+    if(starPhase<1){
+      drawSuperStar(W/2-50, H-200-Math.sin(t*3)*20, 20);
+    }
+    // Mario and Luigi powered up with rainbow glow
+    if(starPhase>=1){
+      const glowColor=`hsla(${(t*100)%360},100%,60%,0.4)`;
+      ctx.fillStyle=glowColor;
+      ctx.beginPath();ctx.arc(W/2-80,H-130,50,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(W/2,H-135,50,0,Math.PI*2);ctx.fill();
+    }
+    drawMario(W/2-80, H-120, 0.9, 1);
+    drawLuigi(W/2, H-125, 0.9, 1);
+    // Energy beams toward Bowser
+    if(starPhase>=1.5){
+      ctx.strokeStyle=`hsla(${(t*80)%360},100%,70%,0.8)`;
+      ctx.lineWidth=8+Math.sin(t*10)*3;
+      ctx.beginPath();
+      ctx.moveTo(W/2-40,H-140);
+      ctx.lineTo(W/2+200,H-160);
+      ctx.stroke();
+      // Secondary beam
+      ctx.strokeStyle=`hsla(${(t*80+120)%360},100%,70%,0.6)`;
+      ctx.lineWidth=5;
+      ctx.beginPath();
+      ctx.moveTo(W/2-40,H-130);
+      ctx.lineTo(W/2+200,H-150);
+      ctx.stroke();
+    }
+    if(starPhase<1){
+      drawDialogue(null, '* The Super Star flies free! *');
+    } else if(starPhase<2){
+      drawDialogue(null, '* Mario and Luigi BOTH grab the Super Star! *');
+    } else {
+      drawDialogue('Bowser', 'IMPOSSIBLE!!', '#FF8C00');
+    }
+  } else {
+    // Massive combined attack
+    // Screen shake
+    ctx.save();
+    ctx.translate(Math.sin(t*20)*5, Math.cos(t*20)*5);
+    drawBowser(W/2+200, H-160+Math.sin(t*15)*10, 1.4-(t-14)*0.3, true);
+    // Huge energy explosion
+    const expSize=(t-14)*100;
+    ctx.fillStyle=`hsla(${(t*100)%360},100%,70%,${0.5-(t-14)*0.1})`;
+    ctx.beginPath();ctx.arc(W/2+200,H-160,expSize,0,Math.PI*2);ctx.fill();
+    drawMario(W/2-80, H-120, 0.9, 1);
+    drawLuigi(W/2, H-125, 0.9, 1);
+    // Rainbow aura
+    ctx.strokeStyle=`hsla(${(t*100)%360},100%,60%,0.6)`;
+    ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(W/2-40,H-130,60+Math.sin(t*5)*10,0,Math.PI*2);ctx.stroke();
+    ctx.restore();
+    // Particles everywhere
+    for(let i=0;i<20;i++){
+      const px=W/2+200+Math.cos(t*3+i*0.5)*expSize*0.8;
+      const py=H-160+Math.sin(t*3+i*0.5)*expSize*0.8;
+      ctx.fillStyle=`hsl(${(i*36+t*100)%360},100%,60%)`;
+      ctx.fillRect(px-2,py-2,4,4);
+    }
+    drawDialogue(null, '* COMBINED SUPER STAR ATTACK! *');
+  }
+};
+
+// Scene 18: Victory
+sceneRenderers[18] = function(t){
+  drawSky('#87CEEB','#98FB98');
+  drawClouds(40,t);
+  drawHills(H-60,t);
+  drawGround();
+  // Fireworks!
+  for(let i=0;i<6;i++){
+    const fTime=t+i*2.5;
+    const phase=fTime%3;
+    if(phase>1){
+      const fx=100+i*200;
+      const fy=100+i%2*80;
+      const spread=(phase-1)*40;
+      for(let j=0;j<12;j++){
+        const a=j*Math.PI/6;
+        const color=`hsl(${(i*60+j*30)%360},100%,60%)`;
+        ctx.fillStyle=color;
+        ctx.beginPath();ctx.arc(fx+Math.cos(a)*spread,fy+Math.sin(a)*spread,3,0,Math.PI*2);ctx.fill();
+      }
+    }
+  }
+  // Confetti
+  for(let i=0;i<40;i++){
+    const cx=(i*31+t*60)%W;
+    const cy=(i*47+t*40)%H;
+    ctx.fillStyle=`hsl(${(i*25)%360},80%,60%)`;
+    ctx.save();ctx.translate(cx,cy);ctx.rotate(t*2+i);
+    ctx.fillRect(-4,-2,8,4);
+    ctx.restore();
+  }
+  // Mini Bowser in jar
+  ctx.fillStyle='rgba(200,200,255,0.3)';
+  ctx.beginPath();ctx.ellipse(W/2+250,H-100,20,25,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(200,200,255,0.5)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.ellipse(W/2+250,H-100,20,25,0,0,Math.PI*2);ctx.stroke();
+  // Tiny angry bowser
+  drawBowser(W/2+250, H-100, 0.2);
+  // Characters celebrating
+  drawPeach(W/2-80, H-120, 0.85, 1);
+  drawToad(W/2-180, H-98+Math.abs(Math.sin(t*6))*15, 0.7, 1);
+  drawDK(W/2+130, H-130, 0.9, -1);
+  // Mario and Luigi hug
+  drawMario(W/2+10, H-120, 0.85, 1);
+  drawLuigi(W/2+40, H-128, 0.85, -1);
+  if(t<4){
+    drawDialogue('Peach', 'You saved us all, Mario. Both of you.', '#FF69B4');
+  } else if(t<7){
+    drawDialogue('DK', "That was the most fun I've EVER had!", '#8B4513');
+  } else if(t<11){
+    drawDialogue('Luigi', 'I knew you\'d come for me.', '#049B0A');
+  } else {
+    drawDialogue('Mario', 'Always, bro. Always.', '#E52521');
+  }
+};
+
+// Scene 19: Ending + Credits
+sceneRenderers[19] = function(t){
+  drawSky('#87CEEB','#98FB98');
+  drawClouds(40,t);
+  drawHills(H-60,t);
+  drawGround();
+  if(t<7){
+    // Mushroom Kingdom home
+    // House
+    ctx.fillStyle='#FFECD2';
+    ctx.fillRect(W/2-80,H-220,160,160);
+    ctx.fillStyle='#E52521';
+    ctx.beginPath();ctx.moveTo(W/2-100,H-220);ctx.lineTo(W/2,H-280);ctx.lineTo(W/2+100,H-220);ctx.fill();
+    // Door
+    ctx.fillStyle='#8B4513';
+    ctx.fillRect(W/2-15,H-120,30,60);
+    // Sign
+    ctx.fillStyle='#fff';
+    ctx.fillRect(W/2-60,H-195,120,25);
+    ctx.fillStyle='#E52521';
+    ctx.font='bold 10px Arial';ctx.textAlign='center';
+    ctx.fillText('SUPER MARIO BROS. PLUMBING',W/2,H-180);
+    // Pipe connecting to Brooklyn
+    drawPipe(W/2+120, H-60, 80, 40);
+    ctx.fillStyle='#333';
+    ctx.font='bold 8px Arial';
+    ctx.fillText('BROOKLYN',W/2+120,H-30);
+    drawMario(W/2-40, H-120, 0.8, 1);
+    drawLuigi(W/2+20, H-125, 0.8, 1);
+    drawDialogue(null, '* A new home connecting both worlds! *');
+  } else if(t<10){
+    // Flag pole
+    drawSky('#87CEEB','#FFD700');
+    drawGround();
+    // Flag pole
+    ctx.fillStyle='#888';
+    ctx.fillRect(W/2,H-350,6,290);
+    ctx.fillStyle='#00AA00';
+    ctx.beginPath();
+    ctx.moveTo(W/2+6,H-340);ctx.lineTo(W/2+50,H-320);ctx.lineTo(W/2+6,H-300);
+    ctx.fill();
+    // Mario sliding down
+    const slideY=lerp(H-340,H-120,Math.min(1,(t-7)/2));
+    drawMario(W/2+10, slideY, 0.8, -1);
+    // Fireworks
+    for(let i=0;i<8;i++){
+      const phase=(t+i*0.8)%2;
+      if(phase>0.5){
+        const fx=200+i*120;
+        const fy=80+i%3*60;
+        for(let j=0;j<10;j++){
+          const a=j*Math.PI*2/10;
+          const r=(phase-0.5)*60;
+          ctx.fillStyle=`hsl(${(i*45+j*36)%360},100%,60%)`;
+          ctx.beginPath();ctx.arc(fx+Math.cos(a)*r,fy+Math.sin(a)*r,3,0,Math.PI*2);ctx.fill();
+        }
+      }
+    }
+    drawText('THE END', W/2, H/2-40, 64, '#FFD700');
+  } else if(t<17){
+    // Credits
+    ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+    drawStars(t,50);
+    const scrollY = H - (t-10)*60;
+    drawText('THE SUPER MARIO BROS. MOVIE', W/2, scrollY, 36, '#FFD700');
+    drawText('A StreamFlix Original', W/2, scrollY+60, 24, '#E52521');
+    drawText('Created by Petru', W/2, scrollY+110, 22, '#fff');
+    drawText('Built with HTML5 Canvas, CSS & JavaScript', W/2, scrollY+155, 18, '#aaa');
+    drawText('Characters inspired by Nintendo', W/2, scrollY+195, 18, '#aaa');
+    drawText('Music: Web Audio API Chiptune', W/2, scrollY+235, 18, '#aaa');
+    drawText('Thank you for watching!', W/2, scrollY+295, 26, '#FFD700');
+    // Mario and friends running across bottom
+    const runX=(t*60)%1400-100;
+    drawMario(runX, H-60, 0.5, 1);
+    drawLuigi(runX+40, H-62, 0.5, 1);
+    drawToad(runX+80, H-48, 0.45, 1);
+    drawPeach(runX+120, H-60, 0.48, 1);
+  } else {
+    // Post-credits: Yoshi egg
+    ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+    // Spotlight on egg
+    const spotRadius=80+Math.sin(t*2)*10;
+    const gradient=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,spotRadius*2);
+    gradient.addColorStop(0,'rgba(255,255,200,0.3)');
+    gradient.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=gradient;
+    ctx.fillRect(0,0,W,H);
+    if(t<19){
+      // Egg wobbling
+      const wobble=Math.sin(t*8)*0.1;
+      ctx.save();ctx.translate(W/2,H/2);ctx.rotate(wobble);
+      drawYoshiEgg(0,0,2);
+      // Cracks appearing
+      ctx.strokeStyle='#333';ctx.lineWidth=2;
+      const crackPhase=(t-17)/2;
+      if(crackPhase>0){
+        ctx.beginPath();
+        ctx.moveTo(-5,-15);ctx.lineTo(-8,-5);ctx.lineTo(-2,5);
+        ctx.stroke();
+      }
+      if(crackPhase>0.5){
+        ctx.beginPath();
+        ctx.moveTo(8,-10);ctx.lineTo(5,0);ctx.lineTo(10,8);
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else {
+      // Yoshi hatched!
+      drawYoshi(W/2, H/2, 1.5);
+      drawText('Yoshi!', W/2, H/2+60, 32, '#32CD32');
+    }
+  }
+};
+
+// ===== MAIN LOOP =====
+function getSceneAtTime(time){
+  let elapsed=0;
+  for(let i=0;i<scenes.length;i++){
+    if(time<elapsed+scenes[i].duration) return {index:i, sceneTime:time-elapsed};
+    elapsed+=scenes[i].duration;
+  }
+  return {index:scenes.length-1, sceneTime:scenes[scenes.length-1].duration};
+}
+
+function render(timestamp){
+  if(!lastTimestamp) lastTimestamp=timestamp;
+  const dt=Math.min((timestamp-lastTimestamp)/1000, 0.05);
+  lastTimestamp=timestamp;
+
+  if(playing){
+    globalTime+=dt;
+    if(globalTime>=totalDuration){
+      globalTime=totalDuration;
+      playing=false;
+      updatePlayBtn();
+    }
+  }
+
+  const sc=getSceneAtTime(globalTime);
+  sceneTime=sc.sceneTime;
+
+  // Handle scene change for music
+  if(sc.index!==currentScene){
+    currentScene=sc.index;
+    updateMusic(currentScene);
+  }
+  currentScene=sc.index;
+
+  // Calculate transition fade
+  const scDur=scenes[sc.index].duration;
+  fadeAlpha=0;
+  if(sceneTime<TRANSITION_TIME/2){
+    fadeAlpha=1-sceneTime/(TRANSITION_TIME/2);
+  }
+  if(sceneTime>scDur-TRANSITION_TIME/2){
+    fadeAlpha=(sceneTime-(scDur-TRANSITION_TIME/2))/(TRANSITION_TIME/2);
+  }
+  fadeAlpha=Math.max(0,Math.min(1,fadeAlpha));
+
+  // Clear
+  ctx.fillStyle='#000';
+  ctx.fillRect(0,0,W,H);
+
+  // Render scene
+  ctx.save();
+  if(sceneRenderers[sc.index]){
+    sceneRenderers[sc.index](sceneTime);
+  }
+  // Draw particles
+  updateParticles(dt);
+  drawParticles();
+  ctx.restore();
+
+  // Fade overlay
+  if(fadeAlpha>0){
+    ctx.fillStyle=`rgba(0,0,0,${fadeAlpha})`;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // Update UI
+  updateUI();
+
+  requestAnimationFrame(render);
+}
+
+// ===== UI =====
+function formatTime(sec){
+  const m=Math.floor(sec/60);
+  const s=Math.floor(sec%60);
+  return `${m}:${s<10?'0':''}${s}`;
+}
+
+function updateUI(){
+  const pct=(globalTime/totalDuration)*100;
+  document.getElementById('progress-bar').style.width=pct+'%';
+  document.getElementById('time-display').textContent=`${formatTime(globalTime)} / ${formatTime(totalDuration)}`;
+  document.getElementById('scene-indicator').textContent=`Scene ${currentScene+1}/20: ${scenes[currentScene].name}`;
+}
+
+function updatePlayBtn(){
+  document.getElementById('play-btn').innerHTML=playing?'&#10074;&#10074;':'&#9654;';
+}
+
+function togglePlay(){
+  initAudio();
+  playing=!playing;
+  if(playing && globalTime>=totalDuration) globalTime=0;
+  updatePlayBtn();
+  updateMusic(currentScene);
+  // Show controls briefly
+  const ctrl=document.getElementById('controls');
+  ctrl.classList.add('show');
+  clearTimeout(controlsTimeout);
+  controlsTimeout=setTimeout(()=>ctrl.classList.remove('show'),3000);
+}
+
+// Resize
+function resize(){
+  const aspect=16/9;
+  let cw=window.innerWidth;
+  let ch=window.innerHeight;
+  let renderW, renderH;
+  if(cw/ch>aspect){
+    renderH=ch;
+    renderW=ch*aspect;
+  } else {
+    renderW=cw;
+    renderH=cw/aspect;
+  }
+  canvas.style.width=renderW+'px';
+  canvas.style.height=renderH+'px';
+  // Letterbox
+  const barH=(ch-renderH)/2;
+  document.getElementById('letterbox-top').style.height=Math.max(0,barH)+'px';
+  document.getElementById('letterbox-bottom').style.height=Math.max(0,barH)+'px';
+}
+window.addEventListener('resize',resize);
+resize();
+
+// Controls
+document.getElementById('play-btn').addEventListener('click',togglePlay);
+
+document.getElementById('progress-container').addEventListener('click',function(e){
+  const rect=this.getBoundingClientRect();
+  const pct=(e.clientX-rect.left)/rect.width;
+  globalTime=Math.max(0,Math.min(totalDuration,pct*totalDuration));
+  const sc=getSceneAtTime(globalTime);
+  currentScene=sc.index;
+  initAudio();
+  updateMusic(currentScene);
+});
+
+document.getElementById('fs-btn').addEventListener('click',function(){
+  if(!document.fullscreenElement){
+    document.getElementById('cinema').requestFullscreen().catch(()=>{});
+  } else {
+    document.exitFullscreen();
+  }
+});
+
+document.addEventListener('keydown',function(e){
+  if(e.code==='Space'){
+    e.preventDefault();
+    togglePlay();
+  }
+  if(e.code==='ArrowRight'){
+    globalTime=Math.min(totalDuration,globalTime+5);
+    const sc=getSceneAtTime(globalTime);
+    currentScene=sc.index;
+    updateMusic(currentScene);
+  }
+  if(e.code==='ArrowLeft'){
+    globalTime=Math.max(0,globalTime-5);
+    const sc=getSceneAtTime(globalTime);
+    currentScene=sc.index;
+    updateMusic(currentScene);
+  }
+  if(e.code==='KeyF'){
+    document.getElementById('fs-btn').click();
+  }
+});
+
+// Auto-play on click anywhere
+canvas.addEventListener('click',function(){
+  if(!playing) togglePlay();
+});
+
+// Mouse hide on cinema
+let mouseTimer;
+document.getElementById('cinema').addEventListener('mousemove',function(){
+  this.style.cursor='default';
+  clearTimeout(mouseTimer);
+  mouseTimer=setTimeout(()=>{
+    if(playing) this.style.cursor='none';
+  },3000);
+});
+
+// Start
+requestAnimationFrame(render);
+
+// Auto show controls initially, hide after 5s
+setTimeout(()=>{
+  if(!playing) return;
+  document.getElementById('controls').classList.remove('show');
+},5000);
+</script>
+</body>
+</html>

@@ -514,23 +514,40 @@
 //  MOVIE DATABASE - Add your movies here!
 // ============================================================
 const movies = [
-  // You can add movies in this format:
-  // {
-  //   id: 1,
-  //   title: "Movie Name",
-  //   year: 2024,
-  //   rating: "8.5",
-  //   duration: "2h 30m",
-  //   type: "movie" or "series",
-  //   genres: ["Action", "Adventure"],
-  //   description: "A short description of the movie.",
-  //   cast: ["Actor 1", "Actor 2"],
-  //   director: "Director Name",
-  //   color: "#hexcolor" (used for poster background),
-  //   emoji: "emoji" (displayed on poster as placeholder),
-  //   featured: true/false (show in hero banner),
-  //   top10: true/false (show in Top 10 row),
-  // }
+  {
+    id: 1,
+    title: "Super Mario Galaxy",
+    year: 2026,
+    rating: "9.2",
+    duration: "5 min",
+    type: "movie",
+    genres: ["Animation", "Adventure", "Sci-Fi", "Family"],
+    description: "When Bowser steals the Power Stars and kidnaps Princess Peach into outer space, Mario must journey across the cosmos with the help of Rosalina and the Lumas. From the Comet Observatory to the edges of the universe, an epic adventure unfolds across spectacular galaxies — with the fate of the entire cosmos hanging in the balance.",
+    cast: ["Mario", "Rosalina", "Bowser", "Princess Peach", "Luma", "Luigi"],
+    director: "Petru",
+    color: "#0f3460",
+    emoji: "🌌",
+    featured: true,
+    top10: true,
+    watchUrl: "mario-galaxy-movie.html"
+  },
+  {
+    id: 2,
+    title: "The Super Mario Bros. Movie",
+    year: 2026,
+    rating: "8.8",
+    duration: "5 min",
+    type: "movie",
+    genres: ["Animation", "Adventure", "Comedy", "Family"],
+    description: "Brooklyn plumbers Mario and Luigi discover a magical warp pipe that transports them to a fantastical new world. When the brothers are separated, Mario teams up with Princess Peach and Toad to find Luigi — who has been captured by the fearsome Bowser. From the Mushroom Kingdom to the Kong Kingdom and across Rainbow Road, it's a wild ride to save the world.",
+    cast: ["Mario", "Luigi", "Princess Peach", "Bowser", "Toad", "Donkey Kong"],
+    director: "Petru",
+    color: "#c0392b",
+    emoji: "🍄",
+    featured: true,
+    top10: true,
+    watchUrl: "mario-bros-movie.html"
+  }
 ];
 
 // ============================================================
@@ -574,10 +591,10 @@ function getCategories() {
   const moviesList = movies.filter(m => m.type === 'movie');
   const seriesList = movies.filter(m => m.type === 'series');
 
-  if (moviesList.length >= 3) {
+  if (moviesList.length >= 1) {
     categories.push({ title: "Movies", items: moviesList, style: 'wide' });
   }
-  if (seriesList.length >= 3) {
+  if (seriesList.length >= 1) {
     categories.push({ title: "TV Shows", items: seriesList, style: 'wide' });
   }
 
@@ -659,7 +676,7 @@ function renderHero() {
     </div>
     <p class="hero-desc">${movie.description || ''}</p>
     <div class="hero-buttons">
-      <button class="btn btn-play" onclick="openModal(${movie.id})">
+      <button class="btn btn-play" onclick="playMovie(${movie.id})">
         <span class="btn-icon">&#9654;</span> Play
       </button>
       <button class="btn btn-info" onclick="openModal(${movie.id})">
@@ -806,6 +823,19 @@ function renderCategoryRow(category) {
 }
 
 // ============================================================
+//  PLAY MOVIE
+// ============================================================
+function playMovie(id) {
+  const movie = movies.find(m => m.id === id);
+  if (!movie) return;
+  if (movie.watchUrl) {
+    window.location.href = movie.watchUrl;
+  } else {
+    openModal(id);
+  }
+}
+
+// ============================================================
 //  MODAL
 // ============================================================
 function openModal(id) {
@@ -827,7 +857,7 @@ function openModal(id) {
       <span>${movie.type === 'series' ? '&#128250; Series' : '&#127916; Movie'}</span>
     </div>
     <div class="modal-hero-buttons">
-      <button class="btn btn-play" style="padding: 12px 28px; font-size: 15px;">
+      <button class="btn btn-play" style="padding: 12px 28px; font-size: 15px;" onclick="playMovie(${movie.id})">
         <span class="btn-icon">&#9654;</span> Play
       </button>
       <button class="btn-watchlist ${inWatchlist ? 'added' : ''}"

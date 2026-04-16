@@ -44,7 +44,11 @@
       "Bash(grep -l \"touchstart\\\\|touchend\" /home/petru/code/games/project1/*.html)",
       "Bash(ls -d /home/petru/code/games/project1/snake* /home/petru/code/games/project1/space-shooter* /home/petru/code/games/project1/stick-fight*)",
       "Bash(echo \"Exit: $?\")",
-      "Bash(node --check /tmp/mario_check.js)"
+      "Bash(node --check /tmp/mario_check.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1314/games/streamflix/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1314/games/streamflix/mario-galaxy-movie.html)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1314/games/streamflix/mario-bros-movie.html)",
+      "Bash(pkill -f \"hugo server\")"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",

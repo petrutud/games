@@ -1,0 +1,4006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Mario Galaxy - The Movie | StreamFlix</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#fff;font-family:'Segoe UI',Arial,sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;user-select:none}
+#cinema{position:relative;width:100%;max-width:1280px;aspect-ratio:16/9;background:#000;overflow:hidden;border-radius:4px}
+#movieCanvas{width:100%;height:100%;display:block}
+.letterbox{position:absolute;left:0;right:0;background:#000;height:0;z-index:2;pointer-events:none}
+.letterbox.top{top:0}
+.letterbox.bottom{bottom:0}
+#controls{position:absolute;bottom:0;left:0;right:0;z-index:10;background:linear-gradient(transparent,rgba(0,0,0,.9));padding:12px 16px 10px;opacity:0;transition:opacity .3s}
+#cinema:hover #controls,#controls.show{opacity:1}
+#progressBar{width:100%;height:4px;background:rgba(255,255,255,.2);border-radius:2px;cursor:pointer;margin-bottom:10px;position:relative}
+#progressBar:hover{height:6px}
+#progressFill{height:100%;background:linear-gradient(90deg,#e63946,#f4a261);border-radius:2px;width:0;pointer-events:none;position:relative}
+#progressFill::after{content:'';position:absolute;right:-5px;top:50%;transform:translateY(-50%);width:12px;height:12px;background:#fff;border-radius:50%;opacity:0;transition:opacity .2s}
+#progressBar:hover #progressFill::after{opacity:1}
+#btnRow{display:flex;align-items:center;gap:12px}
+.ctrl-btn{background:none;border:none;color:#fff;cursor:pointer;font-size:18px;padding:4px 8px;opacity:.85;transition:opacity .2s}
+.ctrl-btn:hover{opacity:1}
+#timeDisplay{font-size:13px;color:#ccc;font-variant-numeric:tabular-nums}
+#sceneTitle{position:absolute;left:50%;top:12px;transform:translateX(-50%);font-size:13px;color:rgba(255,255,255,.5);z-index:5;pointer-events:none}
+.spacer{flex:1}
+#backBtn{position:absolute;top:12px;left:12px;z-index:15;background:rgba(0,0,0,.6);border:none;color:#fff;padding:6px 14px;border-radius:20px;cursor:pointer;font-size:14px;opacity:.7;transition:opacity .3s}
+#backBtn:hover{opacity:1}
+#titleOverlay{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;pointer-events:none;opacity:0;transition:opacity .5s}
+</style>
+</head>
+<body>
+<div id="cinema">
+  <canvas id="movieCanvas"></canvas>
+  <div class="letterbox top"></div>
+  <div class="letterbox bottom"></div>
+  <a id="backBtn" href="/games/streamflix/">&#9664; Back</a>
+  <div id="sceneTitle"></div>
+  <div id="controls" class="show">
+    <div id="progressBar"><div id="progressFill"></div></div>
+    <div id="btnRow">
+      <button class="ctrl-btn" id="playPauseBtn">&#9654;</button>
+      <span id="timeDisplay">0:00 / 0:00</span>
+      <span class="spacer"></span>
+      <button class="ctrl-btn" id="fullscreenBtn">&#9974;</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================== SETUP =====================
+const canvas = document.getElementById('movieCanvas');
+const ctx = canvas.getContext('2d');
+const cinema = document.getElementById('cinema');
+
+function resize() {
+  const rect = cinema.getBoundingClientRect();
+  canvas.width = 1280;
+  canvas.height = 720;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ===================== MOVIE TIMING =====================
+const SCENE_DEFS = [
+  { name: "Title Sequence", duration: 15 },
+  { name: "The Star Festival", duration: 15 },
+  { name: "Peach's Letter", duration: 12 },
+  { name: "Bowser's Attack", duration: 15 },
+  { name: "Into Space", duration: 15 },
+  { name: "Gateway Galaxy", duration: 15 },
+  { name: "Comet Observatory", duration: 18 },
+  { name: "Good Egg Galaxy", duration: 15 },
+  { name: "Boss - Dino Piranha", duration: 15 },
+  { name: "Honeyhive Galaxy", duration: 12 },
+  { name: "Space Junk Galaxy", duration: 12 },
+  { name: "Bowser's Star Reactor", duration: 18 },
+  { name: "Rosalina's Storybook", duration: 18 },
+  { name: "Galaxy Montage", duration: 12 },
+  { name: "The Final Stretch", duration: 12 },
+  { name: "Bowser's Galaxy Reactor", duration: 15 },
+  { name: "Final Battle", duration: 18 },
+  { name: "The Universe Collapses", duration: 15 },
+  { name: "Luma's Sacrifice", duration: 15 },
+  { name: "Ending + Credits", duration: 20 },
+];
+const FADE_DURATION = 1.5;
+const TOTAL_DURATION = SCENE_DEFS.reduce((s, d) => s + d.duration, 0);
+
+let movieTime = 0;
+let playing = false;
+let lastFrameTime = 0;
+
+// ===================== AUDIO SYSTEM =====================
+let audioCtx = null;
+let masterGain = null;
+let currentMusicNodes = [];
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.3;
+  masterGain.connect(audioCtx.destination);
+}
+
+function stopMusic() {
+  currentMusicNodes.forEach(n => {
+    try { n.stop(); } catch(e) {}
+    try { n.disconnect(); } catch(e) {}
+  });
+  currentMusicNodes = [];
+}
+
+function playNote(freq, startTime, duration, type='sine', vol=0.15) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(vol, startTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration - 0.01);
+  osc.connect(gain);
+  gain.connect(masterGain);
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+  currentMusicNodes.push(osc);
+  return osc;
+}
+
+// Musical scales
+const NOTE_FREQS = {
+  C3:130.81,D3:146.83,E3:164.81,F3:174.61,G3:196.00,A3:220.00,B3:246.94,
+  C4:261.63,D4:293.66,E4:329.63,F4:349.23,G4:392.00,A4:440.00,B4:493.88,
+  C5:523.25,D5:587.33,E5:659.25,F5:698.46,G5:783.99,A5:880.00,B5:987.77,
+  C6:1046.50
+};
+const N = NOTE_FREQS;
+
+function playMoodMusic(mood) {
+  stopMusic();
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const bpm = 120;
+  const beat = 60/bpm;
+  const loopLen = 8; // seconds loop
+
+  function scheduleLoop(notes, type, vol) {
+    notes.forEach(([note, start, dur]) => {
+      const freq = typeof note === 'number' ? note : N[note];
+      if (freq) {
+        for (let rep = 0; rep < 4; rep++) {
+          playNote(freq, t + start + rep * loopLen, dur, type, vol);
+        }
+      }
+    });
+  }
+
+  if (mood === 'title') {
+    scheduleLoop([
+      ['C4',0,.5],['E4',.5,.5],['G4',1,.5],['C5',1.5,1],
+      ['B4',3,.5],['G4',3.5,.5],['E4',4,.5],['C4',4.5,1],
+      ['D4',6,.3],['F4',6.3,.3],['A4',6.6,.3],['D5',7,1],
+    ], 'triangle', 0.12);
+    scheduleLoop([
+      ['C3',0,2],['G3',2,2],['A3',4,2],['F3',6,2],
+    ], 'sine', 0.08);
+  } else if (mood === 'happy' || mood === 'festival') {
+    scheduleLoop([
+      ['C5',0,.25],['E5',.25,.25],['G5',.5,.25],['E5',.75,.25],
+      ['C5',1,.25],['D5',1.25,.25],['E5',1.5,.5],
+      ['G4',2,.25],['A4',2.25,.25],['B4',2.5,.25],['C5',2.75,.5],
+      ['A4',3.5,.25],['G4',3.75,.25],
+      ['F4',4,.25],['A4',4.25,.25],['C5',4.5,.5],['A4',5,.25],['F4',5.25,.25],
+      ['G4',5.5,.25],['B4',5.75,.25],['D5',6,.5],['C5',6.5,.5],
+      ['E5',7,.25],['D5',7.25,.25],['C5',7.5,.5],
+    ], 'square', 0.06);
+    scheduleLoop([
+      ['C3',0,1],['G3',1,1],['F3',2,1],['C3',3,1],
+      ['A3',4,1],['F3',5,1],['G3',6,1],['C3',7,1],
+    ], 'triangle', 0.08);
+  } else if (mood === 'dark' || mood === 'bowser') {
+    scheduleLoop([
+      ['C3',0,1],['C3',1.5,.5],['E3',2,.5],['F3',2.5,1.5],
+      ['C3',4,1],['D3',5.5,.5],['E3',6,.25],['D3',6.5,.5],['C3',7,1],
+    ], 'sawtooth', 0.07);
+    scheduleLoop([
+      [65.41,0,2],[65.41,2,2],[58.27,4,2],[61.74,6,2]
+    ], 'sine', 0.1);
+    // Percussion-like
+    scheduleLoop([
+      [80,0,.1],[80,1,.1],[80,2,.1],[80,3,.1],[80,4,.1],[80,5,.1],[80,6,.1],[80,7,.1],
+    ], 'square', 0.04);
+  } else if (mood === 'ethereal' || mood === 'space') {
+    scheduleLoop([
+      ['E4',0,1.5],['G4',1.5,1],['A4',2.5,1.5],['B4',4,1],
+      ['A4',5,1],['G4',6,1],['E4',7,1],
+    ], 'sine', 0.1);
+    scheduleLoop([
+      ['C3',0,4],['A3',4,4],
+    ], 'sine', 0.06);
+    scheduleLoop([
+      ['E5',1,2],['B4',3,2],['C5',5,2],['G4',7,1],
+    ], 'triangle', 0.04);
+  } else if (mood === 'emotional') {
+    scheduleLoop([
+      ['C4',0,1],['E4',1,1],['G4',2,1],['E4',3,.5],['F4',3.5,.5],
+      ['A4',4,1.5],['G4',5.5,.5],['F4',6,1],['E4',7,1],
+    ], 'sine', 0.12);
+    scheduleLoop([
+      ['C3',0,4],['F3',4,4],
+    ], 'sine', 0.07);
+  } else if (mood === 'epic') {
+    scheduleLoop([
+      ['C4',0,.25],['C4',.25,.25],['G4',.5,.5],['E4',1,.5],
+      ['G4',1.5,.25],['A4',1.75,.25],['G4',2,.5],
+      ['C4',2.5,.25],['C4',2.75,.25],['A4',3,.5],['G4',3.5,.5],
+      ['C5',4,1],['B4',5,.5],['A4',5.5,.5],
+      ['G4',6,.25],['A4',6.25,.25],['B4',6.5,.5],['C5',7,1],
+    ], 'square', 0.06);
+    scheduleLoop([
+      ['C3',0,.5],['G3',.5,.5],['C3',1,.5],['G3',1.5,.5],
+      ['F3',2,.5],['C3',2.5,.5],['F3',3,.5],['C3',3.5,.5],
+      ['A3',4,.5],['E3',4.5,.5],['A3',5,.5],['E3',5.5,.5],
+      ['G3',6,.5],['D3',6.5,.5],['G3',7,.5],['D3',7.5,.5],
+    ], 'sawtooth', 0.06);
+  } else if (mood === 'triumphant') {
+    scheduleLoop([
+      ['C5',0,.5],['E5',.5,.5],['G5',1,1],['G5',2,.25],['A5',2.25,.25],['G5',2.5,.5],
+      ['E5',3,.5],['C5',3.5,.5],['D5',4,1],['E5',5,.5],['F5',5.5,.5],
+      ['E5',6,.5],['D5',6.5,.5],['C5',7,1],
+    ], 'triangle', 0.1);
+    scheduleLoop([
+      ['C3',0,2],['G3',2,2],['A3',4,2],['G3',6,2],
+    ], 'sine', 0.08);
+  } else if (mood === 'adventure') {
+    scheduleLoop([
+      ['E4',0,.25],['G4',.25,.25],['B4',.5,.25],['E5',.75,.5],
+      ['D5',1.5,.25],['C5',1.75,.25],['B4',2,.5],
+      ['A4',2.5,.25],['B4',2.75,.25],['C5',3,.5],['A4',3.5,.5],
+      ['G4',4,.25],['A4',4.25,.25],['B4',4.5,.5],['G4',5,.5],
+      ['F4',5.5,.25],['G4',5.75,.25],['A4',6,.5],['E4',6.5,.25],['G4',6.75,.25],['B4',7,.5],
+    ], 'square', 0.06);
+    scheduleLoop([
+      ['E3',0,1],['B3',1,1],['A3',2,1],['E3',3,1],
+      ['G3',4,1],['D3',5,1],['F3',6,1],['G3',7,1],
+    ], 'triangle', 0.07);
+  } else if (mood === 'terror') {
+    scheduleLoop([
+      [98,0,2],[92.5,2,2],[87.3,4,2],[82.4,6,2],
+    ], 'sawtooth', 0.06);
+    scheduleLoop([
+      [220,0,.1],[233,1,.1],[220,2,.1],[207,3,.1],[220,4,.1],[246,5,.1],[220,6,.1],[196,7,.1],
+    ], 'square', 0.04);
+  }
+}
+
+let currentMood = '';
+function setMood(mood) {
+  if (mood === currentMood) return;
+  currentMood = mood;
+  playMoodMusic(mood);
+}
+
+// ===================== PARTICLE SYSTEM =====================
+class Particle {
+  constructor(x, y, vx, vy, life, color, size) {
+    this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+    this.life = life; this.maxLife = life; this.color = color; this.size = size || 2;
+  }
+  update(dt) {
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.life -= dt;
+  }
+  draw(ctx) {
+    const a = Math.max(0, this.life / this.maxLife);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+let particles = [];
+function addParticle(x, y, vx, vy, life, color, size) {
+  particles.push(new Particle(x, y, vx, vy, life, color, size));
+}
+function updateParticles(dt) {
+  particles = particles.filter(p => { p.update(dt); return p.life > 0; });
+}
+function drawParticles() {
+  particles.forEach(p => p.draw(ctx));
+}
+
+// ===================== STAR FIELD =====================
+const bgStars = [];
+for (let i = 0; i < 200; i++) {
+  bgStars.push({
+    x: Math.random() * 1280,
+    y: Math.random() * 720,
+    size: Math.random() * 2 + 0.5,
+    twinkleSpeed: Math.random() * 3 + 1,
+    twinkleOffset: Math.random() * Math.PI * 2
+  });
+}
+
+function drawStarfield(time, alpha = 1) {
+  bgStars.forEach(s => {
+    const bright = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(time * s.twinkleSpeed + s.twinkleOffset));
+    ctx.globalAlpha = bright * alpha;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+// ===================== CHARACTER DRAWING =====================
+
+function drawMario(x, y, scale = 1, facing = 1, frame = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale * facing, scale);
+  const s = 1;
+
+  // Shoes
+  ctx.fillStyle = '#5C3317';
+  ctx.beginPath();
+  ctx.ellipse(-8 * s, 0, 7 * s, 4 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(8 * s, 0, 7 * s, 4 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs (blue overalls)
+  ctx.fillStyle = '#1a3ecc';
+  ctx.fillRect(-10 * s, -20 * s, 8 * s, 20 * s);
+  ctx.fillRect(2 * s, -20 * s, 8 * s, 20 * s);
+
+  // Body (overalls)
+  ctx.fillStyle = '#1a3ecc';
+  ctx.beginPath();
+  ctx.roundRect(-12 * s, -38 * s, 24 * s, 20 * s, 3 * s);
+  ctx.fill();
+
+  // Shirt (red)
+  ctx.fillStyle = '#E52521';
+  ctx.fillRect(-10 * s, -36 * s, 20 * s, 10 * s);
+
+  // Arms
+  const armBob = Math.sin(frame * 6) * 3;
+  ctx.fillStyle = '#E52521';
+  ctx.beginPath();
+  ctx.ellipse(-15 * s, -30 * s + armBob, 5 * s, 8 * s, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(15 * s, -30 * s - armBob, 5 * s, 8 * s, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Gloves
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(-16 * s, -22 * s + armBob, 4 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(16 * s, -22 * s - armBob, 4 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Overall straps
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.arc(-5 * s, -28 * s, 2 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(5 * s, -28 * s, 2 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = '#FDBCB4';
+  ctx.beginPath();
+  ctx.arc(0, -48 * s, 12 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Ears
+  ctx.beginPath();
+  ctx.arc(-12 * s, -48 * s, 3 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(12 * s, -48 * s, 3 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(-5 * s, -50 * s, 4 * s, 5 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(5 * s, -50 * s, 4 * s, 5 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#2244aa';
+  ctx.beginPath();
+  ctx.arc(-4 * s, -49 * s, 2.5 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(6 * s, -49 * s, 2.5 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(-4 * s, -49 * s, 1.5 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(6 * s, -49 * s, 1.5 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Nose
+  ctx.fillStyle = '#D4774B';
+  ctx.beginPath();
+  ctx.ellipse(2 * s, -45 * s, 5 * s, 3.5 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Mustache
+  ctx.fillStyle = '#3E1F00';
+  ctx.beginPath();
+  ctx.ellipse(-4 * s, -42 * s, 6 * s, 2.5 * s, -0.15, 0, Math.PI);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(6 * s, -42 * s, 6 * s, 2.5 * s, 0.15, 0, Math.PI);
+  ctx.fill();
+
+  // Cap
+  ctx.fillStyle = '#E52521';
+  ctx.beginPath();
+  ctx.arc(0, -52 * s, 13 * s, Math.PI, 0);
+  ctx.fill();
+  ctx.fillRect(-13 * s, -52 * s, 26 * s, 3 * s);
+
+  // Cap brim
+  ctx.fillStyle = '#E52521';
+  ctx.beginPath();
+  ctx.ellipse(8 * s, -51 * s, 10 * s, 3 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // M logo on cap
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(2 * s, -56 * s, 5 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#E52521';
+  ctx.font = `bold ${9 * s}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('M', 2 * s, -55 * s);
+
+  ctx.restore();
+}
+
+function drawLuigi(x, y, scale = 1, facing = 1, frame = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale * facing, scale);
+  const s = 1;
+
+  // Shoes
+  ctx.fillStyle = '#5C3317';
+  ctx.beginPath();
+  ctx.ellipse(-8 * s, 0, 7 * s, 4 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(8 * s, 0, 7 * s, 4 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs (darker blue)
+  ctx.fillStyle = '#112299';
+  ctx.fillRect(-9 * s, -24 * s, 7 * s, 24 * s);
+  ctx.fillRect(2 * s, -24 * s, 7 * s, 24 * s);
+
+  // Body
+  ctx.fillStyle = '#112299';
+  ctx.beginPath();
+  ctx.roundRect(-11 * s, -42 * s, 22 * s, 20 * s, 3 * s);
+  ctx.fill();
+
+  // Shirt (green)
+  ctx.fillStyle = '#39B54A';
+  ctx.fillRect(-9 * s, -40 * s, 18 * s, 10 * s);
+
+  // Arms
+  const armBob = Math.sin(frame * 6) * 3;
+  ctx.fillStyle = '#39B54A';
+  ctx.beginPath();
+  ctx.ellipse(-14 * s, -34 * s + armBob, 5 * s, 8 * s, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(14 * s, -34 * s - armBob, 5 * s, 8 * s, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Gloves
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(-15 * s, -26 * s + armBob, 4 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(15 * s, -26 * s - armBob, 4 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Head (slightly taller)
+  ctx.fillStyle = '#FDBCB4';
+  ctx.beginPath();
+  ctx.ellipse(0, -52 * s, 11 * s, 12 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(-4 * s, -54 * s, 3.5 * s, 4.5 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(4 * s, -54 * s, 3.5 * s, 4.5 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(-3 * s, -53 * s, 2 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(5 * s, -53 * s, 2 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Nose
+  ctx.fillStyle = '#D4774B';
+  ctx.beginPath();
+  ctx.ellipse(1 * s, -49 * s, 4 * s, 3 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Thinner mustache
+  ctx.fillStyle = '#3E1F00';
+  ctx.beginPath();
+  ctx.ellipse(-2 * s, -46 * s, 4 * s, 2 * s, -0.1, 0, Math.PI);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(5 * s, -46 * s, 4 * s, 2 * s, 0.1, 0, Math.PI);
+  ctx.fill();
+
+  // Green cap
+  ctx.fillStyle = '#39B54A';
+  ctx.beginPath();
+  ctx.arc(0, -56 * s, 12 * s, Math.PI, 0);
+  ctx.fill();
+  ctx.fillRect(-12 * s, -56 * s, 24 * s, 3 * s);
+  ctx.beginPath();
+  ctx.ellipse(7 * s, -55 * s, 9 * s, 3 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // L logo
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(1 * s, -60 * s, 5 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#39B54A';
+  ctx.font = `bold ${9 * s}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('L', 1 * s, -59 * s);
+
+  ctx.restore();
+}
+
+function drawPeach(x, y, scale = 1, frame = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  // Dress
+  ctx.fillStyle = '#FFB7D5';
+  ctx.beginPath();
+  ctx.moveTo(-18, 0);
+  ctx.quadraticCurveTo(-20, -15, -12, -25);
+  ctx.lineTo(12, -25);
+  ctx.quadraticCurveTo(20, -15, 18, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Dress details
+  ctx.fillStyle = '#FF8EC4';
+  ctx.beginPath();
+  ctx.moveTo(-16, -2);
+  ctx.quadraticCurveTo(0, -8, 16, -2);
+  ctx.quadraticCurveTo(0, -4, -16, -2);
+  ctx.fill();
+
+  // Upper body
+  ctx.fillStyle = '#FFB7D5';
+  ctx.fillRect(-8, -38, 16, 15);
+
+  // Jewel
+  ctx.fillStyle = '#4169E1';
+  ctx.beginPath();
+  ctx.arc(0, -30, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Arms
+  ctx.fillStyle = '#FDBCB4';
+  ctx.beginPath();
+  ctx.ellipse(-12, -32, 4, 7, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(12, -32, 4, 7, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Gloves
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(-13, -25, 3.5, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(13, -25, 3.5, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = '#FDBCB4';
+  ctx.beginPath();
+  ctx.arc(0, -48, 11, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Hair
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.arc(0, -52, 12, Math.PI + 0.3, -0.3);
+  ctx.fill();
+  // Hair sides
+  ctx.beginPath();
+  ctx.ellipse(-11, -42, 4, 12, 0.15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(11, -42, 4, 12, -0.15, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(-4, -50, 3.5, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(4, -50, 3.5, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#4169E1';
+  ctx.beginPath();
+  ctx.arc(-4, -49, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(4, -49, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Cheeks
+  ctx.fillStyle = 'rgba(255,150,150,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(-8, -45, 3, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(8, -45, 3, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Earrings
+  ctx.fillStyle = '#4169E1';
+  ctx.beginPath();
+  ctx.arc(-11, -46, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(11, -46, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Mouth
+  ctx.fillStyle = '#E55';
+  ctx.beginPath();
+  ctx.arc(0, -44, 2, 0, Math.PI);
+  ctx.fill();
+
+  // Crown
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.moveTo(-7, -59);
+  ctx.lineTo(-8, -65);
+  ctx.lineTo(-4, -62);
+  ctx.lineTo(0, -68);
+  ctx.lineTo(4, -62);
+  ctx.lineTo(8, -65);
+  ctx.lineTo(7, -59);
+  ctx.closePath();
+  ctx.fill();
+  // Crown jewels
+  ctx.fillStyle = '#E52521';
+  ctx.beginPath();
+  ctx.arc(0, -62, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#4169E1';
+  ctx.beginPath();
+  ctx.arc(-5, -61, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(5, -61, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawBowser(x, y, scale = 1, frame = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  // Tail
+  ctx.fillStyle = '#2D8B2D';
+  ctx.beginPath();
+  ctx.moveTo(-20, -15);
+  ctx.quadraticCurveTo(-35, -10, -40, -20);
+  ctx.quadraticCurveTo(-35, -15, -20, -20);
+  ctx.closePath();
+  ctx.fill();
+
+  // Feet
+  ctx.fillStyle = '#E8A835';
+  ctx.beginPath();
+  ctx.ellipse(-12, 0, 10, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(12, 0, 10, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Claws
+  ctx.fillStyle = '#fff';
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath();
+    ctx.ellipse(-12 + i * 4, -3, 2, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(12 + i * 4, -3, 2, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Legs
+  ctx.fillStyle = '#E8A835';
+  ctx.fillRect(-16, -25, 12, 25);
+  ctx.fillRect(4, -25, 12, 25);
+
+  // Shell
+  ctx.fillStyle = '#2D8B2D';
+  ctx.beginPath();
+  ctx.ellipse(0, -38, 22, 18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Shell outline
+  ctx.fillStyle = '#F5E6C8';
+  ctx.beginPath();
+  ctx.ellipse(0, -35, 16, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Spikes
+  ctx.fillStyle = '#fff';
+  for (let i = -2; i <= 2; i++) {
+    const sx = i * 9;
+    const sy = -50 + Math.abs(i) * 3;
+    ctx.beginPath();
+    ctx.moveTo(sx - 4, -38);
+    ctx.lineTo(sx, sy);
+    ctx.lineTo(sx + 4, -38);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Body (belly)
+  ctx.fillStyle = '#F5E6C8';
+  ctx.beginPath();
+  ctx.ellipse(0, -28, 15, 13, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Arms
+  const armBob = Math.sin(frame * 4) * 2;
+  ctx.fillStyle = '#E8A835';
+  ctx.beginPath();
+  ctx.ellipse(-22, -30 + armBob, 7, 10, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(22, -30 - armBob, 7, 10, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Spiked bands
+  ctx.fillStyle = '#555';
+  ctx.fillRect(-26, -34, 8, 4);
+  ctx.fillRect(18, -34, 8, 4);
+  ctx.fillStyle = '#fff';
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.arc(-24 + i * 3, -36, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(20 + i * 3, -36, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Head
+  ctx.fillStyle = '#E8A835';
+  ctx.beginPath();
+  ctx.ellipse(0, -52, 14, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Snout
+  ctx.fillStyle = '#D4974B';
+  ctx.beginPath();
+  ctx.ellipse(4, -47, 10, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Mouth / teeth
+  ctx.fillStyle = '#600';
+  ctx.beginPath();
+  ctx.ellipse(5, -44, 8, 4, 0, 0, Math.PI);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * 3 - 1, -44);
+    ctx.lineTo(i * 3 + 0.5, -41);
+    ctx.lineTo(i * 3 + 2, -44);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Eyes
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(-5, -55, 5, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(7, -55, 5, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#C00';
+  ctx.beginPath();
+  ctx.arc(-5, -54, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(7, -54, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(-5, -54, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(7, -54, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eyebrows
+  ctx.fillStyle = '#C33';
+  ctx.save();
+  ctx.translate(-5, -59);
+  ctx.rotate(-0.2);
+  ctx.fillRect(-5, -2, 10, 4);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(7, -59);
+  ctx.rotate(0.2);
+  ctx.fillRect(-5, -2, 10, 4);
+  ctx.restore();
+
+  // Horns
+  ctx.fillStyle = '#F5E6C8';
+  ctx.beginPath();
+  ctx.moveTo(-10, -60);
+  ctx.lineTo(-14, -72);
+  ctx.lineTo(-5, -62);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(12, -60);
+  ctx.lineTo(16, -72);
+  ctx.lineTo(7, -62);
+  ctx.closePath();
+  ctx.fill();
+
+  // Red hair/mane
+  ctx.fillStyle = '#D44';
+  ctx.beginPath();
+  ctx.arc(0, -62, 10, Math.PI + 0.5, -0.5);
+  ctx.fill();
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.ellipse(i * 5, -66, 4, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function drawRosalina(x, y, scale = 1, frame = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  // Dress
+  const grad = ctx.createLinearGradient(0, 0, 0, -40);
+  grad.addColorStop(0, '#19BEC0');
+  grad.addColorStop(1, '#0E8A8C');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(-20, 0);
+  ctx.quadraticCurveTo(-22, -15, -10, -30);
+  ctx.lineTo(10, -30);
+  ctx.quadraticCurveTo(22, -15, 20, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Dress star
+  ctx.fillStyle = '#FFD700';
+  drawStar(0, -15, 5, 5);
+
+  // Upper body
+  ctx.fillStyle = '#19BEC0';
+  ctx.fillRect(-8, -44, 16, 16);
+
+  // Brooch
+  ctx.fillStyle = '#FFD700';
+  drawStar(0, -38, 4, 5);
+
+  // Arms
+  ctx.fillStyle = '#FDEEF4';
+  ctx.beginPath();
+  ctx.ellipse(-12, -38, 4, 8, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(12, -38, 4, 8, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Wand in right hand
+  ctx.strokeStyle = '#FFD700';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(14, -32);
+  ctx.lineTo(20, -50);
+  ctx.stroke();
+  ctx.fillStyle = '#FFD700';
+  drawStar(20, -52, 4, 5);
+
+  // Head
+  ctx.fillStyle = '#FDEEF4';
+  ctx.beginPath();
+  ctx.ellipse(0, -55, 11, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Hair (platinum blonde, long, covering one eye)
+  ctx.fillStyle = '#F0E68C';
+  ctx.beginPath();
+  ctx.arc(0, -60, 13, Math.PI + 0.2, -0.2);
+  ctx.fill();
+  // Long flowing hair left side
+  ctx.beginPath();
+  ctx.moveTo(-13, -55);
+  ctx.quadraticCurveTo(-16, -35, -12, -20);
+  ctx.quadraticCurveTo(-10, -35, -11, -55);
+  ctx.fill();
+  // Hair bang covering right eye
+  ctx.beginPath();
+  ctx.moveTo(2, -67);
+  ctx.quadraticCurveTo(12, -58, 10, -48);
+  ctx.quadraticCurveTo(6, -55, 2, -67);
+  ctx.fill();
+  // Right side hair
+  ctx.beginPath();
+  ctx.moveTo(11, -50);
+  ctx.quadraticCurveTo(15, -35, 12, -20);
+  ctx.quadraticCurveTo(10, -35, 11, -50);
+  ctx.fill();
+
+  // Visible eye (left)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(-5, -56, 3.5, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#47C8C8';
+  ctx.beginPath();
+  ctx.arc(-5, -55, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(-5, -55, 1.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eyelashes
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-8, -58);
+  ctx.lineTo(-9, -60);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-2, -58);
+  ctx.lineTo(-1, -60);
+  ctx.stroke();
+
+  // Mouth
+  ctx.fillStyle = '#E88';
+  ctx.beginPath();
+  ctx.arc(-1, -50, 2, 0.1, Math.PI - 0.1);
+  ctx.fill();
+
+  // Crown
+  ctx.fillStyle = '#C0C0C0';
+  ctx.beginPath();
+  ctx.moveTo(-6, -66);
+  ctx.lineTo(-7, -72);
+  ctx.lineTo(-3, -69);
+  ctx.lineTo(0, -74);
+  ctx.lineTo(3, -69);
+  ctx.lineTo(7, -72);
+  ctx.lineTo(6, -66);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#47C8C8';
+  ctx.beginPath();
+  ctx.arc(0, -69, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Glow effect
+  ctx.globalAlpha = 0.15 + Math.sin(frame * 2) * 0.08;
+  ctx.fillStyle = '#47C8C8';
+  ctx.beginPath();
+  ctx.arc(0, -30, 35, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+function drawLuma(x, y, scale = 1, color = '#FFE566', frame = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  const s = scale;
+  const bob = Math.sin(frame * 3) * 3;
+  ctx.translate(0, bob);
+
+  // Glow
+  ctx.globalAlpha = 0.3 + Math.sin(frame * 4) * 0.1;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(0, 0, 18 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Body (star shape)
+  ctx.fillStyle = color;
+  drawStar(0, 0, 12 * s, 5);
+
+  // Eyes
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(-4 * s, -2 * s, 2 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(4 * s, -2 * s, 2 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eye shines
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(-3 * s, -3 * s, 0.8 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(5 * s, -3 * s, 0.8 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawStar(cx, cy, r, points) {
+  points = points || 5;
+  ctx.beginPath();
+  for (let i = 0; i < points * 2; i++) {
+    const angle = (i * Math.PI / points) - Math.PI / 2;
+    const radius = i % 2 === 0 ? r : r * 0.45;
+    const px = cx + Math.cos(angle) * radius;
+    const py = cy + Math.sin(angle) * radius;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawPowerStar(x, y, scale = 1, frame = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(frame * 1.5);
+  ctx.scale(scale, scale);
+
+  // Glow
+  ctx.globalAlpha = 0.4 + Math.sin(frame * 5) * 0.2;
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.arc(0, 0, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = '#FFD700';
+  drawStar(0, 0, 15, 5);
+
+  // Eyes
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(-4, -2, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(4, -2, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+
+  // Sparkles
+  for (let i = 0; i < 4; i++) {
+    const angle = frame * 2 + i * Math.PI / 2;
+    const dist = 20 * scale + Math.sin(frame * 3 + i) * 5;
+    const sx = x + Math.cos(angle) * dist;
+    const sy = y + Math.sin(angle) * dist;
+    ctx.globalAlpha = 0.6 + Math.sin(frame * 4 + i) * 0.3;
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 2 * scale, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawToad(x, y, scale = 1, spotColor = '#E52521', frame = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  // Feet
+  ctx.fillStyle = '#5C3317';
+  ctx.beginPath();
+  ctx.ellipse(-5, 0, 5, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(5, 0, 5, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-7, -18, 14, 18);
+
+  // Vest
+  ctx.fillStyle = spotColor === '#E52521' ? '#6B5CF5' : '#E52521';
+  ctx.fillRect(-6, -16, 12, 10);
+
+  // Head
+  ctx.fillStyle = '#FDBCB4';
+  ctx.beginPath();
+  ctx.arc(0, -24, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(-3, -25, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(3, -25, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Mushroom cap
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(0, -30, 14, 10, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(0, -30, 14, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Spots
+  ctx.fillStyle = spotColor;
+  ctx.beginPath();
+  ctx.arc(-7, -34, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(7, -34, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(0, -40, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawGoomba(x, y, scale = 1, frame = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  // Feet
+  ctx.fillStyle = '#222';
+  ctx.beginPath();
+  ctx.ellipse(-5, 0, 5, 3, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(5, 0, 5, 3, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = '#D2A060';
+  ctx.beginPath();
+  ctx.ellipse(0, -12, 10, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eyebrows
+  ctx.fillStyle = '#222';
+  ctx.save();
+  ctx.translate(-4, -17);
+  ctx.rotate(-0.4);
+  ctx.fillRect(-3, -1, 6, 2);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(4, -17);
+  ctx.rotate(0.4);
+  ctx.fillRect(-3, -1, 6, 2);
+  ctx.restore();
+
+  // Eyes
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(-4, -14, 3, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(4, -14, 3, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(-3, -13, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(5, -13, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Fangs
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.moveTo(-3, -8);
+  ctx.lineTo(-1, -5);
+  ctx.lineTo(1, -8);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(1, -8);
+  ctx.lineTo(3, -5);
+  ctx.lineTo(5, -8);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ===================== UTILITY DRAWING =====================
+
+function drawText(text, x, y, size, color, align, stroke) {
+  ctx.font = `bold ${size}px 'Segoe UI', Arial, sans-serif`;
+  ctx.textAlign = align || 'center';
+  ctx.textBaseline = 'middle';
+  if (stroke) {
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = size / 6;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(text, x, y);
+  }
+  ctx.fillStyle = color || '#fff';
+  ctx.fillText(text, x, y);
+}
+
+function drawDialogue(speaker, text, speakerColor, time) {
+  const alpha = Math.min(1, time * 3);
+  ctx.globalAlpha = alpha;
+
+  // Background
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.beginPath();
+  ctx.roundRect(80, 610, 1120, 80, 8);
+  ctx.fill();
+
+  // Speaker
+  if (speaker) {
+    ctx.font = 'bold 18px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = speakerColor || '#FFD700';
+    ctx.fillText(speaker, 100, 635);
+  }
+
+  // Text
+  ctx.font = '16px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'left';
+
+  // Word wrap
+  const maxW = 1060;
+  const words = text.split(' ');
+  let line = '';
+  let ly = speaker ? 660 : 650;
+  words.forEach(w => {
+    const test = line + w + ' ';
+    if (ctx.measureText(test).width > maxW) {
+      ctx.fillText(line.trim(), 100, ly);
+      line = w + ' ';
+      ly += 22;
+    } else {
+      line = test;
+    }
+  });
+  ctx.fillText(line.trim(), 100, ly);
+  ctx.globalAlpha = 1;
+}
+
+function drawHills(baseY, color1, color2, scroll, count, height) {
+  for (let i = 0; i < count + 2; i++) {
+    const hx = (i * (1400 / count) + scroll) % (1400 + 200) - 200;
+    ctx.fillStyle = i % 2 === 0 ? color1 : color2;
+    ctx.beginPath();
+    ctx.arc(hx, baseY, height || 120, Math.PI, 0);
+    ctx.fill();
+  }
+}
+
+function drawCastle(x, y, scale = 1) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  // Main body
+  ctx.fillStyle = '#F5DEB3';
+  ctx.fillRect(-40, -60, 80, 60);
+
+  // Door
+  ctx.fillStyle = '#8B4513';
+  ctx.beginPath();
+  ctx.arc(0, -10, 12, Math.PI, 0);
+  ctx.fill();
+  ctx.fillRect(-12, -10, 24, 10);
+
+  // Windows
+  ctx.fillStyle = '#4488FF';
+  ctx.fillRect(-30, -45, 12, 15);
+  ctx.fillRect(18, -45, 12, 15);
+
+  // Towers
+  ctx.fillStyle = '#DDD';
+  ctx.fillRect(-50, -90, 20, 50);
+  ctx.fillRect(30, -90, 20, 50);
+
+  // Tower roofs
+  ctx.fillStyle = '#E52521';
+  ctx.beginPath();
+  ctx.moveTo(-55, -90);
+  ctx.lineTo(-40, -110);
+  ctx.lineTo(-25, -90);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(25, -90);
+  ctx.lineTo(40, -110);
+  ctx.lineTo(55, -90);
+  ctx.closePath();
+  ctx.fill();
+
+  // Center tower
+  ctx.fillStyle = '#F5DEB3';
+  ctx.fillRect(-15, -100, 30, 40);
+  ctx.fillStyle = '#E52521';
+  ctx.beginPath();
+  ctx.moveTo(-20, -100);
+  ctx.lineTo(0, -120);
+  ctx.lineTo(20, -100);
+  ctx.closePath();
+  ctx.fill();
+
+  // Flag
+  ctx.strokeStyle = '#888';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -120);
+  ctx.lineTo(0, -140);
+  ctx.stroke();
+  ctx.fillStyle = '#FFB7D5';
+  ctx.beginPath();
+  ctx.moveTo(0, -140);
+  ctx.lineTo(15, -135);
+  ctx.lineTo(0, -130);
+  ctx.closePath();
+  ctx.fill();
+
+  // Battlements
+  for (let i = -2; i <= 2; i++) {
+    ctx.fillStyle = '#DDD';
+    ctx.fillRect(i * 15 - 5, -68, 10, 8);
+  }
+
+  ctx.restore();
+}
+
+function drawAirship(x, y, scale = 1) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  // Hull
+  ctx.fillStyle = '#4a3728';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 60, 20, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Deck
+  ctx.fillStyle = '#5a4738';
+  ctx.fillRect(-50, -25, 100, 10);
+
+  // Bowser flag
+  ctx.fillStyle = '#333';
+  ctx.fillRect(0, -50, 3, 30);
+  ctx.fillStyle = '#222';
+  ctx.fillRect(3, -50, 20, 14);
+  // Skull on flag
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(13, -45, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Cannons
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.arc(-35, -10, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(35, -10, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Propeller
+  ctx.fillStyle = '#666';
+  ctx.save();
+  ctx.translate(-55, 0);
+  ctx.rotate(performance.now() / 100);
+  ctx.fillRect(-2, -12, 4, 24);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function drawSmallPlanet(x, y, radius, color, hasTree) {
+  ctx.save();
+  ctx.translate(x, y);
+
+  // Planet body
+  const grad = ctx.createRadialGradient(-radius * 0.3, -radius * 0.3, 0, 0, 0, radius);
+  grad.addColorStop(0, color);
+  grad.addColorStop(1, darkenColor(color, 40));
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (hasTree) {
+    // Tree trunk
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(-3, -radius - 20, 6, 20);
+    // Tree top
+    ctx.fillStyle = '#228B22';
+    ctx.beginPath();
+    ctx.arc(0, -radius - 25, 12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function darkenColor(hex, amount) {
+  let r = parseInt(hex.slice(1, 3), 16);
+  let g = parseInt(hex.slice(3, 5), 16);
+  let b = parseInt(hex.slice(5, 7), 16);
+  r = Math.max(0, r - amount);
+  g = Math.max(0, g - amount);
+  b = Math.max(0, b - amount);
+  return `rgb(${r},${g},${b})`;
+}
+
+function drawNebula(x, y, w, h, color, time) {
+  ctx.globalAlpha = 0.15 + Math.sin(time * 0.5) * 0.05;
+  const grad = ctx.createRadialGradient(x, y, 0, x, y, w);
+  grad.addColorStop(0, color);
+  grad.addColorStop(1, 'transparent');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.ellipse(x, y, w, h, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function drawCometObservatory(x, y, scale, time) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  // Glow
+  ctx.globalAlpha = 0.2 + Math.sin(time * 2) * 0.05;
+  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, 100);
+  glow.addColorStop(0, '#47C8C8');
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, 100, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Main dome
+  ctx.fillStyle = '#1a4a6a';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 60, 30, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Upper dome
+  ctx.fillStyle = '#2a6a8a';
+  ctx.beginPath();
+  ctx.ellipse(0, -10, 40, 25, 0, Math.PI, 0);
+  ctx.fill();
+
+  // Beacon
+  ctx.fillStyle = '#47C8C8';
+  ctx.beginPath();
+  ctx.arc(0, -30, 8, 0, Math.PI * 2);
+  ctx.fill();
+  // Beacon glow
+  ctx.globalAlpha = 0.4;
+  ctx.beginPath();
+  ctx.arc(0, -30, 15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Wings/platforms
+  ctx.fillStyle = '#1a3a5a';
+  ctx.beginPath();
+  ctx.moveTo(-60, 5);
+  ctx.lineTo(-90, 15);
+  ctx.lineTo(-80, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(60, 5);
+  ctx.lineTo(90, 15);
+  ctx.lineTo(80, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Windows
+  ctx.fillStyle = '#FFD700';
+  ctx.globalAlpha = 0.7;
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.arc(i * 15, -5, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+// ===================== SCENE RENDERERS =====================
+
+function getSceneAt(time) {
+  let elapsed = 0;
+  for (let i = 0; i < SCENE_DEFS.length; i++) {
+    if (time < elapsed + SCENE_DEFS[i].duration) {
+      return { index: i, localTime: time - elapsed, duration: SCENE_DEFS[i].duration, name: SCENE_DEFS[i].name };
+    }
+    elapsed += SCENE_DEFS[i].duration;
+  }
+  return { index: SCENE_DEFS.length - 1, localTime: SCENE_DEFS[SCENE_DEFS.length - 1].duration, duration: SCENE_DEFS[SCENE_DEFS.length - 1].duration, name: SCENE_DEFS[SCENE_DEFS.length - 1].name };
+}
+
+function easeInOut(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+function lerp(a, b, t) { return a + (b - a) * Math.max(0, Math.min(1, t)); }
+
+function renderScene(sceneIndex, t, dur) {
+  // t = local time in scene, dur = scene duration
+  const ft = movieTime; // frame time for animations
+
+  switch(sceneIndex) {
+
+  // ============ SCENE 0: TITLE SEQUENCE ============
+  case 0: {
+    setMood('title');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, 1280, 720);
+
+    // Stars twinkle in
+    const starReveal = Math.min(1, t / 5);
+    drawStarfield(ft, starReveal);
+
+    // "STREAMFLIX PRESENTS"
+    if (t > 2 && t < 7) {
+      const alpha = t < 3 ? (t - 2) : t > 6 ? (7 - t) : 1;
+      ctx.globalAlpha = alpha;
+      drawText('STREAMFLIX PRESENTS', 640, 340, 32, '#E63946', 'center', true);
+      ctx.globalAlpha = 1;
+    }
+
+    // Title zoom
+    if (t > 7) {
+      const titleT = Math.min(1, (t - 7) / 2.5);
+      const scale = 0.3 + titleT * 0.7;
+      const alpha = Math.min(1, (t - 7) / 1.5);
+      ctx.globalAlpha = alpha;
+      ctx.save();
+      ctx.translate(640, 330);
+      ctx.scale(scale, scale);
+
+      // Golden glow
+      ctx.shadowColor = '#FFD700';
+      ctx.shadowBlur = 30;
+      drawText('SUPER MARIO', 0, -30, 56, '#FFD700', 'center', true);
+      drawText('GALAXY', 0, 30, 72, '#FFD700', 'center', true);
+      ctx.shadowBlur = 0;
+
+      ctx.restore();
+      ctx.globalAlpha = 1;
+
+      // Star effects radiating
+      if (t > 8.5) {
+        const rays = 12;
+        for (let i = 0; i < rays; i++) {
+          const angle = (i / rays) * Math.PI * 2 + ft * 0.3;
+          const dist = 100 + (t - 8.5) * 80;
+          const ex = 640 + Math.cos(angle) * dist;
+          const ey = 330 + Math.sin(angle) * dist;
+          ctx.globalAlpha = Math.max(0, 1 - (t - 8.5) / 4);
+          ctx.fillStyle = '#FFD700';
+          ctx.beginPath();
+          ctx.arc(ex, ey, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // Orbiting Luma
+      if (t > 9) {
+        const lumaAngle = (t - 9) * 1.2;
+        const lx = 640 + Math.cos(lumaAngle) * 180;
+        const ly = 330 + Math.sin(lumaAngle) * 80;
+        drawLuma(lx, ly, 0.8, '#FFE566', ft);
+      }
+    }
+
+    // Subtitle
+    if (t > 12) {
+      ctx.globalAlpha = Math.min(1, (t - 12) / 1.5);
+      drawText('A StreamFlix Original', 640, 440, 20, '#aaa', 'center', false);
+      ctx.globalAlpha = 1;
+    }
+    break;
+  }
+
+  // ============ SCENE 1: THE STAR FESTIVAL ============
+  case 1: {
+    setMood('festival');
+    // Night sky gradient
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, 720);
+    skyGrad.addColorStop(0, '#0a0a2e');
+    skyGrad.addColorStop(0.6, '#1a1a4e');
+    skyGrad.addColorStop(1, '#2a2a3e');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, 1280, 720);
+
+    drawStarfield(ft, 1);
+
+    // Star bits raining
+    for (let i = 0; i < 40; i++) {
+      const bx = (i * 37 + ft * 30 * (1 + (i % 3) * 0.3)) % 1400 - 60;
+      const by = (i * 53 + ft * 50 * (1 + (i % 4) * 0.2)) % 800 - 40;
+      const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff6bd6'];
+      ctx.fillStyle = colors[i % 5];
+      ctx.globalAlpha = 0.7 + Math.sin(ft * 3 + i) * 0.3;
+      ctx.beginPath();
+      ctx.arc(bx, by, 3 + Math.sin(ft * 5 + i) * 1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Hills
+    drawHills(600, '#1a5c2a', '#1a6c3a', -ft * 10, 6, 140);
+    drawHills(650, '#0d4a1d', '#0d5a2d', -ft * 5, 5, 100);
+
+    // Ground
+    ctx.fillStyle = '#1a4a25';
+    ctx.fillRect(0, 620, 1280, 100);
+
+    // Grass tufts
+    ctx.fillStyle = '#2a6a35';
+    for (let i = 0; i < 30; i++) {
+      const gx = i * 44 + 10;
+      ctx.beginPath();
+      ctx.moveTo(gx, 620);
+      ctx.quadraticCurveTo(gx + 5, 605, gx + 10, 620);
+      ctx.fill();
+    }
+
+    // Castle in background
+    drawCastle(950, 580, 1.2);
+
+    // Toads celebrating
+    const toadBounce1 = Math.abs(Math.sin(ft * 4)) * 10;
+    const toadBounce2 = Math.abs(Math.sin(ft * 4 + 1)) * 10;
+    const toadBounce3 = Math.abs(Math.sin(ft * 4 + 2)) * 10;
+    drawToad(500, 618 - toadBounce1, 0.9, '#E52521', ft);
+    drawToad(600, 618 - toadBounce2, 0.8, '#4488FF', ft);
+    drawToad(700, 618 - toadBounce3, 0.9, '#39B54A', ft);
+
+    // Mario walks in from left
+    const marioX = lerp(-40, 350, t / 8);
+    drawMario(marioX, 618, 1, 1, ft);
+
+    // Dialogue
+    if (t < 7) {
+      drawDialogue('Narrator', 'Every hundred years, a great comet passes over the Mushroom Kingdom...', '#FFD700', t);
+    } else {
+      drawDialogue('Narrator', '...showering the land with magical Star Bits. They call it the Star Festival.', '#FFD700', t - 7);
+    }
+    break;
+  }
+
+  // ============ SCENE 2: PEACH'S LETTER ============
+  case 2: {
+    setMood('happy');
+    // Background
+    ctx.fillStyle = '#1a1a3e';
+    ctx.fillRect(0, 0, 1280, 720);
+    drawStarfield(ft, 0.5);
+
+    // Envelope
+    const envAlpha = Math.min(1, t / 1);
+    ctx.globalAlpha = envAlpha;
+    ctx.save();
+    ctx.translate(640, 280);
+
+    // Envelope shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.roundRect(-152, -92, 304, 188, 8);
+    ctx.fill();
+
+    // Envelope body
+    ctx.fillStyle = '#FFB7D5';
+    ctx.beginPath();
+    ctx.roundRect(-150, -90, 300, 185, 8);
+    ctx.fill();
+
+    // Envelope flap
+    ctx.fillStyle = '#FF8EC4';
+    ctx.beginPath();
+    ctx.moveTo(-150, -90);
+    ctx.lineTo(0, 20);
+    ctx.lineTo(150, -90);
+    ctx.closePath();
+    ctx.fill();
+
+    // Heart seal
+    ctx.fillStyle = '#E52521';
+    ctx.beginPath();
+    ctx.arc(-8, -30, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(8, -30, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-18, -26);
+    ctx.lineTo(0, -8);
+    ctx.lineTo(18, -26);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+    ctx.globalAlpha = 1;
+
+    // Letter text appears
+    if (t > 2) {
+      const lineDelay = 1.5;
+      const lines = [
+        'Dear Mario,',
+        "I'll be waiting for you at the castle.",
+        'I have something very special for you!',
+        '              -Princess Peach'
+      ];
+      ctx.font = 'italic 22px Georgia, serif';
+      ctx.fillStyle = '#FFD700';
+      ctx.textAlign = 'center';
+      lines.forEach((line, i) => {
+        const lt = t - 2 - i * lineDelay;
+        if (lt > 0) {
+          ctx.globalAlpha = Math.min(1, lt / 0.5);
+          ctx.fillText(line, 640, 440 + i * 32);
+        }
+      });
+      ctx.globalAlpha = 1;
+    }
+
+    // Mario runs right
+    if (t > 8) {
+      const mx = lerp(300, 1350, (t - 8) / 4);
+      drawMario(mx, 660, 1, 1, ft);
+    }
+    break;
+  }
+
+  // ============ SCENE 3: BOWSER'S ATTACK ============
+  case 3: {
+    setMood('dark');
+    // Sky turns red
+    const redProgress = Math.min(1, t / 5);
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, 720);
+    skyGrad.addColorStop(0, lerpColor('#0a0a2e', '#3a0a0a', redProgress));
+    skyGrad.addColorStop(0.5, lerpColor('#1a1a4e', '#5a1a0a', redProgress));
+    skyGrad.addColorStop(1, '#2a1a0e');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, 1280, 720);
+
+    drawStarfield(ft, 1 - redProgress * 0.7);
+
+    // Dark clouds rolling in
+    ctx.fillStyle = 'rgba(30,10,10,0.6)';
+    for (let i = 0; i < 8; i++) {
+      const cx = 1300 - t * 80 + i * 200;
+      const cy = 100 + Math.sin(i * 2) * 50;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 150 + Math.sin(ft + i) * 20, 60, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Ground
+    drawHills(600, '#2a1a1a', '#3a2a1a', 0, 5, 100);
+    ctx.fillStyle = '#1a1a15';
+    ctx.fillRect(0, 600, 1280, 120);
+
+    // Castle
+    drawCastle(640, 560, 1.5);
+
+    // Airships
+    if (t > 2) {
+      const shipX = lerp(1400, 400, (t - 2) / 5);
+      drawAirship(shipX, 200, 1);
+      drawAirship(shipX + 200, 150, 0.7);
+      drawAirship(shipX + 350, 250, 0.6);
+    }
+
+    // Lightning
+    if (Math.floor(t * 3) % 5 === 0) {
+      ctx.globalAlpha = 0.6;
+      ctx.strokeStyle = '#FFD700';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      const lx = 300 + Math.sin(t * 7) * 400;
+      ctx.moveTo(lx, 0);
+      for (let ly = 0; ly < 600; ly += 30) {
+        ctx.lineTo(lx + (Math.random() - 0.5) * 40, ly);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // Bowser appears
+    if (t > 6) {
+      const bowserX = lerp(1400, 640, (t - 6) / 3);
+      drawBowser(bowserX, 200, 1.5, ft);
+    }
+
+    // Explosions
+    if (t > 3 && Math.random() < 0.15) {
+      const ex = Math.random() * 1280;
+      const ey = 500 + Math.random() * 100;
+      for (let i = 0; i < 5; i++) {
+        addParticle(ex, ey, (Math.random() - 0.5) * 200, -Math.random() * 150, 0.8, '#FF6600', 4);
+      }
+    }
+    drawParticles();
+
+    // Dialogue
+    if (t > 6 && t < 10.5) {
+      drawDialogue('Bowser', 'Bwahahaha! The Power Stars will be MINE!', '#FF6600', t - 6);
+    } else if (t >= 10.5) {
+      drawDialogue('Bowser', "And I'm taking the princess too!", '#FF6600', t - 10.5);
+    }
+    break;
+  }
+
+  // ============ SCENE 4: INTO SPACE ============
+  case 4: {
+    setMood('terror');
+    // Dark sky
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, 720);
+    skyGrad.addColorStop(0, '#050520');
+    skyGrad.addColorStop(1, '#1a0a0a');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, 1280, 720);
+    drawStarfield(ft, 1);
+
+    // UFO beam
+    ctx.globalAlpha = 0.3 + Math.sin(ft * 5) * 0.1;
+    ctx.fillStyle = '#7B68EE';
+    ctx.beginPath();
+    ctx.moveTo(600, 100);
+    ctx.lineTo(500, 500);
+    ctx.lineTo(780, 500);
+    ctx.lineTo(680, 100);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Castle rising
+    const castleY = lerp(500, -200, t / 8);
+    drawCastle(640, castleY, 1.2);
+
+    // Peach on balcony
+    if (castleY > -100) {
+      drawPeach(640, castleY - 100, 0.6, ft);
+    }
+
+    // Mario trying to hold on then falling
+    if (t < 5) {
+      const marioY = castleY + 30;
+      drawMario(680, marioY, 0.8, 1, ft);
+    } else if (t < 8) {
+      // Magikoopa blast
+      if (t < 6) {
+        ctx.strokeStyle = '#9B59B6';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(800, 200);
+        ctx.lineTo(680, castleY + 30);
+        ctx.stroke();
+
+        ctx.fillStyle = '#9B59B6';
+        for (let i = 0; i < 8; i++) {
+          const px = 680 + (Math.random() - 0.5) * 40;
+          const py = castleY + 30 + (Math.random() - 0.5) * 40;
+          ctx.beginPath();
+          ctx.arc(px, py, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Mario tumbling
+      const fallT = (t - 5) / 3;
+      const marioFallX = 680 + fallT * 100;
+      const marioFallY = lerp(castleY + 30, 400, fallT);
+      ctx.save();
+      ctx.translate(marioFallX, marioFallY);
+      ctx.rotate(ft * 5);
+      drawMario(0, 0, 0.8 - fallT * 0.3, 1, ft);
+      ctx.restore();
+    }
+
+    // Mario getting smaller in starfield
+    if (t > 8) {
+      const shrinkT = (t - 8) / 5;
+      const marioScale = Math.max(0.05, 0.5 - shrinkT * 0.5);
+      ctx.save();
+      ctx.translate(640 + Math.sin(ft * 3) * 20, 400 + Math.cos(ft * 2) * 15);
+      ctx.rotate(ft * 4);
+      drawMario(0, 0, marioScale, 1, ft);
+      ctx.restore();
+    }
+
+    // Fade to black at end
+    if (t > 12) {
+      ctx.globalAlpha = (t - 12) / 3;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, 1280, 720);
+      ctx.globalAlpha = 1;
+    }
+    break;
+  }
+
+  // ============ SCENE 5: GATEWAY GALAXY ============
+  case 5: {
+    setMood('ethereal');
+    // Deep space background
+    ctx.fillStyle = '#050520';
+    ctx.fillRect(0, 0, 1280, 720);
+    drawStarfield(ft, 1);
+    drawNebula(300, 200, 200, 150, '#4a0080', ft);
+    drawNebula(900, 400, 180, 120, '#003080', ft);
+
+    // Tiny planet
+    drawSmallPlanet(640, 480, 120, '#3a8a3a', true);
+
+    // Flowers on planet
+    const flowerColors = ['#ff6b6b', '#ffd93d', '#ff6bd6'];
+    for (let i = 0; i < 5; i++) {
+      const angle = -Math.PI/2 + (i - 2) * 0.3;
+      const fx = 640 + Math.cos(angle) * 110;
+      const fy = 480 + Math.sin(angle) * 110;
+      ctx.fillStyle = flowerColors[i % 3];
+      ctx.beginPath();
+      ctx.arc(fx, fy, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#FFD700';
+      ctx.beginPath();
+      ctx.arc(fx, fy, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Mario lying on planet
+    if (t < 5) {
+      ctx.save();
+      ctx.translate(640, 358);
+      ctx.rotate(0.1);
+      // Lying down Mario (simplified)
+      ctx.fillStyle = '#1a3ecc';
+      ctx.fillRect(-25, -5, 50, 10);
+      ctx.fillStyle = '#E52521';
+      ctx.fillRect(-15, -10, 20, 8);
+      ctx.fillStyle = '#FDBCB4';
+      ctx.beginPath();
+      ctx.arc(-22, -5, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#E52521';
+      ctx.beginPath();
+      ctx.arc(-22, -10, 10, Math.PI, 0);
+      ctx.fill();
+      // Closed eyes
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(-25, -7, 3, 0, Math.PI);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(-19, -7, 3, 0, Math.PI);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Luma bouncing on Mario
+    if (t > 2 && t < 5) {
+      const bounceY = Math.abs(Math.sin((t - 2) * 6)) * 30;
+      drawLuma(620, 340 - bounceY, 0.7, '#FFE566', ft);
+    }
+
+    // Mario wakes up
+    if (t >= 5) {
+      const sitT = Math.min(1, (t - 5) / 1.5);
+      drawMario(640, 358 - sitT * 55, 0.8, 1, ft);
+
+      // Luma beside Mario
+      drawLuma(580, 330 + Math.sin(ft * 2) * 5, 0.7, '#FFE566', ft);
+    }
+
+    // Dialogue
+    if (t > 5 && t < 10) {
+      drawDialogue('Luma', "Hey! You're finally awake! You fell from the sky!", '#FFE566', t - 5);
+    } else if (t >= 10) {
+      drawDialogue('Luma', 'My mama can help you. Come on, follow me!', '#FFE566', t - 10);
+    }
+    break;
+  }
+
+  // ============ SCENE 6: COMET OBSERVATORY ============
+  case 6: {
+    setMood('ethereal');
+    // Deep space
+    ctx.fillStyle = '#050525';
+    ctx.fillRect(0, 0, 1280, 720);
+    drawStarfield(ft, 1);
+    drawNebula(200, 150, 250, 180, '#1a0050', ft);
+    drawNebula(1000, 300, 200, 150, '#002050', ft);
+    drawNebula(600, 500, 300, 120, '#003040', ft);
+
+    // Comet Observatory
+    const obsScale = lerp(0.5, 1.2, Math.min(1, t / 4));
+    drawCometObservatory(640, 320, obsScale, ft);
+
+    // Rosalina appears
+    if (t > 4) {
+      const rosY = lerp(100, 450, Math.min(1, (t - 4) / 3));
+      drawRosalina(640, rosY, 1.1, ft);
+    }
+
+    // Orbiting Lumas
+    for (let i = 0; i < 6; i++) {
+      const angle = ft * 0.8 + i * Math.PI / 3;
+      const dist = 200 + Math.sin(ft + i) * 20;
+      const lx = 640 + Math.cos(angle) * dist;
+      const ly = 320 + Math.sin(angle) * dist * 0.4;
+      const lumaColors = ['#FFE566', '#66CCFF', '#FF66AA', '#66FF99', '#FF9966', '#CC99FF'];
+      drawLuma(lx, ly, 0.5, lumaColors[i], ft);
+    }
+
+    // Mario
+    if (t > 6) {
+      drawMario(400, 520, 0.9, 1, ft);
+    }
+
+    // Mario fist pump
+    if (t > 15) {
+      drawMario(400, 520 - Math.abs(Math.sin((t - 15) * 5)) * 15, 0.9, 1, ft);
+    }
+
+    // Dialogue sequence
+    if (t > 5 && t < 8.5) {
+      drawDialogue('Rosalina', 'Welcome, brave one. I am Rosalina, keeper of the cosmos.', '#47C8C8', t - 5);
+    } else if (t >= 8.5 && t < 12) {
+      drawDialogue('Rosalina', 'Bowser has stolen the Power Stars that fuel the Observatory.', '#47C8C8', t - 8.5);
+    } else if (t >= 12 && t < 16) {
+      drawDialogue('Rosalina', 'Without them, I cannot protect the Lumas... or the universe.', '#47C8C8', t - 12);
+    }
+    break;
+  }
+
+  // ============ SCENE 7: GOOD EGG GALAXY ============
+  case 7: {
+    setMood('adventure');
+    // Space
+    ctx.fillStyle = '#0a0a30';
+    ctx.fillRect(0, 0, 1280, 720);
+    drawStarfield(ft, 1);
+    drawNebula(400, 300, 400, 300, '#1a1060', ft);
+
+    // Launch star at beginning
+    if (t < 4) {
+      // Launch star
+      const lsX = 200;
+      const lsY = 400;
+      ctx.fillStyle = '#FFD700';
+      ctx.save();
+      ctx.translate(lsX, lsY);
+      ctx.rotate(ft * 3);
+      drawStar(0, 0, 30, 5);
+      ctx.restore();
+
+      // Mario spinning through space
+      const launchT = t / 4;
+      const mx = lerp(200, 800, easeOut(launchT));
+      const my = lerp(400, 300, easeInOut(launchT));
+      ctx.save();
+      ctx.translate(mx, my);
+      ctx.rotate(ft * 8);
+      drawMario(0, 0, 0.7, 1, ft);
+      ctx.restore();
+
+      // Trail
+      for (let i = 0; i < 15; i++) {
+        const trailT = Math.max(0, launchT - i * 0.02);
+        const tx = lerp(200, 800, easeOut(trailT));
+        const ty = lerp(400, 300, easeInOut(trailT));
+        ctx.globalAlpha = (1 - i / 15) * 0.5;
+        ctx.fillStyle = '#FFD700';
+        ctx.beginPath();
+        ctx.arc(tx, ty, 5 - i * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Egg-shaped planets
+    if (t > 2) {
+      // Big egg planet
+      ctx.fillStyle = '#88CC44';
+      ctx.save();
+      ctx.translate(900, 400);
+      ctx.scale(1, 0.8);
+      ctx.beginPath();
+      ctx.arc(0, 0, 120, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Checkerboard pattern on planet
+      ctx.fillStyle = '#6BAA33';
+      for (let i = 0; i < 6; i++) {
+        const angle = i * Math.PI / 3;
+        const px = 900 + Math.cos(angle) * 80;
+        const py = 400 + Math.sin(angle) * 60;
+        ctx.beginPath();
+        ctx.arc(px, py, 20, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Small planets
+      drawSmallPlanet(300, 200, 40, '#cc6644', false);
+      drawSmallPlanet(1100, 250, 35, '#4488cc', false);
+      drawSmallPlanet(500, 550, 30, '#cc44aa', false);
+    }
+
+    // Mario on planet
+    if (t > 4) {
+      const walkX = 800 + ((t - 4) % 6) * 30;
+      drawMario(walkX, 300, 0.8, 1, ft);
+
+      // Goombas
+      drawGoomba(950, 310, 0.7, ft);
+      drawGoomba(1050, 320, 0.6, ft);
+    }
+
+    // Star bits
+    for (let i = 0; i < 20; i++) {
+      const bx = (i * 73 + ft * 20) % 1280;
+      const by = (i * 47 + ft * 15) % 720;
+      const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff'];
+      ctx.fillStyle = colors[i % 4];
+      ctx.globalAlpha = 0.6 + Math.sin(ft * 4 + i) * 0.3;
+      ctx.beginPath();
+      ctx.arc(bx, by, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    break;
+  }
+
+  // ============ SCENE 8: BOSS - DINO PIRANHA ============
+  case 8: {
+    setMood('epic');
+    // Barren planet background
+    ctx.fillStyle = '#1a1020';
+    ctx.fillRect(0, 0, 1280, 720);
+    drawStarfield(ft, 0.7);
+
+    // Barren planet surface
+    ctx.fillStyle = '#8B7355';
+    ctx.beginPath();
+    ctx.ellipse(640, 750, 640, 200, 0, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle = '#7A6245';
+    for (let i = 0; i < 10; i++) {
+      ctx.beginPath();
+      ctx.arc(100 + i * 130, 620 + Math.sin(i) * 20, 30 + i * 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Egg cracking -> Dino Piranha
+    if (t < 4) {
+      // Giant egg
+      ctx.fillStyle = '#F5F5DC';
+      ctx.beginPath();
+      ctx.ellipse(640, 480, 60, 80, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Cracks
+      if (t > 1) {
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 2;
+        const crackDepth = (t - 1) / 3;
+        ctx.beginPath();
+        ctx.moveTo(640, 420);
+        ctx.lineTo(630 + crackDepth * 20, 460);
+        ctx.lineTo(650, 480 + crackDepth * 30);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(660, 430);
+        ctx.lineTo(670, 470 + crackDepth * 20);
+        ctx.stroke();
+      }
+    } else if (t < 6) {
+      // Dino Piranha burst!
+      // Explosion particles
+      if (t < 4.5) {
+        for (let i = 0; i < 10; i++) {
+          ctx.fillStyle = '#F5F5DC';
+          const angle = i * Math.PI / 5;
+          const dist = (t - 4) * 200;
+          ctx.beginPath();
+          ctx.arc(640 + Math.cos(angle) * dist, 480 + Math.sin(angle) * dist, 8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // Draw Dino Piranha
+      drawDinoPiranha(640, 480, 1 + (t-4)*0.2, ft);
+    } else if (t < 11) {
+      // Battle
+      drawDinoPiranha(640 + Math.sin(ft * 2) * 100, 480, 1.4, ft);
+
+      // Mario dodging
+      const mX = 400 + Math.sin(ft * 3) * 150;
+      drawMario(mX, 555, 0.9, mX < 640 ? 1 : -1, ft);
+
+      // Spin attack
+      if (t > 8 && t < 9.5) {
+        ctx.save();
+        ctx.translate(mX, 540);
+        ctx.rotate(ft * 10);
+        ctx.strokeStyle = '#87CEEB';
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.arc(0, 0, 30, 0, Math.PI * 1.5);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    } else {
+      // Defeated - Power Star appears
+      // Dino Piranha shaking
+      const shakeX = 640 + Math.sin(ft * 20) * 5;
+      drawDinoPiranha(shakeX, 490, 1.2, ft);
+      ctx.globalAlpha = 0.5;
+      ctx.globalAlpha = 1;
+
+      drawPowerStar(640, 300, 1.5, ft);
+      drawMario(640, 340, 0.9, 1, ft);
+
+      // Mario triumphant pose - jump
+      if (t > 12) {
+        const jumpH = Math.abs(Math.sin((t - 12) * 4)) * 30;
+        drawMario(640, 340 - jumpH, 0.9, 1, ft);
+      }
+    }
+    break;
+  }
+
+  // ============ SCENE 9: HONEYHIVE GALAXY ============
+  case 9: {
+    setMood('happy');
+    // Bright green/blue sky
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, 720);
+    skyGrad.addColorStop(0, '#88CCFF');
+    skyGrad.addColorStop(1, '#AADDFF');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, 1280, 720);
+
+    // Background hills
+    drawHills(500, '#228B22', '#2EA043', -ft * 15, 6, 150);
+
+    // Honeycombs in background
+    ctx.fillStyle = '#FFD700';
+    ctx.globalAlpha = 0.3;
+    for (let i = 0; i < 5; i++) {
+      const hx = 100 + i * 280;
+      const hy = 200 + Math.sin(i * 2) * 80;
+      drawHexagon(hx, hy, 40);
+    }
+    ctx.globalAlpha = 1;
+
+    // Giant flowers
+    for (let i = 0; i < 4; i++) {
+      const fx = 150 + i * 300;
+      const fy = 520;
+      // Stem
+      ctx.strokeStyle = '#228B22';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(fx, fy);
+      ctx.quadraticCurveTo(fx + Math.sin(ft + i) * 15, fy - 80, fx, fy - 150);
+      ctx.stroke();
+      // Petals
+      const petalColors = ['#FF6B6B','#FF69B4','#9B59B6','#FFD93D'];
+      ctx.fillStyle = petalColors[i];
+      for (let p = 0; p < 6; p++) {
+        const pa = p * Math.PI / 3 + Math.sin(ft * 0.5 + i) * 0.1;
+        ctx.beginPath();
+        ctx.ellipse(
+          fx + Math.cos(pa) * 20, fy - 150 + Math.sin(pa) * 20,
+          12, 8, pa, 0, Math.PI * 2
+        );
+        ctx.fill();
+      }
+      ctx.fillStyle = '#FFD700';
+      ctx.beginPath();
+      ctx.arc(fx, fy - 150, 10, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Ground
+    ctx.fillStyle = '#2EA043';
+    ctx.fillRect(0, 550, 1280, 170);
+
+    // Waterfall
+    ctx.fillStyle = 'rgba(100,180,255,0.6)';
+    ctx.fillRect(1100, 300, 40, 250);
+    // Water splash
+    for (let i = 0; i < 8; i++) {
+      ctx.fillStyle = 'rgba(100,180,255,0.4)';
+      ctx.beginPath();
+      ctx.arc(1120 + (Math.random() - 0.5) * 40, 550 + Math.random() * 10, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Bee Mario
+    if (t > 3) {
+      const beeX = 400 + Math.sin(ft * 1.5) * 100;
+      const beeY = 350 + Math.cos(ft * 2) * 50;
+      drawBeeMario(beeX, beeY, 1, ft);
+    } else {
+      drawMario(300, 548, 0.9, 1, ft);
+      // Bee mushroom
+      if (t > 1.5) {
+        drawBeeMushroom(450, 480, ft);
+      }
+    }
+
+    // Butterflies
+    for (let i = 0; i < 6; i++) {
+      const bx = 200 + i * 180 + Math.sin(ft * 2 + i * 2) * 30;
+      const by = 250 + Math.cos(ft * 1.5 + i) * 40;
+      drawButterfly(bx, by, ft + i);
+    }
+
+    // Queen Bee
+    if (t > 5) {
+      drawQueenBee(900, 350, 1.5, ft);
+    }
+
+    if (t > 6) {
+      drawDialogue('Queen Bee', 'Oh my! Help me find the Star Chips in my kingdom!', '#FFD700', t - 6);
+    }
+    break;
+  }
+
+  // ============ SCENE 10: SPACE JUNK GALAXY ============
+  case 10: {
+    setMood('space');
+    ctx.fillStyle = '#080818';
+    ctx.fillRect(0, 0, 1280, 720);
+    drawStarfield(ft, 0.6);
+
+    // Floating debris
+    const debris = [
+      { x: 200, y: 300, w: 80, h: 40, rot: ft * 0.2, color: '#555' },
+      { x: 500, y: 200, w: 60, h: 30, rot: ft * -0.15, color: '#666' },
+      { x: 800, y: 400, w: 100, h: 50, rot: ft * 0.1, color: '#444' },
+      { x: 1050, y: 150, w: 70, h: 35, rot: ft * -0.25, color: '#555' },
+      { x: 350, y: 500, w: 90, h: 45, rot: ft * 0.18, color: '#4a4a5a' },
+    ];
+    debris.forEach(d => {
+      ctx.save();
+      ctx.translate(d.x + Math.sin(ft * 0.3) * 20, d.y + Math.cos(ft * 0.4) * 15);
+      ctx.rotate(d.rot);
+      ctx.fillStyle = d.color;
+      ctx.fillRect(-d.w / 2, -d.h / 2, d.w, d.h);
+      // Detail lines
+      ctx.strokeStyle = '#777';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-d.w / 2 + 5, -d.h / 2 + 5, d.w - 10, d.h - 10);
+      ctx.restore();
+    });
+
+    // Crystals
+    for (let i = 0; i < 5; i++) {
+      const cx = 150 + i * 250;
+      const cy = 350 + Math.sin(ft * 0.5 + i * 2) * 50;
+      ctx.fillStyle = `rgba(100,200,255,${0.4 + Math.sin(ft * 2 + i) * 0.2})`;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(ft * 0.3 + i);
+      ctx.beginPath();
+      ctx.moveTo(0, -15);
+      ctx.lineTo(10, 0);
+      ctx.lineTo(0, 15);
+      ctx.lineTo(-10, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Pull Stars (blue gravity orbs)
+    for (let i = 0; i < 4; i++) {
+      const px = 250 + i * 200 + Math.sin(ft + i) * 30;
+      const py = 300 + Math.cos(ft * 0.8 + i * 1.5) * 60;
+      ctx.fillStyle = '#4488FF';
+      ctx.globalAlpha = 0.5 + Math.sin(ft * 3 + i) * 0.2;
+      ctx.beginPath();
+      ctx.arc(px, py, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.2;
+      ctx.beginPath();
+      ctx.arc(px, py, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Mario navigating
+    const marioPath = t / 12;
+    const mx = lerp(150, 1100, marioPath);
+    const my = 300 + Math.sin(t * 2) * 80;
+    drawMario(mx, my, 0.8, 1, ft);
+
+    // Tarantox spider boss briefly
+    if (t > 7 && t < 10) {
+      drawSpiderBoss(1000, 350, Math.min(1, (t - 7) / 1.5), ft);
+    }
+    break;
+  }
+
+  // ============ SCENE 11: BOWSER'S STAR REACTOR ============
+  case 11: {
+    setMood('bowser');
+    // Fiery background
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, 720);
+    skyGrad.addColorStop(0, '#1a0505');
+    skyGrad.addColorStop(0.5, '#3a0a0a');
+    skyGrad.addColorStop(1, '#5a1a00');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, 1280, 720);
+
+    // Lava planets in background
+    for (let i = 0; i < 3; i++) {
+      const px = 200 + i * 400;
+      const py = 150 + Math.sin(i * 3) * 50;
+      const lavaGrad = ctx.createRadialGradient(px, py, 10, px, py, 50);
+      lavaGrad.addColorStop(0, '#FF6600');
+      lavaGrad.addColorStop(0.5, '#CC3300');
+      lavaGrad.addColorStop(1, '#661100');
+      ctx.fillStyle = lavaGrad;
+      ctx.beginPath();
+      ctx.arc(px, py, 50, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Molten planet surface
+    ctx.fillStyle = '#4a2000';
+    ctx.beginPath();
+    ctx.ellipse(640, 750, 500, 200, 0, Math.PI, 0);
+    ctx.fill();
+    // Lava glow
+    ctx.fillStyle = '#CC3300';
+    for (let i = 0; i < 8; i++) {
+      const lx = 200 + i * 120;
+      ctx.globalAlpha = 0.4 + Math.sin(ft * 3 + i) * 0.2;
+      ctx.beginPath();
+      ctx.arc(lx, 590 + Math.sin(ft * 2 + i) * 5, 25, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Bowser
+    if (t < 5) {
+      drawBowser(640, 520, 1.5, ft);
+    } else if (t < 13) {
+      // Battle phase
+      const bowserX = 640 + Math.sin(ft * 1.5) * 150;
+      drawBowser(bowserX, 520, 1.5, ft);
+
+      // Fire breathing
+      if (t > 6 && t < 8) {
+        for (let i = 0; i < 15; i++) {
+          const fx = bowserX + 30 + i * 20;
+          const fy = 490 + Math.sin(ft * 10 + i) * 15;
+          ctx.fillStyle = i % 2 === 0 ? '#FF6600' : '#FFCC00';
+          ctx.globalAlpha = 1 - i / 15;
+          ctx.beginPath();
+          ctx.arc(fx, fy, 12 - i * 0.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // Shockwave
+      if (t > 9 && t < 10) {
+        const shockR = (t - 9) * 500;
+        ctx.strokeStyle = '#FF6600';
+        ctx.lineWidth = 4;
+        ctx.globalAlpha = 1 - (t - 9);
+        ctx.beginPath();
+        ctx.arc(bowserX, 560, shockR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
+      // Mario
+      const marioX = 300 + Math.sin(ft * 2.5) * 100;
+      drawMario(marioX, 555, 0.9, bowserX > marioX ? 1 : -1, ft);
+
+      // Spin attack on tail
+      if (t > 10 && t < 11.5) {
+        ctx.save();
+        ctx.translate(bowserX - 50, 540);
+        ctx.rotate(ft * 12);
+        ctx.strokeStyle = '#87CEEB';
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath();
+        ctx.arc(0, 0, 25, 0, Math.PI * 1.5);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    } else {
+      // Bowser falls
+      const fallT = (t - 13) / 3;
+      const bowserY = lerp(520, 700, easeInOut(fallT));
+      ctx.globalAlpha = 1 - fallT;
+      drawBowser(640, bowserY, 1.5, ft);
+      ctx.globalAlpha = 1;
+
+      // Grand Star
+      drawPowerStar(640, 350, 2, ft);
+    }
+
+    // Dialogue
+    if (t > 2 && t < 5) {
+      drawDialogue('Bowser', "Mario! You've come far, but this is where your journey ENDS!", '#FF6600', t - 2);
+    } else if (t > 12 && t < 15) {
+      drawDialogue('Bowser', "GRAAAAH! This isn't over!", '#FF6600', t - 12);
+    }
+    break;
+  }
+
+  // ============ SCENE 12: ROSALINA'S STORYBOOK ============
+  case 12: {
+    setMood('emotional');
+    // Soft storybook feel - lighter, pastel
+    ctx.fillStyle = '#FFF8DC';
+    ctx.fillRect(0, 0, 1280, 720);
+
+    // Soft vignette
+    const vignette = ctx.createRadialGradient(640, 360, 200, 640, 360, 640);
+    vignette.addColorStop(0, 'rgba(255,248,220,0)');
+    vignette.addColorStop(1, 'rgba(200,180,150,0.4)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, 1280, 720);
+
+    // Page border
+    ctx.strokeStyle = '#D4A574';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.roundRect(40, 40, 1200, 640, 20);
+    ctx.stroke();
+
+    // Storybook scenes based on time
+    if (t < 5) {
+      // Little girl finds Luma in field
+      // Soft green field
+      ctx.fillStyle = '#90EE90';
+      ctx.fillRect(60, 450, 1160, 250);
+
+      // Simple flowers
+      for (let i = 0; i < 12; i++) {
+        ctx.fillStyle = ['#FFB6C1','#FFD700','#87CEEB'][i % 3];
+        ctx.beginPath();
+        ctx.arc(120 + i * 95, 440, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Young Rosalina (simpler, child-like)
+      ctx.save();
+      ctx.translate(500, 430);
+      ctx.scale(0.8, 0.8);
+      // Small dress
+      ctx.fillStyle = '#ADD8E6';
+      ctx.beginPath();
+      ctx.moveTo(-12, 0);
+      ctx.lineTo(12, 0);
+      ctx.lineTo(8, -20);
+      ctx.lineTo(-8, -20);
+      ctx.closePath();
+      ctx.fill();
+      // Head
+      ctx.fillStyle = '#FDEEF4';
+      ctx.beginPath();
+      ctx.arc(0, -30, 10, 0, Math.PI * 2);
+      ctx.fill();
+      // Hair
+      ctx.fillStyle = '#F0E68C';
+      ctx.beginPath();
+      ctx.arc(0, -33, 11, Math.PI, 0);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(-9, -26, 3, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(9, -26, 3, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Eyes
+      ctx.fillStyle = '#47C8C8';
+      ctx.beginPath();
+      ctx.arc(-3, -30, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(3, -30, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Fallen Luma in grass
+      drawLuma(650, 435, 0.6, '#FFE566', ft);
+
+      drawText('A young girl found a lost star...', 640, 580, 24, '#8B7355', 'center', false);
+    } else if (t < 10) {
+      // They build a spaceship
+      ctx.fillStyle = '#87CEEB';
+      ctx.fillRect(60, 60, 1160, 400);
+
+      // Simple stars in background
+      for (let i = 0; i < 15; i++) {
+        ctx.fillStyle = '#FFD700';
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.arc(100 + i * 80, 100 + Math.sin(i * 3) * 80, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // Spaceship (rustic, handmade)
+      ctx.fillStyle = '#DEB887';
+      ctx.beginPath();
+      ctx.roundRect(440, 280, 200, 100, 20);
+      ctx.fill();
+      // Dome
+      ctx.fillStyle = '#B8860B';
+      ctx.beginPath();
+      ctx.arc(540, 280, 50, Math.PI, 0);
+      ctx.fill();
+      // Window
+      ctx.fillStyle = '#87CEEB';
+      ctx.beginPath();
+      ctx.arc(540, 270, 20, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Young Rosalina waving from ship
+      ctx.fillStyle = '#FDEEF4';
+      ctx.beginPath();
+      ctx.arc(540, 260, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#F0E68C';
+      ctx.beginPath();
+      ctx.arc(540, 257, 8, Math.PI, 0);
+      ctx.fill();
+
+      // Luma beside ship
+      drawLuma(470, 260, 0.5, '#FFE566', ft);
+
+      drawText('Together, they built a ship and set off to find the star\'s mama.', 640, 520, 22, '#8B7355', 'center', false);
+    } else if (t < 14) {
+      // Searching the stars
+      ctx.fillStyle = '#0a0a2e';
+      ctx.fillRect(60, 60, 1160, 400);
+
+      // Many stars
+      for (let i = 0; i < 50; i++) {
+        ctx.fillStyle = '#fff';
+        ctx.globalAlpha = 0.3 + Math.sin(ft * 2 + i) * 0.3;
+        ctx.beginPath();
+        ctx.arc(80 + Math.random() * 1120, 80 + Math.random() * 360, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // Young Rosalina crying
+      ctx.save();
+      ctx.translate(550, 400);
+      ctx.fillStyle = '#FDEEF4';
+      ctx.beginPath();
+      ctx.arc(0, 0, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#F0E68C';
+      ctx.beginPath();
+      ctx.arc(0, -4, 13, Math.PI, 0);
+      ctx.fill();
+      // Tears
+      ctx.fillStyle = '#87CEEB';
+      ctx.beginPath();
+      ctx.arc(-4, 5, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(4, 6, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Luma snuggling close
+      drawLuma(580, 395, 0.5, '#FFE566', ft);
+
+      if (t < 12) {
+        drawDialogue('Rosalina', 'We searched every galaxy... but we never found her.', '#47C8C8', t - 10);
+      } else {
+        drawDialogue('Rosalina', 'So I became their mother... a mother to all the lost Lumas.', '#47C8C8', t - 12);
+      }
+    } else {
+      // Present day: Rosalina looks at stars
+      ctx.fillStyle = '#0a0a2e';
+      ctx.fillRect(0, 0, 1280, 720);
+      drawStarfield(ft, 1);
+      drawNebula(400, 300, 300, 200, '#1a0050', ft);
+
+      drawRosalina(640, 500, 1.2, ft);
+
+      // Lumas around her
+      for (let i = 0; i < 5; i++) {
+        const la = ft * 0.8 + i * Math.PI * 2 / 5;
+        const lx = 640 + Math.cos(la) * 120;
+        const ly = 400 + Math.sin(la) * 60;
+        const colors = ['#FFE566','#66CCFF','#FF66AA','#66FF99','#CC99FF'];
+        drawLuma(lx, ly, 0.4, colors[i], ft);
+      }
+    }
+    break;
+  }
+
+  // ============ SCENE 13: GALAXY MONTAGE ============
+  case 13: {
+    setMood('adventure');
+    const segmentDur = 3; // 3 seconds per galaxy
+    const segment = Math.floor(t / segmentDur) % 4;
+    const segT = t % segmentDur;
+    const segAlpha = segT < 0.3 ? segT / 0.3 : segT > segmentDur - 0.3 ? (segmentDur - segT) / 0.3 : 1;
+    ctx.globalAlpha = segAlpha;
+
+    if (segment === 0) {
+      // Freezeflame Galaxy
+      // Split: ice left, fire right
+      ctx.fillStyle = '#AADDFF';
+      ctx.fillRect(0, 0, 640, 720);
+      ctx.fillStyle = '#3a0a0a';
+      ctx.fillRect(640, 0, 640, 720);
+
+      // Ice side
+      ctx.fillStyle = '#DDF';
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        ctx.moveTo(100 + i * 100, 600);
+        ctx.lineTo(130 + i * 100, 400);
+        ctx.lineTo(160 + i * 100, 600);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Fire side
+      ctx.fillStyle = '#FF6600';
+      for (let i = 0; i < 5; i++) {
+        const fx = 700 + i * 100;
+        for (let j = 0; j < 3; j++) {
+          ctx.beginPath();
+          ctx.arc(fx + Math.sin(ft * 3 + j) * 10, 550 - j * 30, 15 - j * 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      drawMario(320, 560, 0.9, 1, ft);
+      drawText('FREEZEFLAME GALAXY', 640, 80, 32, '#FFD700', 'center', true);
+    } else if (segment === 1) {
+      // Dusty Dune Galaxy
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, 720);
+      skyGrad.addColorStop(0, '#FFD700');
+      skyGrad.addColorStop(1, '#DEB887');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, 1280, 720);
+
+      // Sand dunes
+      ctx.fillStyle = '#D2B48C';
+      for (let i = 0; i < 6; i++) {
+        ctx.beginPath();
+        ctx.arc(i * 250, 550, 180, Math.PI, 0);
+        ctx.fill();
+      }
+
+      // Sand streams
+      ctx.fillStyle = 'rgba(210,180,140,0.5)';
+      for (let i = 0; i < 3; i++) {
+        const sx = 300 + i * 300;
+        ctx.fillRect(sx, 300, 4, 200);
+        for (let j = 0; j < 5; j++) {
+          ctx.fillRect(sx + Math.sin(ft * 2 + j) * 10, 300 + j * 40, 3, 10);
+        }
+      }
+
+      drawMario(640, 430, 0.9, 1, ft);
+      drawText('DUSTY DUNE GALAXY', 640, 80, 32, '#FFD700', 'center', true);
+    } else if (segment === 2) {
+      // Gold Leaf Galaxy
+      ctx.fillStyle = '#886622';
+      ctx.fillRect(0, 0, 1280, 720);
+
+      // Autumn trees
+      for (let i = 0; i < 6; i++) {
+        const tx = 100 + i * 220;
+        ctx.fillStyle = '#5C3317';
+        ctx.fillRect(tx - 5, 350, 10, 200);
+        const colors = ['#FF6B00','#FFD700','#CC3300','#FF8C00'];
+        ctx.fillStyle = colors[i % 4];
+        ctx.beginPath();
+        ctx.arc(tx, 330, 50 + i * 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Falling leaves
+      for (let i = 0; i < 15; i++) {
+        const lx = (i * 97 + ft * 30) % 1280;
+        const ly = (i * 67 + ft * 50) % 720;
+        ctx.fillStyle = ['#FF6B00','#FFD700','#CC3300'][i % 3];
+        ctx.beginPath();
+        ctx.ellipse(lx, ly, 5, 3, ft * 2 + i, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = '#664411';
+      ctx.fillRect(0, 550, 1280, 170);
+      drawMario(640, 548, 0.9, 1, ft);
+      drawText('GOLD LEAF GALAXY', 640, 80, 32, '#FFD700', 'center', true);
+    } else {
+      // Toy Time Galaxy
+      ctx.fillStyle = '#FF69B4';
+      ctx.fillRect(0, 0, 1280, 720);
+
+      // Colorful blocks
+      const blockColors = ['#FF0000','#00FF00','#0000FF','#FFFF00','#FF00FF','#00FFFF'];
+      for (let i = 0; i < 20; i++) {
+        ctx.fillStyle = blockColors[i % 6];
+        const bx = 50 + (i % 5) * 260;
+        const by = 200 + Math.floor(i / 5) * 100;
+        ctx.fillRect(bx, by, 60, 60);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx, by, 60, 60);
+      }
+
+      drawMario(640, 480, 0.9, 1, ft);
+      drawText('TOY TIME GALAXY', 640, 80, 32, '#FFD700', 'center', true);
+    }
+    ctx.globalAlpha = 1;
+
+    // Power star collection
+    drawPowerStar(1100, 200, 1, ft);
+    break;
+  }
+
+  // ============ SCENE 14: THE FINAL STRETCH ============
+  case 14: {
+    setMood('epic');
+    ctx.fillStyle = '#050520';
+    ctx.fillRect(0, 0, 1280, 720);
+    drawStarfield(ft, 1);
+    drawNebula(500, 300, 300, 200, '#1a0060', ft);
+
+    // Comet Observatory fully powered
+    const glowIntensity = 0.5 + Math.sin(ft * 2) * 0.2;
+    ctx.globalAlpha = glowIntensity;
+    const glow = ctx.createRadialGradient(640, 300, 0, 640, 300, 250);
+    glow.addColorStop(0, '#47C8C8');
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(640, 300, 250, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    drawCometObservatory(640, 300, 1.5, ft);
+
+    // Many orbiting Lumas
+    for (let i = 0; i < 12; i++) {
+      const la = ft * 0.5 + i * Math.PI / 6;
+      const dist = 150 + Math.sin(ft + i) * 20;
+      const lx = 640 + Math.cos(la) * dist;
+      const ly = 300 + Math.sin(la) * dist * 0.5;
+      const colors = ['#FFE566','#66CCFF','#FF66AA','#66FF99','#FF9966','#CC99FF'];
+      drawLuma(lx, ly, 0.35, colors[i % 6], ft);
+    }
+
+    // Rosalina
+    drawRosalina(640, 520, 1, ft);
+
+    // Mario and Luma
+    drawMario(500, 560, 0.9, 1, ft);
+    drawLuma(480, 500, 0.6, '#FFE566', ft);
+
+    // Ominous red glow in distance
+    if (t > 6) {
+      ctx.globalAlpha = Math.min(0.4, (t - 6) / 8);
+      const redGlow = ctx.createRadialGradient(1200, 200, 0, 1200, 200, 200);
+      redGlow.addColorStop(0, '#FF0000');
+      redGlow.addColorStop(1, 'transparent');
+      ctx.fillStyle = redGlow;
+      ctx.beginPath();
+      ctx.arc(1200, 200, 200, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Observatory moves toward red glow
+    if (t > 8) {
+      // Speed lines
+      ctx.strokeStyle = 'rgba(71,200,200,0.3)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 10; i++) {
+        const sy = 100 + i * 60;
+        ctx.beginPath();
+        ctx.moveTo(0, sy);
+        ctx.lineTo(100, sy + 5);
+        ctx.stroke();
+      }
+    }
+
+    // Dialogue
+    if (t > 1 && t < 5) {
+      drawDialogue('Rosalina', "You've gathered enough Power Stars. The path to Bowser's reactor is open.", '#47C8C8', t - 1);
+    } else if (t >= 5 && t < 9) {
+      drawDialogue('Rosalina', 'Be careful, Mario. The fate of the universe rests on your shoulders.', '#47C8C8', t - 5);
+    }
+    break;
+  }
+
+  // ============ SCENE 15: BOWSER'S GALAXY REACTOR ============
+  case 15: {
+    setMood('dark');
+    // Dark industrial space
+    ctx.fillStyle = '#0a0505';
+    ctx.fillRect(0, 0, 1280, 720);
+
+    // Dark matter swirls
+    for (let i = 0; i < 5; i++) {
+      const angle = ft * 0.3 + i * Math.PI * 2 / 5;
+      const dx = 640 + Math.cos(angle) * 300;
+      const dy = 360 + Math.sin(angle) * 200;
+      ctx.globalAlpha = 0.15;
+      const dm = ctx.createRadialGradient(dx, dy, 0, dx, dy, 100);
+      dm.addColorStop(0, '#4B0082');
+      dm.addColorStop(1, 'transparent');
+      ctx.fillStyle = dm;
+      ctx.beginPath();
+      ctx.arc(dx, dy, 100, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Lava rivers
+    ctx.fillStyle = '#CC3300';
+    ctx.globalAlpha = 0.6 + Math.sin(ft * 3) * 0.2;
+    ctx.fillRect(0, 650, 1280, 70);
+    ctx.globalAlpha = 1;
+
+    // Industrial platforms
+    ctx.fillStyle = '#333';
+    const platforms = [
+      [100, 500, 200, 20],
+      [400, 400, 180, 20],
+      [650, 450, 200, 20],
+      [900, 350, 180, 20],
+      [1100, 400, 150, 20],
+    ];
+    platforms.forEach(([px, py, pw, ph]) => {
+      ctx.fillRect(px, py, pw, ph);
+      ctx.fillStyle = '#555';
+      ctx.fillRect(px, py, pw, 4);
+      ctx.fillStyle = '#333';
+    });
+
+    // Gravity effects - Mario walking on walls
+    const platformIndex = Math.floor(t / 3) % 5;
+    const plat = platforms[platformIndex];
+    if (platformIndex < 3) {
+      drawMario(plat[0] + ((t % 3) / 3) * plat[2], plat[1] - 2, 0.8, 1, ft);
+    } else {
+      // Walking on wall/ceiling
+      ctx.save();
+      ctx.translate(plat[0] + ((t % 3) / 3) * plat[2], plat[1] + plat[3] + 2);
+      ctx.scale(1, -1);
+      drawMario(0, 0, 0.8, 1, ft);
+      ctx.restore();
+    }
+
+    // Void below
+    ctx.globalAlpha = 0.3;
+    const voidGrad = ctx.createLinearGradient(0, 650, 0, 720);
+    voidGrad.addColorStop(0, '#4B0082');
+    voidGrad.addColorStop(1, '#000');
+    ctx.fillStyle = voidGrad;
+    ctx.fillRect(0, 650, 1280, 70);
+    ctx.globalAlpha = 1;
+
+    // Red glow in center
+    ctx.globalAlpha = 0.3 + Math.sin(ft * 2) * 0.1;
+    const cGlow = ctx.createRadialGradient(640, 360, 0, 640, 360, 200);
+    cGlow.addColorStop(0, '#FF0000');
+    cGlow.addColorStop(1, 'transparent');
+    ctx.fillStyle = cGlow;
+    ctx.beginPath();
+    ctx.arc(640, 360, 200, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    break;
+  }
+
+  // ============ SCENE 16: FINAL BATTLE ============
+  case 16: {
+    setMood('epic');
+    // Sun-like planet background
+    const sunGrad = ctx.createRadialGradient(640, 360, 50, 640, 360, 400);
+    sunGrad.addColorStop(0, '#FF6600');
+    sunGrad.addColorStop(0.3, '#CC3300');
+    sunGrad.addColorStop(0.6, '#660000');
+    sunGrad.addColorStop(1, '#0a0505');
+    ctx.fillStyle = sunGrad;
+    ctx.fillRect(0, 0, 1280, 720);
+
+    // Sun flares
+    for (let i = 0; i < 8; i++) {
+      const angle = ft * 0.2 + i * Math.PI / 4;
+      ctx.globalAlpha = 0.2;
+      ctx.strokeStyle = '#FF6600';
+      ctx.lineWidth = 20;
+      ctx.beginPath();
+      ctx.moveTo(640, 360);
+      ctx.lineTo(640 + Math.cos(angle) * 500, 360 + Math.sin(angle) * 500);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Ground platform
+    ctx.fillStyle = '#4a2000';
+    ctx.beginPath();
+    ctx.ellipse(640, 620, 400, 60, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // MASSIVE Bowser
+    const bowserScale = 2;
+
+    if (t < 3) {
+      // Bowser appears
+      drawBowser(640, 520, bowserScale, ft);
+    } else if (t < 6) {
+      // Phase 1: Bowser throws rocks
+      drawBowser(640, 520, bowserScale, ft);
+      drawMario(300 + Math.sin(ft * 3) * 100, 580, 0.9, 1, ft);
+
+      // Rocks
+      for (let i = 0; i < 3; i++) {
+        const rockT = (t - 3 + i * 0.5) % 2;
+        if (rockT > 0 && rockT < 1) {
+          const rx = lerp(640, 300, rockT);
+          const ry = lerp(450, 580, rockT * rockT);
+          ctx.fillStyle = '#666';
+          ctx.beginPath();
+          ctx.arc(rx, ry, 15, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    } else if (t < 11) {
+      // Phase 2: Massive fire
+      drawBowser(640, 520, bowserScale, ft);
+      drawMario(250, 580, 0.9, -1, ft);
+
+      // MASSIVE fire breath
+      ctx.globalAlpha = 0.8;
+      for (let i = 0; i < 25; i++) {
+        const fx = 640 - 40 - i * 15;
+        const fy = 480 + Math.sin(ft * 8 + i * 0.5) * (10 + i);
+        const size = 20 - i * 0.5;
+        ctx.fillStyle = i % 3 === 0 ? '#FF0000' : i % 3 === 1 ? '#FF6600' : '#FFCC00';
+        ctx.beginPath();
+        ctx.arc(fx, fy, Math.max(3, size), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // Rubber planet bounce back (simplified)
+      if (t > 9) {
+        const bounceT = (t - 9) / 2;
+        ctx.fillStyle = '#FF69B4';
+        ctx.beginPath();
+        ctx.arc(lerp(250, 640, bounceT), lerp(560, 480, Math.sin(bounceT * Math.PI)), 20, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (t < 15) {
+      // Phase 3: Ground pound
+      const bowserStun = t > 12 && t < 14;
+      if (bowserStun) {
+        drawBowser(640 + Math.sin(ft * 15) * 10, 520, bowserScale * 0.9, ft);
+        // Stars around head
+        for (let i = 0; i < 5; i++) {
+          const sa = ft * 3 + i * Math.PI * 2 / 5;
+          ctx.fillStyle = '#FFD700';
+          drawStar(640 + Math.cos(sa) * 50, 420 + Math.sin(sa) * 20, 6, 5);
+        }
+
+        // Mario ground pound
+        const gpY = 420 + Math.abs(Math.sin((t - 12) * 6)) * 50;
+        drawMario(640, gpY, 0.9, 1, ft);
+      } else {
+        drawBowser(640, 520, bowserScale, ft);
+        drawMario(350, 580, 0.9, 1, ft);
+      }
+    } else {
+      // Bowser defeated
+      const defeatT = (t - 15) / 3;
+      ctx.globalAlpha = Math.max(0, 1 - defeatT);
+      drawBowser(640, 520 + defeatT * 100, bowserScale * (1 - defeatT * 0.5), ft);
+      ctx.globalAlpha = 1;
+
+      drawMario(400, 580, 0.9, 1, ft);
+    }
+
+    // Dialogue
+    if (t < 3) {
+      drawDialogue('Bowser', 'I will create MY OWN GALAXY! A galaxy to rule them all!', '#FF6600', t);
+    } else if (t > 15) {
+      drawDialogue('Bowser', 'NOOOOO! My galaxy... my DREAM!', '#FF6600', t - 15);
+    }
+    break;
+  }
+
+  // ============ SCENE 17: THE UNIVERSE COLLAPSES ============
+  case 17: {
+    setMood('terror');
+    // Space cracking
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(0, 0, 1280, 720);
+    drawStarfield(ft, Math.max(0, 1 - t / 12));
+
+    // Cracks in space
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2 + t / 3;
+    ctx.globalAlpha = Math.min(1, t / 5);
+    for (let i = 0; i < Math.min(8, Math.floor(t * 1.5)); i++) {
+      const cx = 640 + Math.cos(i * 1.7) * 200;
+      const cy = 360 + Math.sin(i * 2.3) * 150;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      for (let j = 0; j < 4; j++) {
+        ctx.lineTo(
+          cx + (Math.random() - 0.5) * 200,
+          cy + (Math.random() - 0.5) * 150
+        );
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // BLACK HOLE
+    if (t > 3) {
+      const bhSize = (t - 3) * 30;
+      const bhGrad = ctx.createRadialGradient(640, 360, bhSize * 0.3, 640, 360, bhSize);
+      bhGrad.addColorStop(0, '#000');
+      bhGrad.addColorStop(0.7, '#1a0030');
+      bhGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = bhGrad;
+      ctx.beginPath();
+      ctx.arc(640, 360, bhSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Accretion disk
+      ctx.strokeStyle = '#9B59B6';
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.4;
+      ctx.beginPath();
+      ctx.ellipse(640, 360, bhSize * 1.3, bhSize * 0.4, ft * 0.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // Planets crumbling
+    if (t > 4) {
+      for (let i = 0; i < 5; i++) {
+        const angle = ft * 0.5 + i * Math.PI * 2 / 5;
+        const dist = Math.max(50, 400 - (t - 4) * 40);
+        const px = 640 + Math.cos(angle) * dist;
+        const py = 360 + Math.sin(angle) * dist * 0.6;
+        ctx.fillStyle = ['#88CC44','#CC6644','#4488CC','#CCAA44','#CC44AA'][i];
+        const pSize = Math.max(3, 20 - (t - 4) * 2);
+        ctx.beginPath();
+        ctx.arc(px, py, pSize, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Characters being pulled
+    if (t > 6) {
+      const pullT = (t - 6) / 8;
+      const marioX = lerp(300, 640, pullT);
+      const marioY = lerp(500, 360, pullT);
+      const marioScale = Math.max(0.2, 0.9 - pullT * 0.7);
+      drawMario(marioX, marioY, marioScale, 1, ft);
+
+      const peachX = lerp(900, 640, pullT * 0.8);
+      const peachY = lerp(450, 360, pullT * 0.8);
+      drawPeach(peachX, peachY, Math.max(0.2, 0.8 - pullT * 0.6), ft);
+    }
+
+    // Fade to white at end
+    if (t > 12) {
+      ctx.globalAlpha = (t - 12) / 3;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, 1280, 720);
+      ctx.globalAlpha = 1;
+    }
+
+    if (t > 7 && t < 11) {
+      drawDialogue('Peach', "Mario! What's happening?!", '#FFB7D5', t - 7);
+    }
+    break;
+  }
+
+  // ============ SCENE 18: LUMA'S SACRIFICE ============
+  case 18: {
+    setMood('emotional');
+    // Start white, then space
+    const whiteAlpha = Math.max(0, 1 - t / 2);
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(0, 0, 1280, 720);
+    drawStarfield(ft, Math.min(1, t / 3));
+
+    // Black hole still there initially
+    if (t < 8) {
+      const bhSize = 150 - t * 10;
+      if (bhSize > 10) {
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(640, 360, bhSize, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Lumas flying toward the center
+    if (t > 2) {
+      const lumaCount = Math.min(50, Math.floor((t - 2) * 8));
+      for (let i = 0; i < lumaCount; i++) {
+        const startAngle = i * 0.37;
+        const startDist = 500;
+        const progress = Math.min(1, (t - 2 - i * 0.1) / 4);
+        if (progress > 0) {
+          const lx = 640 + Math.cos(startAngle) * startDist * (1 - progress);
+          const ly = 360 + Math.sin(startAngle) * startDist * (1 - progress) * 0.7;
+          const colors = ['#FFE566','#66CCFF','#FF66AA','#66FF99','#FF9966','#CC99FF'];
+          ctx.fillStyle = colors[i % 6];
+          ctx.globalAlpha = 0.7;
+          ctx.beginPath();
+          ctx.arc(lx, ly, 4, 0, Math.PI * 2);
+          ctx.fill();
+          // Trail
+          ctx.globalAlpha = 0.3;
+          ctx.beginPath();
+          ctx.moveTo(lx, ly);
+          ctx.lineTo(lx + Math.cos(startAngle) * 20, ly + Math.sin(startAngle) * 15);
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = colors[i % 6];
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Yellow Luma says goodbye
+    if (t > 3 && t < 8) {
+      const lumaScale = Math.max(0.3, 1 - (t - 5) * 0.2);
+      drawLuma(500, 400, lumaScale, '#FFE566', ft);
+      drawMario(350, 500, 0.9, 1, ft);
+    }
+
+    // MASSIVE explosion of light
+    if (t > 8) {
+      const expT = (t - 8) / 4;
+      const expSize = expT * 800;
+      const expGrad = ctx.createRadialGradient(640, 360, 0, 640, 360, expSize);
+      expGrad.addColorStop(0, `rgba(255,255,255,${Math.max(0, 1 - expT * 0.5)})`);
+      expGrad.addColorStop(0.3, `rgba(255,215,0,${Math.max(0, 0.8 - expT * 0.4)})`);
+      expGrad.addColorStop(0.6, `rgba(255,100,200,${Math.max(0, 0.5 - expT * 0.3)})`);
+      expGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = expGrad;
+      ctx.beginPath();
+      ctx.arc(640, 360, expSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Color cascade - new stars being born
+      if (t > 10) {
+        for (let i = 0; i < 60; i++) {
+          const angle = i * 0.21;
+          const dist = (t - 10) * 100 + i * 10;
+          const sx = 640 + Math.cos(angle) * dist;
+          const sy = 360 + Math.sin(angle) * dist * 0.7;
+          if (sx > 0 && sx < 1280 && sy > 0 && sy < 720) {
+            const colors = ['#FFE566','#66CCFF','#FF66AA','#66FF99','#FF9966','#CC99FF','#fff'];
+            ctx.fillStyle = colors[i % 7];
+            ctx.globalAlpha = Math.max(0, 1 - dist / 800);
+            ctx.beginPath();
+            ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Dialogue
+    if (t > 4 && t < 8) {
+      drawDialogue('Luma', "Don't be sad. We'll meet again... as a new galaxy.", '#FFE566', t - 4);
+    }
+
+    // White overlay at start
+    if (whiteAlpha > 0) {
+      ctx.globalAlpha = whiteAlpha;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, 1280, 720);
+      ctx.globalAlpha = 1;
+    }
+    break;
+  }
+
+  // ============ SCENE 19: ENDING + CREDITS ============
+  case 19: {
+    setMood('triumphant');
+
+    if (t < 10) {
+      // Mushroom Kingdom - beautiful day
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, 720);
+      skyGrad.addColorStop(0, '#66BBFF');
+      skyGrad.addColorStop(0.6, '#AADDFF');
+      skyGrad.addColorStop(1, '#CCEDFF');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, 1280, 720);
+
+      // Sun
+      ctx.fillStyle = '#FFD700';
+      ctx.beginPath();
+      ctx.arc(200, 120, 60, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.3;
+      ctx.beginPath();
+      ctx.arc(200, 120, 80, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // Clouds
+      for (let i = 0; i < 4; i++) {
+        const cx = (i * 350 + ft * 10) % 1500 - 100;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(cx, 150 + i * 30, 40, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + 35, 155 + i * 30, 35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx - 30, 155 + i * 30, 30, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Hills
+      drawHills(520, '#228B22', '#2EA043', -ft * 5, 6, 130);
+
+      // Ground
+      ctx.fillStyle = '#2EA043';
+      ctx.fillRect(0, 540, 1280, 180);
+
+      // Beautiful new galaxy in sky
+      if (t > 3) {
+        ctx.globalAlpha = Math.min(0.8, (t - 3) / 3);
+        const galaxyGrad = ctx.createRadialGradient(900, 100, 0, 900, 100, 80);
+        galaxyGrad.addColorStop(0, '#fff');
+        galaxyGrad.addColorStop(0.3, '#FFD700');
+        galaxyGrad.addColorStop(0.6, '#9B59B6');
+        galaxyGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = galaxyGrad;
+        ctx.beginPath();
+        ctx.ellipse(900, 100, 80, 40, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // Mario wakes up
+      if (t < 2) {
+        // Lying down
+        ctx.save();
+        ctx.translate(500, 535);
+        ctx.fillStyle = '#1a3ecc';
+        ctx.fillRect(-25, -5, 50, 10);
+        ctx.fillStyle = '#E52521';
+        ctx.fillRect(-15, -10, 20, 8);
+        ctx.fillStyle = '#FDBCB4';
+        ctx.beginPath();
+        ctx.arc(-22, -5, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else {
+        drawMario(500, 538, 1, 1, ft);
+      }
+
+      // Peach smiling
+      if (t > 2) {
+        drawPeach(600, 538, 1, ft);
+      }
+
+      // Toads cheering
+      if (t > 3) {
+        for (let i = 0; i < 4; i++) {
+          const tb = Math.abs(Math.sin(ft * 4 + i)) * 10;
+          drawToad(300 + i * 60, 538 - tb, 0.7, ['#E52521','#4488FF','#39B54A','#FFD700'][i], ft);
+        }
+      }
+
+      // Rosalina in sky
+      if (t > 5) {
+        ctx.globalAlpha = Math.min(0.7, (t - 5) / 2);
+        drawRosalina(800, 200, 0.8, ft);
+        // Waving hand
+        ctx.globalAlpha = 1;
+      }
+
+      // Mario waves
+      if (t > 7) {
+        // (Mario is already drawn, just add the wave effect by redrawing with arm up)
+      }
+
+      // Dialogue
+      if (t > 6 && t < 10) {
+        drawDialogue('Rosalina', 'Thank you, Mario. The story of the universe... begins again.', '#47C8C8', t - 6);
+      }
+    } else {
+      // Credits
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, 1280, 720);
+      drawStarfield(ft, 1);
+
+      // "THE END" in gold
+      if (t < 14) {
+        const endAlpha = Math.min(1, (t - 10) / 2);
+        ctx.globalAlpha = endAlpha;
+        ctx.shadowColor = '#FFD700';
+        ctx.shadowBlur = 20;
+        drawText('THE END', 640, 250, 64, '#FFD700', 'center', true);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      }
+
+      // Credits text
+      if (t > 13) {
+        const credY = 720 - (t - 13) * 50;
+        ctx.fillStyle = '#fff';
+        ctx.font = '24px "Segoe UI", Arial, sans-serif';
+        ctx.textAlign = 'center';
+
+        const credits = [
+          'A StreamFlix Original',
+          '',
+          'Created by Petru',
+          '',
+          'Based on Super Mario Galaxy',
+          'by Nintendo',
+          '',
+          'Animated with HTML5 Canvas',
+          'and Web Audio API',
+          '',
+          'Thank you for watching!',
+        ];
+
+        credits.forEach((line, i) => {
+          const cy = credY + i * 40;
+          if (cy > 100 && cy < 650) {
+            ctx.globalAlpha = Math.min(1, (cy - 100) / 50, (650 - cy) / 50);
+            ctx.fillText(line, 640, cy);
+          }
+        });
+        ctx.globalAlpha = 1;
+      }
+
+      // Floating Lumas around credits
+      for (let i = 0; i < 8; i++) {
+        const lx = 200 + Math.sin(ft * 0.5 + i * 1.5) * 400 + i * 80;
+        const ly = 300 + Math.cos(ft * 0.7 + i) * 150;
+        const colors = ['#FFE566','#66CCFF','#FF66AA','#66FF99','#FF9966','#CC99FF','#fff','#FFD700'];
+        drawLuma(lx, ly, 0.4, colors[i], ft);
+      }
+    }
+    break;
+  }
+
+  } // end switch
+}
+
+// ===================== HELPER CHARACTERS =====================
+
+function drawDinoPiranha(x, y, scale, frame) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  // Tail with bulb
+  ctx.strokeStyle = '#228B22';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(-20, -20);
+  ctx.quadraticCurveTo(-60, -40, -80, -20);
+  ctx.stroke();
+  // Tail bulb
+  ctx.fillStyle = '#9B59B6';
+  ctx.beginPath();
+  ctx.arc(-80, -20, 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = '#228B22';
+  ctx.beginPath();
+  ctx.ellipse(0, -30, 30, 25, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Belly
+  ctx.fillStyle = '#AADD77';
+  ctx.beginPath();
+  ctx.ellipse(5, -25, 18, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Neck
+  ctx.fillStyle = '#228B22';
+  ctx.fillRect(15, -65, 12, 35);
+
+  // Head (piranha)
+  ctx.fillStyle = '#CC3333';
+  ctx.beginPath();
+  ctx.ellipse(20, -75, 25, 18, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Mouth
+  ctx.fillStyle = '#660000';
+  ctx.beginPath();
+  ctx.ellipse(30, -72, 15, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Teeth
+  ctx.fillStyle = '#fff';
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(20 + i * 7, -72);
+    ctx.lineTo(23 + i * 7, -65);
+    ctx.lineTo(26 + i * 7, -72);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Eyes
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.arc(15, -82, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(16, -81, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs
+  ctx.fillStyle = '#228B22';
+  ctx.fillRect(-15, -10, 8, 15);
+  ctx.fillRect(10, -10, 8, 15);
+
+  ctx.restore();
+}
+
+function drawBeeMario(x, y, scale, frame) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  // Wings
+  ctx.fillStyle = 'rgba(200,230,255,0.5)';
+  const wingFlap = Math.sin(frame * 15) * 0.3;
+  ctx.save();
+  ctx.rotate(-0.5 + wingFlap);
+  ctx.beginPath();
+  ctx.ellipse(-15, -15, 15, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
+  ctx.rotate(0.5 - wingFlap);
+  ctx.beginPath();
+  ctx.ellipse(15, -15, 15, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Body (bee stripes)
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 15, 20, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#3a2500';
+  ctx.fillRect(-15, -5, 30, 5);
+  ctx.fillRect(-15, 5, 30, 5);
+
+  // Head (Mario)
+  ctx.fillStyle = '#FDBCB4';
+  ctx.beginPath();
+  ctx.arc(0, -25, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Cap
+  ctx.fillStyle = '#E52521';
+  ctx.beginPath();
+  ctx.arc(0, -29, 10, Math.PI, 0);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(-3, -26, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(3, -26, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Mustache
+  ctx.fillStyle = '#3E1F00';
+  ctx.beginPath();
+  ctx.ellipse(0, -21, 6, 2, 0, 0, Math.PI);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawBeeMushroom(x, y, frame) {
+  ctx.save();
+  ctx.translate(x, y + Math.sin(frame * 3) * 5);
+
+  // Stem
+  ctx.fillStyle = '#F5DEB3';
+  ctx.fillRect(-6, -5, 12, 12);
+
+  // Cap
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.ellipse(0, -8, 16, 10, 0, Math.PI, 0);
+  ctx.fill();
+  // Stripes
+  ctx.fillStyle = '#3a2500';
+  ctx.fillRect(-12, -12, 24, 3);
+
+  // Eyes
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(-3, -2, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(3, -2, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawQueenBee(x, y, scale, frame) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  // Large body
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 40, 55, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Stripes
+  ctx.fillStyle = '#8B6914';
+  for (let i = -2; i <= 2; i++) {
+    ctx.fillRect(-40, i * 15 - 3, 80, 6);
+  }
+
+  // Wings
+  ctx.fillStyle = 'rgba(200,230,255,0.4)';
+  const wf = Math.sin(frame * 8) * 0.2;
+  ctx.save();
+  ctx.rotate(-0.6 + wf);
+  ctx.beginPath();
+  ctx.ellipse(-30, -20, 30, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
+  ctx.rotate(0.6 - wf);
+  ctx.beginPath();
+  ctx.ellipse(30, -20, 30, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Crown
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.moveTo(-10, -55);
+  ctx.lineTo(-12, -65);
+  ctx.lineTo(-6, -60);
+  ctx.lineTo(0, -68);
+  ctx.lineTo(6, -60);
+  ctx.lineTo(12, -65);
+  ctx.lineTo(10, -55);
+  ctx.closePath();
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(-10, -45, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(10, -45, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Smile
+  ctx.strokeStyle = '#8B6914';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, -38, 8, 0.2, Math.PI - 0.2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawButterfly(x, y, frame) {
+  ctx.save();
+  ctx.translate(x, y);
+  const wingAngle = Math.sin(frame * 6) * 0.4;
+  const colors = ['#FF69B4','#87CEEB','#FFD700'];
+  ctx.fillStyle = colors[Math.floor(frame) % 3];
+
+  ctx.save();
+  ctx.rotate(-wingAngle);
+  ctx.beginPath();
+  ctx.ellipse(-6, 0, 6, 10, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.rotate(wingAngle);
+  ctx.beginPath();
+  ctx.ellipse(6, 0, 6, 10, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = '#333';
+  ctx.fillRect(-1, -3, 2, 6);
+  ctx.restore();
+}
+
+function drawSpiderBoss(x, y, alpha, frame) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.globalAlpha = alpha;
+
+  // Body
+  ctx.fillStyle = '#2a0a4a';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 40, 35, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Abdomen
+  ctx.fillStyle = '#3a1a5a';
+  ctx.beginPath();
+  ctx.ellipse(0, 30, 35, 25, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs
+  ctx.strokeStyle = '#2a0a4a';
+  ctx.lineWidth = 4;
+  for (let i = 0; i < 4; i++) {
+    const la = -0.5 + i * 0.35;
+    ctx.beginPath();
+    ctx.moveTo(-30, -5 + i * 10);
+    ctx.quadraticCurveTo(-60, -20 + i * 15, -70 + Math.sin(frame * 3 + i) * 5, 10 + i * 10);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(30, -5 + i * 10);
+    ctx.quadraticCurveTo(60, -20 + i * 15, 70 + Math.sin(frame * 3 + i + 2) * 5, 10 + i * 10);
+    ctx.stroke();
+  }
+
+  // Eyes
+  ctx.fillStyle = '#FF0000';
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath();
+    ctx.arc(-12 + (i % 3) * 12, -12 + Math.floor(i / 3) * 8, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawHexagon(x, y, size) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const angle = i * Math.PI / 3 - Math.PI / 6;
+    const hx = x + Math.cos(angle) * size;
+    const hy = y + Math.sin(angle) * size;
+    if (i === 0) ctx.moveTo(hx, hy);
+    else ctx.lineTo(hx, hy);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+function lerpColor(c1, c2, t) {
+  const r1 = parseInt(c1.slice(1, 3), 16), g1 = parseInt(c1.slice(3, 5), 16), b1 = parseInt(c1.slice(5, 7), 16);
+  const r2 = parseInt(c2.slice(1, 3), 16), g2 = parseInt(c2.slice(3, 5), 16), b2 = parseInt(c2.slice(5, 7), 16);
+  const r = Math.round(lerp(r1, r2, t));
+  const g = Math.round(lerp(g1, g2, t));
+  const b = Math.round(lerp(b1, b2, t));
+  return `rgb(${r},${g},${b})`;
+}
+
+// ===================== MAIN RENDER LOOP =====================
+
+function render(timestamp) {
+  if (!lastFrameTime) lastFrameTime = timestamp;
+  const dt = Math.min(0.1, (timestamp - lastFrameTime) / 1000);
+  lastFrameTime = timestamp;
+
+  if (playing) {
+    movieTime += dt;
+    if (movieTime >= TOTAL_DURATION) {
+      movieTime = TOTAL_DURATION;
+      playing = false;
+      updatePlayButton();
+    }
+  }
+
+  updateParticles(dt);
+
+  // Clear
+  ctx.clearRect(0, 0, 1280, 720);
+
+  // Get current scene
+  const scene = getSceneAt(movieTime);
+
+  // Render scene
+  renderScene(scene.index, scene.localTime, scene.duration);
+
+  // Scene transition fades
+  const fadeIn = Math.min(1, scene.localTime / FADE_DURATION);
+  const fadeOut = Math.min(1, (scene.duration - scene.localTime) / FADE_DURATION);
+  const fadeAlpha = 1 - Math.min(fadeIn, fadeOut);
+  if (fadeAlpha > 0) {
+    ctx.globalAlpha = fadeAlpha;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, 1280, 720);
+    ctx.globalAlpha = 1;
+  }
+
+  // Update UI
+  updateUI();
+
+  requestAnimationFrame(render);
+}
+
+// ===================== UI CONTROLS =====================
+const playPauseBtn = document.getElementById('playPauseBtn');
+const progressBar = document.getElementById('progressBar');
+const progressFill = document.getElementById('progressFill');
+const timeDisplay = document.getElementById('timeDisplay');
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+const sceneTitleEl = document.getElementById('sceneTitle');
+
+function updatePlayButton() {
+  playPauseBtn.innerHTML = playing ? '&#10074;&#10074;' : '&#9654;';
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec < 10 ? '0' : ''}${sec}`;
+}
+
+function updateUI() {
+  const progress = movieTime / TOTAL_DURATION;
+  progressFill.style.width = (progress * 100) + '%';
+  timeDisplay.textContent = `${formatTime(movieTime)} / ${formatTime(TOTAL_DURATION)}`;
+
+  const scene = getSceneAt(movieTime);
+  sceneTitleEl.textContent = `Scene ${scene.index + 1}: ${scene.name}`;
+}
+
+playPauseBtn.addEventListener('click', () => {
+  initAudio();
+  playing = !playing;
+  updatePlayButton();
+  if (playing && movieTime >= TOTAL_DURATION) {
+    movieTime = 0;
+  }
+});
+
+progressBar.addEventListener('click', (e) => {
+  const rect = progressBar.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width;
+  movieTime = x * TOTAL_DURATION;
+  currentMood = ''; // Force music reload
+});
+
+fullscreenBtn.addEventListener('click', () => {
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else {
+    cinema.requestFullscreen();
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    initAudio();
+    playing = !playing;
+    updatePlayButton();
+    if (playing && movieTime >= TOTAL_DURATION) {
+      movieTime = 0;
+    }
+  } else if (e.code === 'ArrowRight') {
+    movieTime = Math.min(TOTAL_DURATION, movieTime + 5);
+    currentMood = '';
+  } else if (e.code === 'ArrowLeft') {
+    movieTime = Math.max(0, movieTime - 5);
+    currentMood = '';
+  }
+});
+
+// Auto-play
+setTimeout(() => {
+  initAudio();
+  playing = true;
+  updatePlayButton();
+}, 500);
+
+// Show controls initially, then fade after 3 seconds
+setTimeout(() => {
+  document.getElementById('controls').classList.remove('show');
+}, 3000);
+
+// Start render loop
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
