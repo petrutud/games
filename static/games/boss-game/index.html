@@ -298,6 +298,8 @@ let comboCount = 0;
 let comboTimer = 0;
 let embers = [];
 let frameCount = 0;
+/** Final loss (boss mode, 20th death): dramatic shake + YOU LOSE, then game over overlay */
+let bossLossFinale = null;
 
 // ── Cutscene System ──
 let cutscene = null; // { lines: [{speaker, text, color}], current: 0, charIdx: 0, timer: 0, onDone: fn }
@@ -308,6 +310,7 @@ function startCutscene(lines, onDone) {
 }
 
 function updateCutscene() {
+  if (bossLossFinale) return;
   if (!cutscene) return;
   let line = cutscene.lines[cutscene.current];
   if (cutscene.waitTimer > 0) {
@@ -630,6 +633,7 @@ document.getElementById('demon-army-btn').addEventListener('click', () => {
 });
 
 function updateDemonArmy() {
+  if (bossLossFinale) return;
   if (!demonArmyActive) return;
 
   for (let i = demonArmy.length - 1; i >= 0; i--) {
@@ -803,6 +807,7 @@ function spawnWizard() {
 }
 
 function updateWizard() {
+  if (bossLossFinale) return;
   if (!wizard || wizard.hp <= 0) return;
 
   // Float toward a position between hero and boss, staying behind hero
@@ -1083,6 +1088,7 @@ function updateSideButtons() {
 }
 
 function updateSideButtonCooldowns() {
+  if (bossLossFinale) return;
   let now = Date.now();
   for (let ab of ABILITIES) {
     let el = document.getElementById('bcd-' + ab.name);
@@ -1099,6 +1105,7 @@ function updateSideButtonCooldowns() {
 
 // ── Boss Movement ──
 function updateBoss(dt) {
+  if (bossLossFinale) return;
   if (phaseTransitioning) return;
 
   if (playMode === 'boss') {
@@ -1546,6 +1553,7 @@ function useAbility(ab, now) {
 
 // ── Hero AI ──
 function updateHero(dt) {
+  if (bossLossFinale) return;
   if (heroQuitting) return; // hero is leaving
 
   // Hero surrendered — just walk off screen
@@ -1814,12 +1822,30 @@ function heroDefeated() {
   hero.x = -999; hero.y = -999;
 }
 
+function startBossLossFinale() {
+  bossLossFinale = { t: 0, maxT: 132 };
+  screenShake = 60;
+  spawnParticles(boss.x + boss.w / 2, boss.y + boss.h / 2, '#ff2200', 55);
+  spawnParticles(boss.x + boss.w / 2, boss.y + boss.h / 2, '#ffaa00', 35);
+  spawnParticles(boss.x + boss.w / 2, boss.y + boss.h / 2, '#ffffff', 25);
+  spawnParticles(boss.x + boss.w / 2, boss.y + boss.h / 2, '#880000', 40);
+  const hide = (id) => { const el = document.getElementById(id); if (el) el.style.display = 'none'; };
+  hide('hud');
+  hide('surrender-btn');
+  hide('demon-army-btn');
+  hide('hero-surrender-btn');
+  hide('summon-wizard-btn');
+  hide('move-buttons');
+  hide('ability-buttons');
+  const ann = document.getElementById('phase-announce');
+  if (ann) { ann.style.display = 'none'; }
+}
+
 function bossDefeated() {
   bossDeaths++;
   if (bossDeaths >= MAX_BOSS_DEATHS) {
     if (playMode === 'boss') {
-      showGameOver('DEFEATED!', 'The hero has beaten you 20 times... You are no longer the boss.',
-        `Phase reached: ${phase} | Hero defeated: ${heroDefeats}x`);
+      startBossLossFinale();
     } else {
       showGameOver('VICTORY!', 'You have slain the Demon Lord 20 times! The kingdom is saved forever!',
         `Phase reached: ${phase} | Your deaths: ${heroDefeats} | Wizard: ${wizard && wizard.hp > 0 ? 'Alive' : 'Fallen'}`);
@@ -1909,6 +1935,7 @@ function heroQuits() {
 }
 
 function updateHeroQuit() {
+  if (bossLossFinale) return;
   if (!heroQuitting) return;
   heroQuitTimer--;
   hero.vx = hero.x < W / 2 ? -3 : 3; // walk toward nearest edge
@@ -1925,6 +1952,7 @@ function updateHeroQuit() {
 
 function showGameOver(title, text, stats) {
   gameRunning = false;
+  bossLossFinale = null;
   let overlay = document.getElementById('gameover-overlay');
   overlay.style.display = 'flex';
   document.getElementById('gameover-title').textContent = title;
@@ -1948,6 +1976,7 @@ document.getElementById('restart-btn').addEventListener('click', () => {
   phase = 1; heroDefeats = 0; bossDeaths = 0; bossIdleTime = 0;
   heroQuitting = false; heroQuitTimer = 0;
   comboCount = 0; comboTimer = 0; screenShake = 0; hitFlash = 0;
+  bossLossFinale = null;
   demonArmy = []; demonArmyActive = false; heroRefuseTimer = 0;
   wizard = null; wizardSpawned = false; wizardSpellTimer = 0;
   gameRunning = false;
@@ -1959,6 +1988,7 @@ document.getElementById('restart-btn').addEventListener('click', () => {
 
 // ── Projectiles & Shockwaves ──
 function updateProjectiles() {
+  if (bossLossFinale) return;
   for (let i = projectiles.length - 1; i >= 0; i--) {
     let p = projectiles[i];
     p.x += p.vx;
@@ -2139,6 +2169,7 @@ function rectsOverlap(x1, y1, w1, h1, x2, y2, w2, h2) {
 
 // ── HUD ──
 function updateHUD() {
+  if (bossLossFinale) return;
   document.getElementById('hud-phase').textContent = phase;
   document.getElementById('hud-boss-hp').textContent = Math.max(0, Math.ceil(boss.hp));
   document.getElementById('hud-hero-hp').textContent = Math.max(0, Math.ceil(hero.hp));
@@ -2163,6 +2194,7 @@ function updateAbilitiesBar() {
 }
 
 function updateAbilityCooldowns() {
+  if (bossLossFinale) return;
   let now = Date.now();
   for (let ab of ABILITIES) {
     let el = document.getElementById('cd-' + ab.name);
@@ -2182,8 +2214,17 @@ function draw() {
   frameCount++;
   let t = Date.now();
 
-  // Screen shake
-  if (screenShake > 0) {
+  // Screen shake (extra intensity during final boss loss)
+  if (bossLossFinale) {
+    let p = bossLossFinale.t / bossLossFinale.maxT;
+    let wave = Math.sin(bossLossFinale.t * 0.45) * 18;
+    let base = 52 * (1 - p * 0.85) + wave + Math.random() * 12;
+    screenShakeX = (Math.random() - 0.5) * base * 2.4;
+    screenShakeY = (Math.random() - 0.5) * base * 2.4;
+    if (bossLossFinale.t % 4 === 0) {
+      spawnParticles(W / 2 + (Math.random() - 0.5) * W, GROUND - 20, '#ff4400', 2);
+    }
+  } else if (screenShake > 0) {
     screenShakeX = (Math.random() - 0.5) * screenShake * 2;
     screenShakeY = (Math.random() - 0.5) * screenShake * 2;
     screenShake *= 0.85;
@@ -2609,6 +2650,34 @@ function draw() {
     ctx.fillStyle = `rgba(255,255,255,${hitFlash * 0.06})`;
     ctx.fillRect(-10, -10, W + 20, H + 20);
     hitFlash--;
+  }
+
+  // === FINAL LOSS — darken + YOU LOSE (boss mode, 20th death) ===
+  if (bossLossFinale) {
+    let v = Math.min(0.55, bossLossFinale.t / 55 * 0.55);
+    ctx.fillStyle = `rgba(0,0,0,${v})`;
+    ctx.fillRect(-20, -20, W + 40, H + 40);
+    if (bossLossFinale.t > 12) {
+      let fade = Math.min(1, (bossLossFinale.t - 12) / 28);
+      let pulse = 1 + 0.12 * Math.sin(bossLossFinale.t * 0.35);
+      ctx.save();
+      ctx.translate(W / 2, H / 2 - 36);
+      ctx.scale(pulse, pulse);
+      ctx.globalAlpha = fade;
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#ff0000';
+      ctx.shadowBlur = 28 + bossLossFinale.t * 0.15;
+      ctx.fillStyle = '#ff1a1a';
+      ctx.font = '900 58px Inter, system-ui, sans-serif';
+      ctx.fillText('YOU LOSE', 0, 0);
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '600 20px Inter, system-ui, sans-serif';
+      ctx.fillText('The demon has fallen for the last time…', 0, 44);
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
   }
 
   ctx.restore(); // end screen shake
@@ -3205,6 +3274,20 @@ function roundRect(ctx, x, y, w, h, r) {
 
 // ── Game Loop ──
 function loop() {
+  if (bossLossFinale) {
+    bossLossFinale.t++;
+    updateParticles();
+    draw();
+    drawCutscene();
+    if (bossLossFinale.t >= bossLossFinale.maxT) {
+      bossLossFinale = null;
+      gameRunning = false;
+      showGameOver('YOU LOSE', 'The hero has beaten you 20 times… You are no longer the boss.',
+        `Phase reached: ${phase} | Hero defeated: ${heroDefeats}x`);
+    }
+    requestAnimationFrame(loop);
+    return;
+  }
   if (!gameRunning) return;
   updateCutscene();
   updateBoss();

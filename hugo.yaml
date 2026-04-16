@@ -75,6 +75,18 @@ params:
           name: Open Petru AI
           link: /games/petru-ai/
 
+      - title: "StreamFlix"
+        content: "Your personal streaming platform! Browse movies and TV shows in a sleek Netflix/Disney+ style interface. Hero banners, categories, search, watchlist, and detail modals."
+        image: "/images/games/streamflix.svg"
+        badges:
+          - "HTML5"
+          - "JavaScript"
+          - "Streaming"
+          - "Movies"
+        featured:
+          name: Open StreamFlix
+          link: /games/streamflix/
+
       - title: "Flappy Birds"
         content: "The classic one-tap game! Flap through pipes, chase the high score. 6 unique bird skins — Classic, Blue Jay, Red Robin, Toxic, Purple, and Phoenix. Particle effects and starry night sky."
         image: "/images/games/flappy-birds.svg"
