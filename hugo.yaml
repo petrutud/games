@@ -167,13 +167,13 @@ params:
           link: /games/super-mario-galaxy/
 
       - title: "Super Mario Ultimate Adventure"
-        content: "Epic story-driven adventure! 43 worlds, 43 bosses, 10 power-ups, skill tree, character switching (Mario & Luigi), branching choices, 3 endings. From Grasslands to Omega Bowser!"
+        content: "Epic story-driven adventure! 12 worlds, 103 levels, 10 power-ups, skill tree, Mario & Luigi switching, branching choices, 3 endings. Face Bowser, Bowser Jr., Mecha Bowser, Dry Bowser & Omega Bowser!"
         image: "/images/games/mario.svg"
         badges:
           - "HTML5"
           - "Canvas"
           - "Platformer"
-          - "43 Levels"
+          - "103 Levels"
           - "RPG"
         featured:
           name: Play Game

@@ -365,10 +365,10 @@ const BIOMES=[
    desc:'Beautiful but dangerous blossoms.'},
   {id:'sunnyMeadow',name:'Sunny Meadow',icon:'☀️',
    sky:'#a0e0f8',ground:'#50b050',groundDark:'#388838',platCol:'#9b6E3C',
-   boss:'crazyKoopa',bossName:'Crazy Koopa',
+   boss:'bowser',bossName:'Bowser',
    enemies:['goomba','koopa'],levelLen:115,
    rescue:null,starReq:3,
-   desc:'Bright sunshine hides a wild Koopa!'},
+   desc:'Bright sunshine... and the Koopa King himself blocks the way!'},
   {id:'greenHills',name:'Green Hills',icon:'⛰️',
    sky:'#80d0f8',ground:'#48a040',groundDark:'#308028',platCol:'#8B5E3C',
    boss:'treeBomber',bossName:'Tree Bomber',
@@ -1728,6 +1728,52 @@ function drawBoss(b){
         });
       }
       break;
+    case 'bowser':
+      // Classic Bowser — green shell, orange body, red hair, horns
+      // Shell
+      ctx.fillStyle='#2a7a2a';ctx.fillRect(x+5,y+15,60,45);
+      ctx.fillStyle='#3a9a3a';ctx.fillRect(x+10,y+20,50,35);
+      // White spikes on shell
+      ctx.fillStyle='#f0f0f0';
+      for(let i=0;i<4;i++)ctx.fillRect(x+12+i*13,y+8,8,12);
+      // Head (orange/yellow)
+      ctx.fillStyle='#d89028';ctx.fillRect(x+40,y-12,32,35);
+      // Red hair
+      ctx.fillStyle='#c02020';
+      ctx.fillRect(x+38,y-18,10,10);ctx.fillRect(x+62,y-18,10,10);
+      // Horns
+      ctx.fillStyle='#f0e0a0';
+      ctx.fillRect(x+42,y-22,7,12);ctx.fillRect(x+63,y-22,7,12);
+      // Eyes
+      ctx.fillStyle='#fff';ctx.fillRect(x+46,y-4,8,8);ctx.fillRect(x+58,y-4,8,8);
+      ctx.fillStyle='#000';ctx.fillRect(x+48,y-2,4,5);ctx.fillRect(x+60,y-2,4,5);
+      // Mouth + fangs
+      ctx.fillStyle='#401010';ctx.fillRect(x+44,y+10,24,9);
+      ctx.fillStyle='#fff';
+      ctx.fillRect(x+46,y+10,4,5);ctx.fillRect(x+62,y+10,4,5);
+      // Belly
+      ctx.fillStyle='#f0c860';ctx.fillRect(x+18,y+28,34,25);
+      // Arms
+      ctx.fillStyle='#d89028';
+      ctx.fillRect(x-8,y+22,16,12);ctx.fillRect(x+62,y+22,16,12);
+      // Spiked wristbands
+      ctx.fillStyle='#f0f0f0';
+      ctx.fillRect(x-8,y+20,4,4);ctx.fillRect(x+74,y+20,4,4);
+      // Legs
+      ctx.fillStyle='#d89028';
+      ctx.fillRect(x+12,y+55,16,14);ctx.fillRect(x+42,y+55,16,14);
+      // Fire breath tell
+      if(b.state==='fireBreath'){
+        ctx.fillStyle='#f04020';
+        for(let i=0;i<6;i++){
+          const fx=x+72+i*14+Math.sin(G.totalTime*10+i)*4;
+          const fw=16-i*1.5;
+          ctx.globalAlpha=.75-i*.08;
+          ctx.fillRect(fx,y+6+Math.sin(G.totalTime*8+i)*3,fw,fw);
+        }
+        ctx.globalAlpha=1;
+      }
+      break;
     case 'dryBowser':
       // Skeleton bowser
       ctx.fillStyle='#d8d0b8';
@@ -1916,6 +1962,9 @@ function initBoss(type,biome){
     case 'dryBowser':
       return {...base,name:'Dry Bowser',hp:60,maxHp:60,w:65,h:70,
         boneTimer:0,fireTimer:0,dashTimer:0};
+    case 'bowser':
+      return {...base,name:'Bowser',hp:35,maxHp:35,w:65,h:70,
+        fireTimer:0,jumpTimer:0,shellTimer:0,y:by-10};
     case 'magmaBeast':
       return {...base,name:'Magma Beast',hp:40,maxHp:40,w:60,h:65,
         waveTimer:0,fireTimer:0,submergeTimer:0,submerged:false};
@@ -2178,6 +2227,40 @@ function updateBoss(b,dt){
         // Boss takes less damage
         b.defMod=.5;
       }else b.defMod=1;
+      break;
+    }
+    case 'bowser':{
+      // Classic Bowser — walks toward Mario, fire breath, stomp jump
+      const spd=b.phase>=2?70:50;
+      b.x+=(mx>b.x?spd:-spd)*dt;
+      // Fire breath
+      b.fireTimer+=dt;
+      if(b.fireTimer>2.8/b.phase){
+        b.fireTimer=0;b.state='fireBreath';
+        setTimeout(()=>{if(b.alive)b.state='idle'},900);
+        const dir=mx>b.x?1:-1;
+        for(let i=0;i<3;i++){
+          setTimeout(()=>{
+            if(!b.alive)return;
+            const a=Math.atan2(my-b.y,mx-b.x)+(Math.random()-.5)*.2;
+            projectiles.push({x:b.x+(dir>0?70:0),y:b.y+10,vx:Math.cos(a)*240,vy:Math.sin(a)*240,
+              col:'#f04020',size:6,life:2,dmg:10,friendly:false});
+          },i*140);
+        }
+      }
+      // Stomp jump
+      b.jumpTimer+=dt;
+      if(b.jumpTimer>4&&b.vy===0){
+        b.jumpTimer=0;b.vy=-500;
+      }
+      b.vy=(b.vy||0)+GRAVITY*dt;
+      b.y+=b.vy*dt;
+      const floorY=12*TILE-10;
+      if(b.y>floorY){b.y=floorY;
+        if(b.vy>200){screenShake(5,.2);spawnBurst(b.x+32,b.y+70,'#f0a020',8,180);}
+        b.vy=0;
+      }
+      if(rectOverlap({x:b.x,y:b.y,w:b.w,h:b.h},{x:mx,y:my,w:M.w,h:M.h}))hurtMario(10);
       break;
     }
     case 'dryBowser':{
