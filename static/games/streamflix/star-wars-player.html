@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Star Wars — StreamFlix</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=News+Cycle:wght@400;700&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:#000;color:#fff;overflow:hidden;font-family:'News Cycle',Arial,sans-serif}
+  #stage{position:fixed;inset:0;perspective:400px;overflow:hidden;background:#000}
+  canvas#stars{position:fixed;inset:0;z-index:0}
+
+  /* Intro text */
+  #intro{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    color:#4eb6e5;font-size:clamp(22px,3vw,42px);font-weight:400;
+    font-family:'News Cycle',Arial,sans-serif;letter-spacing:1px;
+    text-align:center;opacity:0;z-index:3;padding:0 20px;
+    text-shadow:0 0 20px rgba(78,182,229,.6);
+  }
+  #intro.show{animation:introFade 6s ease forwards}
+  @keyframes introFade{
+    0%{opacity:0}15%{opacity:1}75%{opacity:1}100%{opacity:0}
+  }
+
+  /* Logo */
+  #logo{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(4);
+    font-family:'Arial Black','Helvetica',sans-serif;font-weight:900;
+    font-size:clamp(60px,10vw,140px);letter-spacing:-4px;
+    color:transparent;-webkit-text-stroke:2px #ffe81f;
+    opacity:0;z-index:3;white-space:nowrap;
+  }
+  #logo.show{animation:logoZoom 7s ease-in forwards}
+  @keyframes logoZoom{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(4);-webkit-text-stroke-width:2px}
+    8%{opacity:1}
+    60%{opacity:1;transform:translate(-50%,-50%) scale(.9);-webkit-text-stroke-width:1px}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(.02);-webkit-text-stroke-width:.3px}
+  }
+
+  /* Crawl */
+  #crawlWrap{
+    position:absolute;top:60%;left:50%;width:90%;max-width:980px;
+    height:400vh;transform:translateX(-50%) rotateX(25deg);
+    transform-origin:50% 100%;opacity:0;z-index:2;
+  }
+  #crawlWrap.show{animation:crawlFade 1s ease forwards 13s}
+  @keyframes crawlFade{to{opacity:1}}
+  #crawl{
+    color:#ffe81f;font-family:'News Cycle','Arial',sans-serif;
+    font-size:clamp(28px,3.4vw,44px);font-weight:700;
+    line-height:1.45;text-align:justify;
+    animation:crawlScroll 90s linear 13s forwards;
+    transform:translateY(100%);
+  }
+  #crawl h1{font-size:1.3em;text-align:center;margin-bottom:.8em}
+  #crawl h2{font-size:1.8em;text-align:center;margin-bottom:1.2em}
+  #crawl p{margin-bottom:.9em}
+  @keyframes crawlScroll{
+    0%{transform:translateY(100vh)}
+    100%{transform:translateY(-380vh)}
+  }
+
+  /* Title card */
+  #titleCard{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;z-index:4;
+    opacity:0;pointer-events:none;text-align:center;padding:20px;
+  }
+  #titleCard.show{animation:titleIn 4s ease forwards}
+  @keyframes titleIn{
+    0%{opacity:0;transform:scale(.9)}
+    20%{opacity:1;transform:scale(1)}
+    80%{opacity:1;transform:scale(1)}
+    100%{opacity:0}
+  }
+  #titleCard .emoji{font-size:clamp(70px,10vw,140px);margin-bottom:20px;filter:drop-shadow(0 0 30px rgba(255,232,31,.6))}
+  #titleCard .title{font-family:'Arial Black';font-weight:900;
+    font-size:clamp(28px,5vw,72px);color:#ffe81f;letter-spacing:2px;
+    text-shadow:0 0 30px rgba(255,232,31,.5);margin-bottom:14px;line-height:1.1;padding:0 20px}
+  #titleCard .sub{color:#ccc;font-size:clamp(14px,1.6vw,22px);letter-spacing:3px;text-transform:uppercase}
+  #titleCard .dir{margin-top:30px;color:#888;font-size:clamp(12px,1.3vw,18px);letter-spacing:4px}
+
+  /* End card */
+  #endCard{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;z-index:5;
+    opacity:0;pointer-events:none;background:rgba(0,0,0,.7);text-align:center;padding:20px;
+  }
+  #endCard.show{opacity:1;pointer-events:auto;transition:opacity 1.5s ease}
+  #endCard h1{font-family:'Arial Black';font-size:clamp(36px,6vw,80px);color:#ffe81f;
+    letter-spacing:6px;text-shadow:0 0 30px rgba(255,232,31,.6);margin-bottom:20px}
+  #endCard p{color:#aaa;font-size:clamp(14px,1.6vw,22px);margin-bottom:40px}
+  #endCard .btns{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
+  #endCard button{
+    padding:12px 28px;font-size:16px;font-weight:700;border:2px solid #ffe81f;
+    background:transparent;color:#ffe81f;cursor:pointer;letter-spacing:2px;
+    border-radius:4px;transition:all .2s;font-family:'News Cycle',sans-serif;
+  }
+  #endCard button:hover{background:#ffe81f;color:#000}
+
+  /* Back button */
+  #back{
+    position:fixed;top:16px;left:16px;z-index:10;
+    padding:8px 16px;font-size:14px;color:#ffe81f;
+    background:rgba(0,0,0,.4);border:1px solid rgba(255,232,31,.4);
+    border-radius:4px;cursor:pointer;font-family:'News Cycle',sans-serif;
+    letter-spacing:1px;transition:all .2s;text-decoration:none;
+  }
+  #back:hover{background:rgba(255,232,31,.15);border-color:#ffe81f}
+
+  /* Skip button */
+  #skip{
+    position:fixed;top:16px;right:16px;z-index:10;
+    padding:8px 16px;font-size:14px;color:#aaa;
+    background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.2);
+    border-radius:4px;cursor:pointer;font-family:'News Cycle',sans-serif;
+    letter-spacing:1px;transition:all .2s;
+  }
+  #skip:hover{color:#fff;border-color:#fff}
+
+  /* Audio hint */
+  #audioHint{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    color:#666;font-size:12px;letter-spacing:2px;z-index:10;
+    animation:pulse 2s ease infinite;
+  }
+  @keyframes pulse{50%{opacity:.4}}
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<a id="back" href="index.html">← BACK TO STREAMFLIX</a>
+<button id="skip">SKIP ▶</button>
+<div id="audioHint">CLICK ANYWHERE FOR SOUND</div>
+
+<div id="stage">
+  <div id="intro"></div>
+  <div id="logo">STAR WARS</div>
+  <div id="crawlWrap"><div id="crawl"></div></div>
+  <div id="titleCard">
+    <div class="emoji"></div>
+    <div class="title"></div>
+    <div class="sub"></div>
+    <div class="dir"></div>
+  </div>
+  <div id="endCard">
+    <h1>THE END</h1>
+    <p>A LONG TIME AGO IN A GALAXY FAR, FAR AWAY....</p>
+    <div class="btns">
+      <button onclick="location.reload()">REPLAY</button>
+      <button onclick="location.href='index.html'">BACK TO STREAMFLIX</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ═══════════════════════════════════════════════════════
+// Star Wars episode data
+// ═══════════════════════════════════════════════════════
+const EPISODES = {
+  6: {
+    title: "A NEW HOPE", episode: "Episode IV", fullTitle: "Star Wars: Episode IV – A New Hope",
+    emoji: "⚔", director: "GEORGE LUCAS", color: "#c8a030",
+    crawl: [
+      "It is a period of civil war. Rebel spaceships, striking from a hidden base, have won their first victory against the evil Galactic Empire.",
+      "During the battle, Rebel spies managed to steal secret plans to the Empire's ultimate weapon, the DEATH STAR, an armored space station with enough power to destroy an entire planet.",
+      "Pursued by the Empire's sinister agents, Princess Leia races home aboard her starship, custodian of the stolen plans that can save her people and restore freedom to the galaxy...."
+    ]
+  },
+  7: {
+    title: "THE EMPIRE STRIKES BACK", episode: "Episode V", fullTitle: "Star Wars: Episode V – The Empire Strikes Back",
+    emoji: "❄", director: "IRVIN KERSHNER", color: "#5a6878",
+    crawl: [
+      "It is a dark time for the Rebellion. Although the Death Star has been destroyed, Imperial troops have driven the Rebel forces from their hidden base and pursued them across the galaxy.",
+      "Evading the dreaded Imperial Starfleet, a group of freedom fighters led by Luke Skywalker has established a new secret base on the remote ice world of Hoth.",
+      "The evil lord Darth Vader, obsessed with finding young Skywalker, has dispatched thousands of remote probes into the far reaches of space...."
+    ]
+  },
+  8: {
+    title: "RETURN OF THE JEDI", episode: "Episode VI", fullTitle: "Star Wars: Episode VI – Return of the Jedi",
+    emoji: "👽", director: "RICHARD MARQUAND", color: "#3a7a30",
+    crawl: [
+      "Luke Skywalker has returned to his home planet of Tatooine in an attempt to rescue his friend Han Solo from the clutches of the vile gangster Jabba the Hutt.",
+      "Little does Luke know that the GALACTIC EMPIRE has secretly begun construction on a new armored space station even more powerful than the first dreaded Death Star.",
+      "When completed, this ultimate weapon will spell certain doom for the small band of rebels struggling to restore freedom to the galaxy...."
+    ]
+  },
+  9: {
+    title: "THE PHANTOM MENACE", episode: "Episode I", fullTitle: "Star Wars: Episode I – The Phantom Menace",
+    emoji: "🔥", director: "GEORGE LUCAS", color: "#b8803a",
+    crawl: [
+      "Turmoil has engulfed the Galactic Republic. The taxation of trade routes to outlying star systems is in dispute.",
+      "Hoping to resolve the matter with a blockade of deadly battleships, the greedy Trade Federation has stopped all shipping to the small planet of Naboo.",
+      "While the congress of the Republic endlessly debates this alarming chain of events, the Supreme Chancellor has secretly dispatched two Jedi Knights, the guardians of peace and justice in the galaxy, to settle the conflict...."
+    ]
+  },
+  10: {
+    title: "ATTACK OF THE CLONES", episode: "Episode II", fullTitle: "Star Wars: Episode II – Attack of the Clones",
+    emoji: "⚙", director: "GEORGE LUCAS", color: "#804020",
+    crawl: [
+      "There is unrest in the Galactic Senate. Several thousand solar systems have declared their intentions to leave the Republic.",
+      "This separatist movement, under the leadership of the mysterious Count Dooku, has made it difficult for the limited number of Jedi Knights to maintain peace and order in the galaxy.",
+      "Senator Amidala, the former Queen of Naboo, is returning to the Galactic Senate to vote on the critical issue of creating an ARMY OF THE REPUBLIC to assist the overwhelmed Jedi...."
+    ]
+  },
+  11: {
+    title: "REVENGE OF THE SITH", episode: "Episode III", fullTitle: "Star Wars: Episode III – Revenge of the Sith",
+    emoji: "🌋", director: "GEORGE LUCAS", color: "#a02020",
+    crawl: [
+      "War! The Republic is crumbling under attacks by the ruthless Sith Lord, Count Dooku. There are heroes on both sides. Evil is everywhere.",
+      "In a stunning move, the fiendish droid leader, General Grievous, has swept into the Republic capital and kidnapped Chancellor Palpatine, leader of the Galactic Senate.",
+      "As the Separatist Droid Army attempts to flee the besieged capital with their valuable hostage, two Jedi Knights lead a desperate mission to rescue the captive Chancellor...."
+    ]
+  },
+  12: {
+    title: "THE FORCE AWAKENS", episode: "Episode VII", fullTitle: "Star Wars: Episode VII – The Force Awakens",
+    emoji: "🛸", director: "J.J. ABRAMS", color: "#2040a0",
+    crawl: [
+      "Luke Skywalker has vanished. In his absence, the sinister FIRST ORDER has risen from the ashes of the Empire and will not rest until Skywalker, the last Jedi, has been destroyed.",
+      "With the support of the REPUBLIC, General Leia Organa leads a brave RESISTANCE. She is desperate to find her brother Luke and gain his help in restoring peace and justice to the galaxy.",
+      "Leia has sent her most daring pilot on a secret mission to Jakku, where an old ally has discovered a clue to Luke's whereabouts...."
+    ]
+  },
+  13: {
+    title: "ROGUE ONE", episode: "A Star Wars Story", fullTitle: "Rogue One: A Star Wars Story",
+    emoji: "🛰", director: "GARETH EDWARDS", color: "#807050",
+    crawl: [
+      "It is a period of civil war. The REBEL ALLIANCE, a desperate resistance, fights to restore freedom to the galaxy.",
+      "The evil Galactic Empire has completed construction of the DEATH STAR, a battle station so powerful it can destroy an entire planet.",
+      "Rumors of a weapon that could change the war reach the Rebels — and a scrappy band of heroes forms to steal the plans at any cost. They are called... ROGUE ONE."
+    ]
+  },
+  14: {
+    title: "THE LAST JEDI", episode: "Episode VIII", fullTitle: "Star Wars: Episode VIII – The Last Jedi",
+    emoji: "🗍", director: "RIAN JOHNSON", color: "#a02030",
+    crawl: [
+      "The FIRST ORDER reigns. Having decimated the peaceful Republic, Supreme Leader Snoke now deploys his merciless legions to seize military control of the galaxy.",
+      "Only General Leia Organa's band of RESISTANCE fighters stand against the rising tyranny, certain that Jedi Master Luke Skywalker will return and restore a spark of hope to the fight.",
+      "But the Resistance has been exposed. As the First Order speeds toward the rebel base, the brave heroes mount a desperate escape...."
+    ]
+  },
+  15: {
+    title: "SOLO", episode: "A Star Wars Story", fullTitle: "Solo: A Star Wars Story",
+    emoji: "🎲", director: "RON HOWARD", color: "#704020",
+    crawl: [
+      "It is a lawless time. CRIME SYNDICATES compete for resources — food, medicine, and HYPERFUEL.",
+      "On the shipbuilding planet of CORELLIA, the foul LADY PROXIMA forces runaways into a life of crime in exchange for shelter and protection.",
+      "On these mean streets, a young man fights for survival, but yearns to fly among the stars...."
+    ]
+  },
+  16: {
+    title: "THE RISE OF SKYWALKER", episode: "Episode IX", fullTitle: "Star Wars: Episode IX – The Rise of Skywalker",
+    emoji: "⚡", director: "J.J. ABRAMS", color: "#601080",
+    crawl: [
+      "THE DEAD SPEAK! The galaxy has heard a mysterious broadcast, a threat of REVENGE in the sinister voice of the late EMPEROR PALPATINE.",
+      "GENERAL LEIA ORGANA dispatches secret agents to gather intelligence, while REY, the last hope of the Jedi, trains for battle against the diabolical FIRST ORDER.",
+      "Meanwhile, Supreme Leader KYLO REN rages in search of the phantom Emperor, determined to destroy any threat to his power...."
+    ]
+  }
+};
+
+// ═══════════════════════════════════════════════════════
+// Parse episode ID from URL
+// ═══════════════════════════════════════════════════════
+const params = new URLSearchParams(location.search);
+const id = parseInt(params.get('id') || '6', 10);
+const ep = EPISODES[id] || EPISODES[6];
+
+// ═══════════════════════════════════════════════════════
+// Starfield canvas
+// ═══════════════════════════════════════════════════════
+const canvas = document.getElementById('stars');
+const ctx = canvas.getContext('2d');
+let W, H, stars;
+function resize(){
+  W = canvas.width = innerWidth;
+  H = canvas.height = innerHeight;
+  stars = [];
+  for(let i=0;i<260;i++){
+    stars.push({
+      x: Math.random()*W, y: Math.random()*H,
+      z: Math.random(), size: Math.random()*1.8+0.3,
+      tw: Math.random()*Math.PI*2
+    });
+  }
+}
+addEventListener('resize', resize);
+resize();
+
+let t = 0;
+function drawStars(){
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0,0,W,H);
+  for(const s of stars){
+    const alpha = 0.5 + Math.sin(t*2 + s.tw)*0.3 + s.z*0.3;
+    ctx.fillStyle = `rgba(255,255,${200+Math.floor(s.z*55)},${Math.max(0,Math.min(1,alpha))})`;
+    ctx.fillRect(s.x, s.y, s.size, s.size);
+  }
+  t += 0.016;
+  requestAnimationFrame(drawStars);
+}
+drawStars();
+
+// ═══════════════════════════════════════════════════════
+// Fill in the episode content
+// ═══════════════════════════════════════════════════════
+document.title = ep.fullTitle + ' — StreamFlix';
+
+const introEl = document.getElementById('intro');
+introEl.textContent = 'A long time ago in a galaxy far, far away....';
+
+const crawlEl = document.getElementById('crawl');
+crawlEl.innerHTML =
+  `<h1>${ep.episode}</h1>` +
+  `<h2>${ep.title}</h2>` +
+  ep.crawl.map(p => `<p>${p}</p>`).join('');
+
+const tc = document.getElementById('titleCard');
+tc.querySelector('.emoji').textContent = ep.emoji;
+tc.querySelector('.title').textContent = ep.title;
+tc.querySelector('.sub').textContent = ep.episode;
+tc.querySelector('.dir').textContent = 'DIRECTED BY ' + ep.director;
+
+// Accent color tint
+document.documentElement.style.setProperty('--accent-col', ep.color);
+
+// ═══════════════════════════════════════════════════════
+// Sound (Web Audio — simple fanfare synth)
+// ═══════════════════════════════════════════════════════
+let audioCtx = null;
+let audioStarted = false;
+function startAudio(){
+  if(audioStarted) return;
+  audioStarted = true;
+  document.getElementById('audioHint').style.display='none';
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  } catch(e){ return; }
+
+  // Intro hum → fanfare at logo time
+  setTimeout(() => playFanfare(), 6500);
+}
+
+function note(freq, start, dur, vol=0.18, type='sawtooth'){
+  if(!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type;
+  o.frequency.value = freq;
+  g.gain.value = 0;
+  g.gain.linearRampToValueAtTime(vol, audioCtx.currentTime+start+0.03);
+  g.gain.linearRampToValueAtTime(vol*0.9, audioCtx.currentTime+start+dur*0.7);
+  g.gain.linearRampToValueAtTime(0, audioCtx.currentTime+start+dur);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(audioCtx.currentTime+start);
+  o.stop(audioCtx.currentTime+start+dur+0.05);
+}
+
+function playFanfare(){
+  // Iconic rising fanfare approximation (Bb-F-Bb fifths)
+  const seq = [
+    [233.08, 0.00, 0.45],  // Bb3
+    [349.23, 0.45, 0.15],  // F4
+    [466.16, 0.60, 0.45],  // Bb4
+    [466.16, 1.20, 0.15],  // Bb4
+    [698.46, 1.35, 0.60],  // F5
+    [466.16, 2.00, 0.20],  // Bb4
+    [622.25, 2.25, 0.25],  // Eb5
+    [587.33, 2.55, 0.25],  // D5
+    [523.25, 2.85, 0.25],  // C5
+    [698.46, 3.15, 1.20],  // F5 sustained
+  ];
+  seq.forEach(([f,s,d])=>{
+    note(f, s, d, 0.11, 'square');
+    note(f*2, s, d, 0.05, 'sine');
+  });
+  // Low bass pad
+  note(58.27, 0, 4.5, 0.08, 'sine');
+  note(87.31, 2.2, 2.3, 0.07, 'sine');
+}
+
+// ═══════════════════════════════════════════════════════
+// Sequence orchestration
+// ═══════════════════════════════════════════════════════
+function runSequence(){
+  introEl.classList.add('show');                             // 0–6s
+  setTimeout(()=> document.getElementById('logo').classList.add('show'), 6500);  // 6.5s zoom 7s
+  setTimeout(()=> document.getElementById('crawlWrap').classList.add('show'), 13000); // 13s
+  // Crawl scroll lasts 90s
+  setTimeout(()=> document.getElementById('titleCard').classList.add('show'), 102000); // title card
+  setTimeout(()=> document.getElementById('endCard').classList.add('show'), 106000);   // end card
+}
+
+// Start on click (for audio autoplay policies) or after short delay anyway
+let started = false;
+function startAll(){
+  if(started) return;
+  started = true;
+  startAudio();
+  runSequence();
+}
+document.addEventListener('click', startAll);
+document.addEventListener('keydown', startAll);
+// Auto-start visuals after 1.5s regardless (audio may still wait for click)
+setTimeout(()=>{ if(!started){ started=true; runSequence(); }}, 1500);
+
+// Skip to end
+document.getElementById('skip').addEventListener('click', () => {
+  // Clear all running animations by replacing elements with copies
+  ['intro','logo','crawlWrap','titleCard'].forEach(id=>{
+    const el = document.getElementById(id);
+    el.style.animation = 'none';
+    el.style.opacity = '0';
+  });
+  document.getElementById('endCard').classList.add('show');
+});
+
+})();
+</script>
+</body>
+</html>
