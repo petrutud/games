@@ -167,7 +167,7 @@ params:
           link: /games/super-mario-galaxy/
 
       - title: "Super Mario Ultimate Adventure"
-        content: "Epic story-driven adventure! 12 worlds, 103 levels, 10 power-ups, skill tree, Mario & Luigi switching, branching choices, 3 endings. Dodge Bowser's brutal fire rain across level 4 (each hit halves your health!), then the castle bridge battle — pull the axe or blast him with Fire/Ice powers to save a Toad! Then face Bowser Jr., Mecha Bowser, Dry Bowser & Omega Bowser!"
+        content: "Epic story-driven adventure! 12 worlds, 103 levels, 10 power-ups, skill tree, Mario & Luigi switching, branching choices, 3 endings. Classic castle bridge battle vs Bowser on level 4 — he's immune to stomps: pull the axe to drop him in the lava, or blast him with Fire/Ice powers to save a Toad! Then face Bowser Jr., Mecha Bowser, Dry Bowser & Omega Bowser!"
         image: "/images/games/mario.svg"
         badges:
           - "HTML5"
