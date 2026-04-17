@@ -2432,8 +2432,15 @@ function updateBoss(b,dt){
   b.x=Math.max((level.w-24)*TILE,Math.min(b.x,(level.w-2)*TILE-b.w));
 }
 
-function damageBoss(b,dmg){
+function damageBoss(b,dmg,element){
   if(!b||!b.alive)return;
+  // Classic Bowser is invincible except to fire/ice (or the axe, handled elsewhere)
+  if(b.type==='bowser'&&element!=='fire'&&element!=='ice'){
+    b.hitFlash=.15;
+    spawnBurst(b.x+b.w/2,b.y+b.h/2,'#c0c0c0',4,80);
+    floatText(b.x+b.w/2,b.y-10,'IMMUNE!','#c0c0c0');
+    return;
+  }
   const mod=b.defMod||1;
   const actualDmg=dmg*mod*M.dmgMult;
   b.hp-=actualDmg;
@@ -2625,14 +2632,14 @@ function updateMario(dt){
     if(pu==='fire'){
       // Fireball — bounces
       projectiles.push({x:M.x+M.w/2,y:M.y+M.h/2-5,vx:M.face*350,vy:-80,
-        col:'#ff4020',size:7,life:1.5,dmg:baseDmg*1.2,friendly:true,grav:true});
+        col:'#ff4020',size:7,life:1.5,dmg:baseDmg*1.2,friendly:true,grav:true,element:'fire'});
       playTone(600,.1,'sawtooth',.06);
     }else if(pu==='ice'){
       // Ice shard — fast, freezing trail
       projectiles.push({x:M.x+M.w/2,y:M.y+M.h/2-5,vx:M.face*420,vy:0,
-        col:'#80d8ff',size:6,life:1.2,dmg:baseDmg,friendly:true});
+        col:'#80d8ff',size:6,life:1.2,dmg:baseDmg,friendly:true,element:'ice'});
       projectiles.push({x:M.x+M.w/2,y:M.y+M.h/2+5,vx:M.face*380,vy:20,
-        col:'#60c8ff',size:4,life:1,dmg:baseDmg*.5,friendly:true});
+        col:'#60c8ff',size:4,life:1,dmg:baseDmg*.5,friendly:true,element:'ice'});
       playTone(1200,.08,'sine',.05);
     }else if(pu==='spring'){
       // Bounce bomb — arcs down, explodes
@@ -3120,7 +3127,7 @@ function updateProjectiles(dt){
       if(boss&&boss.alive){
         if(Math.abs(p.x-boss.x-boss.w/2)<boss.w/2+5&&Math.abs(p.y-boss.y-boss.h/2)<boss.h/2+5){
           if(boss.type==='goombaKing'&&boss.dizzy<=0){}
-          else{damageBoss(boss,p.dmg);p.life=0}
+          else{damageBoss(boss,p.dmg,p.element);p.life=0}
         }
       }
       if(shadowMario&&shadowMario.alive){
