@@ -2976,7 +2976,7 @@ function updateMario(dt){
       projectiles.push({x:spawnX,y:spawnY,
         vx:Math.cos(ang)*180+(Math.random()-.5)*60,
         vy:Math.sin(ang)*220+60,
-        col:'#ff2000',size:10,life:4,dmg:9999,friendly:false,grav:true,instakill:true});
+        col:'#ff2000',size:10,life:4,dmg:0,friendly:false,grav:true,halfHp:true});
     }
   }
 
@@ -3164,12 +3164,8 @@ function updateProjectiles(dt){
     }else{
       // Enemy projectile hits Mario
       if(Math.abs(p.x-M.x-M.w/2)<18&&Math.abs(p.y-M.y-M.h/2)<22){
-        if(p.instakill&&!(M.powerUp==='star'||M.powerUp==='rainbow'||M.powerUp==='mega')){
-          // Instant death — pierce invincibility frames
-          M.inv=0;M.hp=0;M.dead=true;M.deathTimer=0;M.vy=-400;
-          screenShake(12,.5);
-          spawnBurst(M.x+M.w/2,M.y+M.h/2,'#ff2000',20,250);
-          sfxBoss();
+        if(p.halfHp){
+          hurtMario(M.maxHp*.5);
         }else{
           hurtMario(p.dmg);
         }
@@ -4434,8 +4430,8 @@ function drawGame(){
     ctx.fillStyle=p.col;
     ctx.globalAlpha=.8;
     ctx.beginPath();ctx.arc(p.x-cam.x,p.y-cam.y,p.size,0,Math.PI*2);ctx.fill();
-    // Instakill fireballs — extra glow + flicker trail
-    if(p.instakill){
+    // Half-HP fire rain — extra glow + flicker trail
+    if(p.halfHp){
       ctx.fillStyle=`rgba(255,180,40,${.4+Math.sin(G.totalTime*20+p.x)*.3})`;
       ctx.beginPath();ctx.arc(p.x-cam.x,p.y-cam.y,p.size+6,0,Math.PI*2);ctx.fill();
       ctx.fillStyle='#ffe080';
