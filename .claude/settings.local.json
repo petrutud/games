@@ -54,7 +54,8 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1315/games/streamflix/mario-bros-movie.html)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1315/games/streamflix/minecraft-movie.html)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1315/games/streamflix/sheldon-movie.html)",
-      "Bash(node -e \"const fs=require\\('fs'\\);const html=fs.readFileSync\\('static/games/mario/game.html','utf8'\\);const m=html.match\\(/<script>\\([\\\\s\\\\S]*?\\)<\\\\/script>/\\);try{new Function\\(m[1]\\);console.log\\('SCRIPT_OK'\\);}catch\\(e\\){console.log\\('SCRIPT_ERROR:',e.message\\);}\")"
+      "Bash(node -e \"const fs=require\\('fs'\\);const html=fs.readFileSync\\('static/games/mario/game.html','utf8'\\);const m=html.match\\(/<script>\\([\\\\s\\\\S]*?\\)<\\\\/script>/\\);try{new Function\\(m[1]\\);console.log\\('SCRIPT_OK'\\);}catch\\(e\\){console.log\\('SCRIPT_ERROR:',e.message\\);}\")",
+      "Bash(node -e ' *)"
     ],
     "additionalDirectories": [
       "/home/petru/code/games/static/games",
