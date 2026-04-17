@@ -167,13 +167,14 @@ params:
           link: /games/super-mario-galaxy/
 
       - title: "Super Mario Ultimate Adventure"
-        content: "Epic story-driven adventure! 12 worlds, 103 levels, 10 power-ups, skill tree, Mario & Luigi switching, branching choices, 3 endings. Face Bowser, Bowser Jr., Mecha Bowser, Dry Bowser & Omega Bowser!"
+        content: "Epic story-driven adventure! 12 worlds, 103 levels, 10 power-ups, skill tree, Mario & Luigi switching, branching choices, 3 endings. Classic castle bridge battle vs Bowser — pull the axe to drop him in the lava and save a Toad! Then face Bowser Jr., Mecha Bowser, Dry Bowser & Omega Bowser!"
         image: "/images/games/mario.svg"
         badges:
           - "HTML5"
           - "Canvas"
           - "Platformer"
           - "103 Levels"
+          - "Castle Battle"
           - "RPG"
         featured:
           name: Play Game

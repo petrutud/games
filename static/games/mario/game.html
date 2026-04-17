@@ -1111,6 +1111,24 @@ function generateLevel(biomeId){
   }
   // walls around boss arena
   for(let y=0;y<17;y++){level.tiles[lw-1][y]=1;level.tiles[0][y]=1;}
+  // ── Bowser castle arena: bridge over lava + axe ──
+  if(b.boss==='bowser'){
+    level.bridgeTiles=[];
+    // Carve out a lava pit between lw-20 and lw-5, keep a thin bridge at top row
+    for(let x=lw-20;x<lw-4;x++){
+      level.tiles[x][groundY]=8; // bridge (wooden)
+      level.tiles[x][groundY+1]=0; // empty under bridge
+      level.tiles[x][groundY+2]=3; // lava at bottom
+      level.bridgeTiles.push({x,y:groundY});
+    }
+    // Axe pedestal (solid stone block) at lw-4
+    for(let y=groundY-1;y<17;y++)level.tiles[lw-4][y]=1;
+    // Axe sits on top of the pedestal
+    level.axe={x:(lw-4)*TILE+4,y:(groundY-2)*TILE+8,pulled:false,anim:0};
+    // Post-bridge safe ground (where Toad waits) — already solid 1 from arena setup
+    // Add the rescue Toad at the far end, past the axe
+    level.bowserToad={x:(lw-2)*TILE,y:(groundY-1)*TILE-8,rescued:false,frame:0};
+  }
   // Warp pipe — golden pipe near start that warps to boss area
   const wpx=6;
   for(let dy=0;dy<3;dy++){
@@ -1150,7 +1168,7 @@ function tileAt(tx,ty){
   if(tx<0||tx>=level.w||ty<0||ty>=level.h)return ty>=level.h?1:0;
   return level.tiles[tx][ty];
 }
-function isSolid(tx,ty){const t=tileAt(tx,ty);return t===1||t===2||t===5||t===6||t===7}
+function isSolid(tx,ty){const t=tileAt(tx,ty);return t===1||t===2||t===5||t===6||t===7||t===8}
 function rectOverlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
 
 // ═══════════════════════════════════════════════
@@ -1525,6 +1543,16 @@ function drawTile(tx,ty,biome){
     ctx.fillStyle='#fff';
     ctx.font='bold 16px sans-serif';
     ctx.fillText('?',x+10,y+22+bounce);
+  }else if(t===8){
+    // Wooden bridge plank
+    ctx.fillStyle='#6b4020';
+    ctx.fillRect(x,y,TILE,TILE);
+    ctx.fillStyle='#8b5e30';
+    ctx.fillRect(x,y+2,TILE,TILE-8);
+    ctx.fillStyle='rgba(0,0,0,.3)';
+    ctx.fillRect(x+7,y,2,TILE);ctx.fillRect(x+22,y,2,TILE);
+    ctx.fillStyle='rgba(255,220,160,.2)';
+    ctx.fillRect(x,y+4,TILE,2);
   }else if(t===7){
     // Warp pipe — golden/glowing
     const glow=.7+Math.sin(G.totalTime*4)*.3;
@@ -2230,6 +2258,13 @@ function updateBoss(b,dt){
       break;
     }
     case 'bowser':{
+      // If bridge collapsed — just fall into the lava, no attacks
+      if(b.falling){
+        b.vy=(b.vy||0)+GRAVITY*dt*1.5;
+        b.y+=b.vy*dt;
+        b.x+=Math.sin(b.timer*8)*2;
+        break;
+      }
       // Classic Bowser — walks toward Mario, fire breath, stomp jump
       const spd=b.phase>=2?70:50;
       b.x+=(mx>b.x?spd:-spd)*dt;
@@ -2237,7 +2272,7 @@ function updateBoss(b,dt){
       b.fireTimer+=dt;
       if(b.fireTimer>2.8/b.phase){
         b.fireTimer=0;b.state='fireBreath';
-        setTimeout(()=>{if(b.alive)b.state='idle'},900);
+        setTimeout(()=>{if(b.alive&&b.state==='fireBreath')b.state='idle'},900);
         const dir=mx>b.x?1:-1;
         for(let i=0;i<3;i++){
           setTimeout(()=>{
@@ -2260,7 +2295,12 @@ function updateBoss(b,dt){
         if(b.vy>200){screenShake(5,.2);spawnBurst(b.x+32,b.y+70,'#f0a020',8,180);}
         b.vy=0;
       }
-      if(rectOverlap({x:b.x,y:b.y,w:b.w,h:b.h},{x:mx,y:my,w:M.w,h:M.h}))hurtMario(10);
+      // Body damages Mario on side/below contact — safe to jump over from above
+      if(rectOverlap({x:b.x,y:b.y,w:b.w,h:b.h},{x:mx,y:my,w:M.w,h:M.h})){
+        const marioFeet=my+M.h;
+        if(marioFeet<b.y+20)break; // safely jumping over — no damage
+        hurtMario(10);
+      }
       break;
     }
     case 'dryBowser':{
@@ -2847,6 +2887,48 @@ function updateMario(dt){
       floatText(t.x,t.y-20,'Toad rescued!','#ff4040');
     }
   });
+  // Axe: pull to collapse bridge & send Bowser into the lava
+  if(level.axe&&!level.axe.pulled){
+    const a=level.axe;
+    if(Math.abs(M.x+M.w/2-(a.x+12))<28&&Math.abs(M.y+M.h/2-(a.y+8))<40){
+      a.pulled=true;
+      sfxStar();screenShake(14,.6);
+      floatText(a.x,a.y-24,'AXE!','#ffa020');
+      // Collapse bridge plank-by-plank
+      (level.bridgeTiles||[]).forEach((t,i)=>{
+        setTimeout(()=>{
+          if(level.tiles[t.x]){
+            level.tiles[t.x][t.y]=0;
+            spawnBurst(t.x*TILE+16,t.y*TILE+16,'#8b5e30',5,140);
+            sfxHit();
+          }
+        },i*60);
+      });
+      // Drop the boss
+      if(boss&&boss.alive&&boss.type==='bowser'){
+        boss.falling=true;boss.vy=0;boss.state='falling';
+        setTimeout(()=>{
+          if(!boss||!boss.alive)return;
+          boss.hp=0;boss.alive=false;
+          screenShake(20,.8);
+          spawnBurst(boss.x+boss.w/2,16*TILE,'#f04000',30,350);
+          spawnBurst(boss.x+boss.w/2,16*TILE,'#ffa020',20,300);
+          floatText(boss.x,boss.y-20,'BOWSER DEFEATED!','#ff4040');
+          setTimeout(()=>onBossDefeated(boss),1500);
+        },1400);
+      }
+    }
+  }
+  // Bowser rescue Toad (after boss defeated)
+  if(level.bowserToad&&!level.bowserToad.rescued&&boss&&!boss.alive){
+    const t=level.bowserToad;
+    if(Math.abs(M.x-t.x)<40&&Math.abs(M.y-t.y)<40){
+      t.rescued=true;G.rescued.toads++;
+      sfxPower();
+      floatText(t.x,t.y-20,'Toad saved!','#ff4040');
+      spawnBurst(t.x+8,t.y+8,'#ffe0c0',12,180);
+    }
+  }
 
   // Warp pipe — press DOWN/S on the golden pipe to teleport to boss area
   if(level.warpPipe&&(justDown('arrowdown')||justDown('s'))&&M.ground){
@@ -4187,6 +4269,37 @@ function drawGame(){
   level.toads.forEach(t=>{
     if(!t.rescued)drawToad(t.x-cam.x,t.y-cam.y,false);
   });
+  // Bowser rescue toad (only shown once boss falls)
+  if(level.bowserToad&&boss&&!boss.alive){
+    const bt=level.bowserToad;
+    drawToad(bt.x-cam.x,bt.y-cam.y,bt.rescued);
+    if(!bt.rescued){
+      ctx.fillStyle='#fff';ctx.font='8px "Press Start 2P"';
+      ctx.fillText('HELP!',bt.x-cam.x-4,bt.y-cam.y-6+Math.sin(G.totalTime*4)*2);
+    }
+  }
+  // Axe (Bowser castle arena)
+  if(level.axe&&!level.axe.pulled){
+    level.axe.anim+=FDT;
+    const ax=level.axe.x-cam.x,ay=level.axe.y-cam.y;
+    const bob=Math.sin(G.totalTime*4)*2;
+    // Glow
+    ctx.fillStyle=`rgba(255,220,120,${.3+Math.sin(G.totalTime*5)*.15})`;
+    ctx.beginPath();ctx.arc(ax+12,ay+14+bob,18,0,Math.PI*2);ctx.fill();
+    // Handle
+    ctx.fillStyle='#6b4020';
+    ctx.fillRect(ax+10,ay+bob,4,24);
+    // Blade
+    ctx.fillStyle='#c0c0c8';
+    ctx.fillRect(ax+2,ay-4+bob,20,10);
+    ctx.fillStyle='#e8e8f0';
+    ctx.fillRect(ax+4,ay-2+bob,16,4);
+    ctx.fillStyle='#808088';
+    ctx.fillRect(ax+2,ay+6+bob,20,2);
+    // Red grip
+    ctx.fillStyle='#c02020';
+    ctx.fillRect(ax+9,ay+14+bob,6,6);
+  }
   // Pipe piranha plants
   level.pipes.forEach(pipe=>{
     if(pipe.plantY<=0)return;
