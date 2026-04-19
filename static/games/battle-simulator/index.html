@@ -71,7 +71,8 @@ canvas { display: block; width: 100%; height: 100%; }
       <button id="ability-btn" onclick="game.toggleAbilities()">Abilities: ON</button>
       <button id="activate-btn" onclick="game.activateAllAbilities()">Activate All!</button>
       <button id="inf-btn" onclick="game.toggleInfinite()">$ Infinite: OFF</button>
-      <button id="modern-pack-btn" onclick="game.spawnModernPack()" style="background:#8B0000;border-color:#e94560;">⚔️ MODERN PACK</button>
+      <button id="modern-pack-btn" onclick="game.spawnModernPack()" style="background:#2c3e50;border-color:#4a6670;">🪖 MODERN PACK</button>
+      <button id="roman-pack-btn" onclick="game.spawnRomanPack()" style="background:#8B0000;border-color:#a83e1c;">🦅 ROMAN LEGION PACK</button>
     </div>
   </div>
 </div>
@@ -488,7 +489,7 @@ class Game {
     this.updateBudgetUI();
   }
 
-  spawnModernPack() {
+  _spawnPack(roster) {
     if (this.phase !== 'place') return;
     const team = this.placingTeam;
     const halfW = this.W / 2;
@@ -496,18 +497,6 @@ class Game {
     const maxX = team === 'blue' ? halfW - 40 : this.W - 20;
     const minY = 60, maxY = this.H - 60;
     const findDef = n => UNIT_DEFS.find(d => d.name === n);
-    const roster = [
-      ['Tank', 400],
-      ['Musketeer', 50],
-      ['War Plane', 31],
-      ['Dark Mage', 1000],
-      ['Spartan', 1000],
-      ['Roman Legionary', 1000],
-      ['Archer', 1000],
-      ['Crossbow', 250],
-      ['Catapult', 250],
-      ['Gladiator', 500],
-    ];
     for (const [name, count] of roster) {
       const def = findDef(name);
       if (!def) continue;
@@ -517,6 +506,26 @@ class Game {
         this.units.push(new Unit(def, x, y, team));
       }
     }
+  }
+
+  spawnModernPack() {
+    this._spawnPack([
+      ['Tank', 400],
+      ['Musketeer', 50],
+      ['War Plane', 31],
+    ]);
+  }
+
+  spawnRomanPack() {
+    this._spawnPack([
+      ['Roman Legionary', 1000],
+      ['Spartan', 1000],
+      ['Dark Mage', 1000],
+      ['Archer', 1000],
+      ['Crossbow', 250],
+      ['Catapult', 250],
+      ['Gladiator', 500],
+    ]);
   }
 
   startBattle() {
