@@ -71,6 +71,7 @@ canvas { display: block; width: 100%; height: 100%; }
       <button id="ability-btn" onclick="game.toggleAbilities()">Abilities: ON</button>
       <button id="activate-btn" onclick="game.activateAllAbilities()">Activate All!</button>
       <button id="inf-btn" onclick="game.toggleInfinite()">$ Infinite: OFF</button>
+      <button id="modern-pack-btn" onclick="game.spawnModernPack()" style="background:#8B0000;border-color:#e94560;">⚔️ MODERN PACK</button>
     </div>
   </div>
 </div>
@@ -99,6 +100,7 @@ const UNIT_DEFS = [
   { name:'Cavalry', cat:'special', cost:130, hp:160, dmg:35, speed:0.9, range:18, atkSpeed:1.0, size:18, color:'#f39c12', icon:'🐴', ability:'Death Charge', abilityDesc:'100dmg dash through' },
   { name:'Dark Mage', cat:'special', cost:200, hp:90, dmg:25, speed:0.25, range:160, atkSpeed:1.8, size:14, color:'#2c3e50', icon:'☠️', projSpeed:2, aoe:30, magic:true, ability:'Soul Drain', abilityDesc:'Drains all enemies HP' },
   // NEW — Melee
+  { name:'Roman Legionary', cat:'melee', cost:100, hp:170, dmg:24, speed:0.4, range:18, atkSpeed:0.9, size:14, color:'#a83e1c', icon:'🦅', ability:'Pilum Volley', abilityDesc:'Throws 4 piercing javelins' },
   { name:'Gladiator', cat:'melee', cost:90, hp:140, dmg:22, speed:0.5, range:16, atkSpeed:0.7, size:15, color:'#d4a017', icon:'🏛️', ability:'Arena King', abilityDesc:'Heals on every kill for 15s' },
   { name:'Ninja', cat:'melee', cost:110, hp:70, dmg:35, speed:0.8, range:18, atkSpeed:0.5, size:11, color:'#2c2c2c', icon:'🥷', ability:'Shadow Clone', abilityDesc:'Spawns 3 clones' },
   { name:'Troll', cat:'melee', cost:180, hp:400, dmg:30, speed:0.2, range:22, atkSpeed:1.8, size:22, color:'#556b2f', icon:'🧌', ability:'Regenerate', abilityDesc:'Heals 50% HP over 15s' },
@@ -486,6 +488,37 @@ class Game {
     this.updateBudgetUI();
   }
 
+  spawnModernPack() {
+    if (this.phase !== 'place') return;
+    const team = this.placingTeam;
+    const halfW = this.W / 2;
+    const minX = team === 'blue' ? 20 : halfW + 40;
+    const maxX = team === 'blue' ? halfW - 40 : this.W - 20;
+    const minY = 60, maxY = this.H - 60;
+    const findDef = n => UNIT_DEFS.find(d => d.name === n);
+    const roster = [
+      ['Tank', 400],
+      ['Musketeer', 50],
+      ['War Plane', 31],
+      ['Dark Mage', 1000],
+      ['Spartan', 1000],
+      ['Roman Legionary', 1000],
+      ['Archer', 1000],
+      ['Crossbow', 250],
+      ['Catapult', 250],
+      ['Gladiator', 500],
+    ];
+    for (const [name, count] of roster) {
+      const def = findDef(name);
+      if (!def) continue;
+      for (let i = 0; i < count; i++) {
+        const x = minX + Math.random() * (maxX - minX);
+        const y = minY + Math.random() * (maxY - minY);
+        this.units.push(new Unit(def, x, y, team));
+      }
+    }
+  }
+
   startBattle() {
     if (this.phase !== 'place') return;
     const blues = this.units.filter(u => u.team === 'blue');
@@ -818,6 +851,25 @@ class Game {
         for (let i = 0; i < 15; i++) {
           const a = (i/15)*Math.PI*2;
           this.particles.push({ x: u.x+Math.cos(a)*20, y: u.y+Math.sin(a)*20, vx: Math.cos(a)*2, vy: Math.sin(a)*2, life: 30, color: '#DAA520', size: 2 });
+        }
+        break;
+      case 'Roman Legionary': // Pilum Volley — 4 javelin lines through enemy ranks
+        { const enemies = this.units.filter(e => e.team !== u.team && e.alive && !e.def.flying);
+          for (let i = 0; i < 4; i++) {
+            if (enemies.length === 0) break;
+            const t = enemies[Math.floor(Math.random() * enemies.length)];
+            const a = Math.atan2(t.y - u.y, t.x - u.x);
+            for (const e of this.units) {
+              if (e.team !== u.team && e.alive && !e.def.flying) {
+                const dx = e.x - u.x, dy = e.y - u.y;
+                const proj = dx*Math.cos(a) + dy*Math.sin(a);
+                const perp = Math.abs(-dx*Math.sin(a) + dy*Math.cos(a));
+                if (proj > 0 && proj < 350 && perp < 18) this.applyDamage(e, 45, u.x, u.y);
+              }
+            }
+            for (let k = 0; k < 18; k++)
+              this.particles.push({ x: u.x+Math.cos(a)*k*18, y: u.y+Math.sin(a)*k*18, vx: 0, vy: 0, life: 22, color: '#a83e1c', size: 2 });
+          }
         }
         break;
       case 'Spartan': // Phalanx — allies nearby take 50% less dmg for 15s
