@@ -122,6 +122,8 @@ const UNIT_DEFS = [
   { name:'Witch', cat:'special', cost:170, hp:70, dmg:20, speed:0.3, range:160, atkSpeed:2.0, size:13, color:'#4a0e4e', icon:'🧹', projSpeed:2, magic:true, ability:'Polymorph', abilityDesc:'Turns strongest enemy into peasant' },
   // FLYING
   { name:'War Plane', cat:'special', cost:350, hp:200, dmg:40, speed:0.6, range:150, atkSpeed:2.5, size:18, color:'#4a6670', icon:'✈️', projSpeed:3, aoe:35, flying:true, ability:'Nuclear Drop', abilityDesc:'Nuke! Halves ALL enemy HP' },
+  // VEHICLES
+  { name:'Tank', cat:'ranged', cost:320, hp:550, dmg:55, speed:0.15, range:290, atkSpeed:3.0, size:24, color:'#4e5d3a', icon:'🪖', projSpeed:4, aoe:45, ability:'Shell Salvo', abilityDesc:'Fires 6 AOE shells everywhere' },
 ];
 
 class Unit {
@@ -970,6 +972,18 @@ class Game {
             for (let i = 0; i < 15; i++)
               this.particles.push({ x: lowest.x, y: lowest.y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8, life: 25, color: '#191970', size: 3 });
           }
+        }
+        break;
+      case 'Tank': // Shell Salvo — 6 AOE shells fired at random enemies
+        { const enemies = this.units.filter(e => e.team !== u.team && e.alive && !e.def.flying);
+          for (let i = 0; i < 6; i++) {
+            if (enemies.length > 0) {
+              const t = enemies[Math.floor(Math.random() * enemies.length)];
+              this.projectiles.push(new Projectile(u.x, u.y, t.x + (Math.random()-0.5)*30, t.y + (Math.random()-0.5)*30, u.team, 70, 3.5, 55));
+            }
+          }
+          for (let i = 0; i < 12; i++)
+            this.particles.push({ x: u.x, y: u.y - 10, vx: (Math.random()-0.5)*4, vy: -Math.random()*5, life: 25, color: '#888', size: 4 });
         }
         break;
       case 'War Plane': // Nuclear Drop — halves ALL enemy HP
