@@ -73,6 +73,7 @@ canvas { display: block; width: 100%; height: 100%; }
       <button id="inf-btn" onclick="game.toggleInfinite()">$ Infinite: OFF</button>
       <button id="modern-pack-btn" onclick="game.spawnModernPack()" style="background:#2c3e50;border-color:#4a6670;">🪖 MODERN PACK</button>
       <button id="roman-pack-btn" onclick="game.spawnRomanPack()" style="background:#8B0000;border-color:#a83e1c;">🦅 ROMAN LEGION PACK</button>
+      <button id="vsbot-btn" onclick="game.toggleVsBot()" style="background:#9b59b6;border-color:#9b59b6;">🤖 vs Bot: OFF</button>
     </div>
   </div>
 </div>
@@ -192,6 +193,12 @@ class Game {
     this.dragPlacing = false;
     this.lastPlaceX = 0;
     this.lastPlaceY = 0;
+
+    // vs-Bot mode
+    this.vsBot = false;
+    this.killRewards = { blue: 0, red: 0 };
+    this.round = 1;
+    this.gameOver = false;
 
     // Camera zoom
     this.zoom = 1;
@@ -477,6 +484,7 @@ class Game {
 
   switchTeam() {
     if (this.phase !== 'place') return;
+    if (this.vsBot) return; // player only places blue in vs-bot mode
     this.placingTeam = this.placingTeam === 'blue' ? 'red' : 'blue';
     document.getElementById('phase-info').textContent = `PLACING: ${this.placingTeam.toUpperCase()} TEAM`;
   }
@@ -623,11 +631,52 @@ class Game {
     this.budgets = { blue: 500, red: 500 };
     this.battleResult = null;
     this.controlledUnit = null;
+    this.killRewards = { blue: 0, red: 0 };
+    this.round = 1;
+    this.gameOver = false;
     this.zoom = 1; this.camX = 0; this.camY = 0;
     document.getElementById('control-hint').classList.remove('show');
     this.updateBudgetUI();
-    document.getElementById('phase-info').textContent = 'PLACEMENT PHASE';
+    document.getElementById('phase-info').textContent = this.vsBot ? 'ROUND 1 — Place your army vs Bot!' : 'PLACEMENT PHASE';
     document.getElementById('overlay').style.opacity = 0;
+    if (this.vsBot) this.botPlaceUnits();
+  }
+
+  toggleVsBot() {
+    this.vsBot = !this.vsBot;
+    const btn = document.getElementById('vsbot-btn');
+    btn.textContent = this.vsBot ? '🤖 vs Bot: ON' : '🤖 vs Bot: OFF';
+    btn.style.background = this.vsBot ? '#27ae60' : '#9b59b6';
+    btn.style.borderColor = this.vsBot ? '#27ae60' : '#9b59b6';
+    this.reset();
+  }
+
+  botPlaceUnits() {
+    const halfW = this.W / 2;
+    const minX = halfW + 40, maxX = this.W - 30;
+    const minY = 60, maxY = this.H - 60;
+    const minCost = Math.min(...UNIT_DEFS.map(d => d.cost));
+    let budget = this.budgets.red;
+    let guard = 200;
+    while (budget >= minCost && guard-- > 0) {
+      // Random mix: usually affordable pool, occasionally bias toward pricier picks
+      const affordable = UNIT_DEFS.filter(d => d.cost <= budget);
+      if (affordable.length === 0) break;
+      let def;
+      if (Math.random() < 0.25) {
+        // Go big sometimes — pick from top third by cost
+        const sorted = [...affordable].sort((a, b) => b.cost - a.cost);
+        def = sorted[Math.floor(Math.random() * Math.max(1, Math.floor(sorted.length / 3)))];
+      } else {
+        def = affordable[Math.floor(Math.random() * affordable.length)];
+      }
+      const x = minX + Math.random() * (maxX - minX);
+      const y = minY + Math.random() * (maxY - minY);
+      this.units.push(new Unit(def, x, y, 'red'));
+      budget -= def.cost;
+    }
+    this.budgets.red = budget;
+    this.updateBudgetUI();
   }
 
   findTarget(unit) {
@@ -1128,8 +1177,13 @@ class Game {
       });
     }
     if (target.hp <= 0) {
+      const wasAlive = target.alive;
       target.alive = false;
       target.deathTimer = 60;
+      if (wasAlive) {
+        const opp = target.team === 'blue' ? 'red' : 'blue';
+        this.killRewards[opp] += target.def.cost;
+      }
       this.screenShake = Math.min(10, target.def.size * 0.5);
       // Death burst ring
       for (let i = 0; i < 8; i++) {
@@ -1493,10 +1547,64 @@ class Game {
         else this.battleResult = 'RED WINS!';
 
         const el = document.getElementById('overlay');
-        el.textContent = this.battleResult;
-        el.style.color = this.battleResult.includes('BLUE') ? '#4ecdc4' : this.battleResult.includes('RED') ? '#e94560' : '#ffd93d';
-        el.style.opacity = 1;
-        document.getElementById('phase-info').textContent = this.battleResult;
+
+        if (this.vsBot && !this.gameOver) {
+          // Pay out kill rewards earned this round
+          this.budgets.blue += this.killRewards.blue;
+          this.budgets.red += this.killRewards.red;
+          const earnedBlue = this.killRewards.blue;
+          const earnedRed = this.killRewards.red;
+          this.killRewards = { blue: 0, red: 0 };
+
+          const minCost = Math.min(...UNIT_DEFS.map(d => d.cost));
+          const blueDone = !blueAlive && this.budgets.blue < minCost;
+          const redDone = !redAlive && this.budgets.red < minCost;
+
+          if (blueDone && redDone) {
+            el.textContent = 'DRAW — WAR OVER';
+            el.style.color = '#ffd93d';
+            el.style.opacity = 1;
+            document.getElementById('phase-info').textContent = 'DRAW — no money, no troops';
+            this.gameOver = true;
+          } else if (blueDone || redDone) {
+            const winner = blueDone ? 'RED' : 'BLUE';
+            el.textContent = `${winner} WINS THE WAR!`;
+            el.style.color = winner === 'BLUE' ? '#4ecdc4' : '#e94560';
+            el.style.opacity = 1;
+            document.getElementById('phase-info').textContent = `Final: ${winner} wins Round ${this.round}`;
+            this.gameOver = true;
+          } else {
+            // Next round
+            this.round++;
+            this.units = this.units.filter(u => u.alive);
+            for (const u of this.units) {
+              u.abilityTimer = 0;
+              u.abilityUsed = false;
+              u.abilityActive = 0;
+              u.invincible = false;
+              u.target = null;
+              u.atkCooldown = 0;
+            }
+            this.projectiles = [];
+            this.phase = 'place';
+            this.battleResult = null;
+            this.controlledUnit = null;
+            document.getElementById('control-hint').classList.remove('show');
+            el.textContent = `ROUND ${this.round}`;
+            el.style.color = '#ffd93d';
+            el.style.opacity = 1;
+            setTimeout(() => { el.style.opacity = 0; }, 1400);
+            this.updateBudgetUI();
+            this.botPlaceUnits();
+            document.getElementById('phase-info').textContent =
+              `ROUND ${this.round} — You +$${earnedBlue} · Bot +$${earnedRed} from kills`;
+          }
+        } else {
+          el.textContent = this.battleResult;
+          el.style.color = this.battleResult.includes('BLUE') ? '#4ecdc4' : this.battleResult.includes('RED') ? '#e94560' : '#ffd93d';
+          el.style.opacity = 1;
+          document.getElementById('phase-info').textContent = this.battleResult;
+        }
       }
     }
   }
