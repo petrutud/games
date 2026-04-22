@@ -41,7 +41,7 @@ canvas { display: block; width: 100%; height: 100%; }
   <h1><span>TOTALLY ACCURATE</span> BATTLE SIMULATOR</h1>
   <div id="budget-bar">
     <div class="budget blue">Blue: $<b id="blueBudget">500</b></div>
-    <div class="budget red">Red: $<b id="redBudget">500</b></div>
+    <div class="budget red">Red: $<b id="redBudget">1000000000</b></div>
     <span id="phase-info">PLACEMENT PHASE</span>
   </div>
 </div>
@@ -180,7 +180,7 @@ class Game {
     this.phase = 'place'; // 'place' or 'battle'
     this.placingTeam = 'blue';
     this.selectedDef = null;
-    this.budgets = { blue: 500, red: 500 };
+    this.budgets = { blue: 500, red: 1000000000 };
     this.speed = 1;
     this.battleResult = null;
     this.W = 0; this.H = 0;
@@ -628,7 +628,7 @@ class Game {
     this.particles = [];
     this.phase = 'place';
     this.placingTeam = 'blue';
-    this.budgets = { blue: 500, red: 500 };
+    this.budgets = { blue: 500, red: 1000000000 };
     this.battleResult = null;
     this.controlledUnit = null;
     this.killRewards = { blue: 0, red: 0 };
