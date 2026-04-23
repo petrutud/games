@@ -452,6 +452,17 @@ params:
           name: Play Game
           link: /games/kingdom-rush/
 
+      - title: "Nexus Defense"
+        content: "Sci-fi tower defense: 10 tower types (laser, missile, cryo, tesla, railgun, plasma, flame, sniper, drone, nuke), 15 enemies including phantoms, splitters, healers, and titans, 40 waves across 5 battlefields."
+        image: "/images/games/nexus-defense.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Tower Defense"
+        featured:
+          name: Play Game
+          link: /games/nexus-defense/
+
       - title: "Tic-Tac-Toe"
         content: "The classic X and O game. Play against a friend or challenge the computer in this simple but timeless strategy game."
         image: "/images/games/tic-tac-toe.svg"
