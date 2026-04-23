@@ -973,7 +973,13 @@ const BIOMES=[
    boss:'omegaBowser',bossName:'Omega Bowser',
    enemies:['firebar','hammer','magikoopa'],levelLen:160,
    rescue:'peach',rescueIcon:'👑',starReq:102,
-   desc:'The final showdown. Save the Princess!'}
+   desc:'The final showdown. Save the Princess!'},
+  {id:'level9999',name:'LEVEL 9999',icon:'💀',
+   sky:'#000000',ground:'#000000',groundDark:'#000000',platCol:'#1a0000',
+   boss:null,bossName:null,
+   enemies:[],levelLen:30,
+   rescue:null,starReq:0,
+   desc:'You were not supposed to find this.'}
 ];
 
 // ═══════════════════════════════════════════════
@@ -1009,11 +1015,35 @@ function generateLevel(biomeId){
   level.w=lw;level.h=17;
   level.tiles=[];level.enemies=[];level.coins=[];level.powerUps=[];level.toads=[];level.star=null;
   level.pipes=[];level.pipeTimer=0;
+  level.evilMario=null;
   projectiles=[];
   // Init tile grid
   for(let x=0;x<lw;x++){
     level.tiles[x]=[];
     for(let y=0;y<17;y++)level.tiles[x][y]=0;
+  }
+  // ── Secret Level 9999: blood-red void, one pipe, one evil Mario ──
+  if(biomeId==='level9999'){
+    const gY=14;
+    for(let x=0;x<lw;x++){
+      for(let y=gY;y<17;y++)level.tiles[x][y]=1;
+    }
+    for(let y=0;y<17;y++){level.tiles[0][y]=1;level.tiles[lw-1][y]=1;}
+    // single red pipe near center-right
+    const pipeX=18;
+    for(let dy=0;dy<2;dy++){
+      level.tiles[pipeX][gY-1-dy]=5;
+      level.tiles[pipeX+1][gY-1-dy]=5;
+    }
+    level.evilPipeX=pipeX;
+    level.evilMario={
+      x:(pipeX+0.5)*TILE, y:(gY-2)*TILE, w:28, h:32,
+      state:'hidden', timer:0, riseY:0, vx:0, face:-1,
+      killed:false, shake:0
+    };
+    level.icy=false; level.lowGrav=false; level.underwater=false;
+    level.warpPipe=null;
+    return;
   }
   // Ground
   const groundY=14;
@@ -1377,6 +1407,72 @@ function drawMario(x,y){
   }
   ctx.globalAlpha=1;
   if(isMega)ctx.restore();
+}
+
+function drawEvilMario(em){
+  // Only visible part depends on state
+  const sx=em.x-cam.x+(em.shake||0), sy=em.y-cam.y;
+  const f=em.face||-1;
+  // pipe mouth masks him when hidden; we draw from bottom up to riseY
+  const visible=Math.min(40, em.riseY||0);
+  if(em.state==='hidden') return;
+  ctx.save();
+  // demonic aura
+  const pulse=0.5+0.5*Math.sin(G.totalTime*6);
+  ctx.fillStyle=`rgba(255,0,0,${0.25+pulse*0.25})`;
+  ctx.beginPath();ctx.arc(sx, sy+20, 32+pulse*6, 0, Math.PI*2);ctx.fill();
+
+  // body appears as it rises; clip so nothing shows above the "rise level"
+  ctx.beginPath();
+  const topY = sy + (40-visible);
+  ctx.rect(sx-18, topY, 36, 44);
+  ctx.clip();
+
+  const cx=sx, cy=sy-4;
+  // body (red overalls → black corrupted)
+  ctx.fillStyle='#200000';
+  ctx.fillRect(cx-12, cy+18, 24, 20);
+  // shirt (blood red)
+  ctx.fillStyle='#a00000';
+  ctx.fillRect(cx-12, cy+12, 24, 10);
+  // head (pale / corpse)
+  ctx.fillStyle='#d8b090';
+  ctx.fillRect(cx-10, cy-2, 20, 14);
+  // cap (black with red M)
+  ctx.fillStyle='#000';
+  ctx.fillRect(cx-12, cy-8, 24, 8);
+  ctx.fillStyle='#ff0000';
+  ctx.font='bold 9px monospace';
+  ctx.fillText('M', cx-3, cy-1);
+  // mustache (black)
+  ctx.fillStyle='#000';
+  ctx.fillRect(cx-8, cy+8, 16, 3);
+  // glowing red eyes
+  ctx.fillStyle=`rgba(255,0,0,${0.7+pulse*0.3})`;
+  ctx.fillRect(cx-6, cy+2, 4, 4);
+  ctx.fillRect(cx+2, cy+2, 4, 4);
+  // eye glow
+  ctx.fillStyle=`rgba(255,100,100,${pulse*0.4})`;
+  ctx.beginPath();ctx.arc(cx-4, cy+4, 4, 0, Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(cx+4, cy+4, 4, 0, Math.PI*2);ctx.fill();
+  // gloves (during chase, arms out)
+  ctx.fillStyle='#fff';
+  if(em.state==='chase'){
+    ctx.fillRect(cx+f*8, cy+14, 10, 8);
+  } else {
+    ctx.fillRect(cx-14, cy+16, 6, 6);
+    ctx.fillRect(cx+8,  cy+16, 6, 6);
+  }
+  ctx.restore();
+
+  // Blood drip from cap during chase
+  if(em.state==='chase'){
+    ctx.fillStyle='#ff0000';
+    for(let i=0;i<3;i++){
+      const dx=cx-8+i*8+Math.sin(G.totalTime*4+i)*2;
+      ctx.fillRect(dx, sy-6+Math.sin(G.totalTime*8+i*2)*6, 2, 4);
+    }
+  }
 }
 
 function drawGoomba(x,y,e){
@@ -3036,6 +3132,43 @@ function updateEnemies(dt){
     }
   });
 
+  // ── Evil Mario (Level 9999) ──
+  if(level.evilMario){
+    const em=level.evilMario;
+    em.timer+=dt;
+    if(em.state==='hidden'){
+      // wait ~1.5s, then start rising
+      if(em.timer>=1.5){em.state='rising';em.timer=0;em.riseY=0;screenShake(2,.3);sfxBoss()}
+    }else if(em.state==='rising'){
+      em.riseY+=60*dt;
+      em.shake=(Math.sin(em.timer*40)*2);
+      if(em.riseY>=38){em.riseY=38;em.state='laugh';em.timer=0}
+    }else if(em.state==='laugh'){
+      // pause and "laugh" for 1s, then launch out
+      if(em.timer>=1){em.state='chase';em.timer=0;em.face=(M.x<em.x)?-1:1;screenShake(8,.5)}
+    }else if(em.state==='chase'){
+      // evil Mario jumps out of pipe and pursues at high speed
+      em.face=(M.x<em.x)?-1:1;
+      const targetVx=em.face*220;
+      em.vx+=(targetVx-em.vx)*Math.min(1,dt*6);
+      em.x+=em.vx*dt;
+      // falls toward ground
+      em.riseY=Math.max(0,em.riseY-240*dt);
+      em.y=(14-2)*TILE + (38-em.riseY);
+      // kill on contact
+      if(!em.killed && Math.abs(M.x+M.w/2-em.x)<22 && Math.abs(M.y+M.h/2-em.y-16)<28){
+        em.killed=true;
+        screenShake(20,1.0);
+        spawnBurst(M.x+M.w/2,M.y+M.h/2,'#ff0000',40,300);
+        floatText(M.x,M.y-60,'YOU SHOULD NOT BE HERE','#ff0000');
+        hurtMario(9999);
+      }
+      // clamp inside arena
+      if(em.x<TILE*1.5){em.x=TILE*1.5;em.vx=Math.abs(em.vx)}
+      if(em.x>(level.w-2.5)*TILE){em.x=(level.w-2.5)*TILE;em.vx=-Math.abs(em.vx)}
+    }
+  }
+
   level.enemies.forEach(e=>{
     if(!e.alive)return;
     e.frameT+=dt;if(e.frameT>.2){e.frameT=0;e.frame=(e.frame+1)%2}
@@ -3554,7 +3687,13 @@ function drawWorldMap(){
   ctx.fillText('★ '+G.stars+' Stars',W-200,30);
   ctx.fillText('🪙 '+G.coins+' Coins',W-200,48);
   ctx.fillText('❤️ '+G.lives+' Lives',W-200,66);
-  ctx.fillText('LV '+(G.mapCursor+1)+'/'+BIOMES.length,W-200,84);
+  {
+    const cur=BIOMES[G.mapCursor];
+    const lvText = (cur && cur.id==='level9999') ? 'LV 9999' : ('LV '+(G.mapCursor+1)+'/'+BIOMES.length);
+    ctx.fillStyle = (cur && cur.id==='level9999') ? '#ff2040' : '#fff';
+    ctx.fillText(lvText,W-200,84);
+    ctx.fillStyle='#fff';
+  }
   // Progress bar
   ctx.fillStyle='rgba(0,0,0,.85)';ctx.fillRect(W-210,108,200,16);
   ctx.fillStyle='#ffd700';ctx.fillRect(W-208,110,196*(G.completed.length/BIOMES.length),12);
@@ -4353,6 +4492,8 @@ function drawGame(){
   });
   // Shadow Mario
   if(shadowMario&&shadowMario.alive)drawShadowMario(shadowMario);
+  // Evil Mario (Level 9999)
+  if(level.evilMario)drawEvilMario(level.evilMario);
   // Mario
   if(!M.dead||M.deathTimer<2)drawMario(M.x-cam.x,M.y-cam.y);
   // Boss
