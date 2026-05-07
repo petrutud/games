@@ -36,6 +36,23 @@
     background: radial-gradient(circle at 35% 35%, #ffeb3b, #f9a825);
     box-shadow: 0 0 4px rgba(255,235,59,0.7);
   }
+  #pauseBtn {
+    background: #1a1d4a;
+    color: #ffe066;
+    border: 2px solid #3a3aff;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 2px 0 #0a0a2a;
+  }
+  #pauseBtn:hover { background: #2a2d6a; box-shadow: 0 0 12px rgba(80,80,255,0.6); }
+  #pauseBtn:active { transform: translateY(2px); box-shadow: none; }
+  #pauseBtn.paused { background: #ffe066; color: #000; border-color: #ffe066; }
   canvas {
     background: #000;
     image-rendering: pixelated;
@@ -115,6 +132,7 @@
     <div class="group">
       <div><div class="lbl">LEVEL</div><div class="val" id="level">1</div></div>
       <div class="lives" id="lives"></div>
+      <button id="pauseBtn" type="button" title="Pause (P)">⏸ PAUSE</button>
     </div>
   </div>
   <div style="position:relative;">
@@ -394,9 +412,28 @@ window.addEventListener("keydown", e => {
     else if (e.key === "ArrowUp" || e.key.toLowerCase() === "w") pac.next = "up";
     else if (e.key === "ArrowDown" || e.key.toLowerCase() === "s") pac.next = "down";
   }
-  if (e.key.toLowerCase() === "p" && (state === "playing" || state === "paused")) {
-    state = state === "paused" ? "playing" : "paused";
+  if (e.key.toLowerCase() === "p") togglePause();
+});
+
+function togglePause() {
+  if (state === "playing") {
+    state = "paused";
+  } else if (state === "paused") {
+    state = "playing";
+  } else {
+    return;
   }
+  const btn = document.getElementById("pauseBtn");
+  if (btn) {
+    btn.classList.toggle("paused", state === "paused");
+    btn.innerHTML = state === "paused" ? "▶ RESUME" : "⏸ PAUSE";
+  }
+}
+
+document.getElementById("pauseBtn").addEventListener("click", () => {
+  togglePause();
+  // Return focus to body so arrow keys keep working
+  document.activeElement && document.activeElement.blur();
 });
 window.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
 

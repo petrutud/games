@@ -87,6 +87,18 @@ params:
           name: Open StreamFlix
           link: /games/streamflix/
 
+      - title: "Sonic Dash"
+        content: "Gotta go fast! Run, jump, roll, and Spin Dash through the Green Zone. Collect golden rings, smash badniks, bounce off springs, and reach the goalpost. Lose all rings if you get hit — recover them before they disappear!"
+        image: "/images/games/sonic.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Platformer"
+          - "Sonic"
+        featured:
+          name: Play Game
+          link: /games/sonic/
+
       - title: "Pac-Man"
         content: "The arcade classic! Eat all the pellets and dodge four ghosts — Blinky, Pinky, Inky, and Clyde — each with their own personality. Power pellets let you turn the tables and chomp ghosts for big points. 28x31 maze, side tunnels, lives, and high score saved."
         image: "/images/games/pac-man.svg"

@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#52a8ff"/>
+      <stop offset="100%" stop-color="#9fd0ff"/>
+    </linearGradient>
+    <radialGradient id="ring" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff8b0"/>
+      <stop offset="60%" stop-color="#ffd83d"/>
+      <stop offset="100%" stop-color="#b8860b"/>
+    </radialGradient>
+  </defs>
+  <rect width="200" height="200" rx="24" fill="url(#sky)"/>
+  <!-- Cloud -->
+  <ellipse cx="40" cy="35" rx="22" ry="9" fill="#fff" opacity="0.85"/>
+  <ellipse cx="55" cy="30" rx="14" ry="7" fill="#fff" opacity="0.85"/>
+  <!-- Hills -->
+  <ellipse cx="50" cy="155" rx="65" ry="30" fill="#3d7822"/>
+  <ellipse cx="160" cy="160" rx="55" ry="28" fill="#5fa635"/>
+  <!-- Ground -->
+  <rect x="0" y="155" width="200" height="45" fill="#4a8c2a"/>
+  <rect x="0" y="155" width="200" height="5" fill="#7ad04a"/>
+  <!-- Ring -->
+  <circle cx="158" cy="105" r="11" fill="url(#ring)"/>
+  <circle cx="158" cy="105" r="5" fill="#52a8ff"/>
+  <circle cx="158" cy="105" r="11" fill="none" stroke="#b8860b" stroke-width="1.5"/>
+  <!-- Ring sparkle -->
+  <circle cx="155" cy="102" r="2" fill="#fff8b0"/>
+  <!-- Sonic -->
+  <g transform="translate(80,118)">
+    <!-- Quills (back spikes) -->
+    <path d="M-12,-8 L-26,-12 L-18,-4 L-28,0 L-16,4 L-26,8 L-12,8 Z" fill="#1855a8"/>
+    <!-- Body -->
+    <ellipse cx="0" cy="6" rx="13" ry="11" fill="#1855a8"/>
+    <!-- Belly -->
+    <ellipse cx="-1" cy="8" rx="7" ry="6" fill="#f0c090"/>
+    <!-- Arms with white gloves -->
+    <rect x="-15" y="2" width="6" height="8" rx="2" fill="#1855a8"/>
+    <rect x="9" y="2" width="6" height="8" rx="2" fill="#1855a8"/>
+    <ellipse cx="-13" cy="11" rx="4" ry="3.5" fill="#fff"/>
+    <ellipse cx="13" cy="11" rx="4" ry="3.5" fill="#fff"/>
+    <!-- Head -->
+    <circle cx="3" cy="-10" r="13" fill="#1855a8"/>
+    <!-- Muzzle -->
+    <ellipse cx="11" cy="-5" rx="7" ry="6" fill="#f0c090"/>
+    <!-- Eyes -->
+    <ellipse cx="3" cy="-12" rx="5" ry="6" fill="#fff"/>
+    <ellipse cx="10" cy="-12" rx="5" ry="6" fill="#fff"/>
+    <ellipse cx="5" cy="-11" rx="2" ry="3" fill="#000"/>
+    <ellipse cx="12" cy="-11" rx="2" ry="3" fill="#000"/>
+    <ellipse cx="5.5" cy="-12.5" rx="0.7" ry="1" fill="#fff"/>
+    <ellipse cx="12.5" cy="-12.5" rx="0.7" ry="1" fill="#fff"/>
+    <!-- Nose -->
+    <circle cx="14" cy="-5" r="2" fill="#000"/>
+    <!-- Mouth -->
+    <path d="M9,-2 Q12,1 15,-2" stroke="#000" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+    <!-- Legs -->
+    <rect x="-6" y="14" width="5" height="9" fill="#f0c090"/>
+    <rect x="1" y="14" width="5" height="9" fill="#f0c090"/>
+    <!-- Shoes -->
+    <rect x="-9" y="21" width="9" height="5" rx="1.5" fill="#e02020"/>
+    <rect x="0" y="21" width="9" height="5" rx="1.5" fill="#e02020"/>
+    <rect x="-9" y="24" width="9" height="1.5" fill="#fff"/>
+    <rect x="0" y="24" width="9" height="1.5" fill="#fff"/>
+  </g>
+  <!-- Speed lines -->
+  <line x1="20" y1="120" x2="55" y2="120" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+  <line x1="15" y1="130" x2="50" y2="130" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+  <line x1="25" y1="140" x2="55" y2="140" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+  <!-- Title -->
+  <text x="100" y="180" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="14" fill="#fff" letter-spacing="2" stroke="#0a1a3e" stroke-width="0.5">SONIC DASH</text>
+</svg>
