@@ -87,13 +87,14 @@ params:
           name: Open StreamFlix
           link: /games/streamflix/
 
-      - title: "Sonic Dash"
-        content: "Gotta go fast! Run, jump, roll, and Spin Dash through the Green Zone. Collect golden rings, smash badniks, bounce off springs, and reach the goalpost. Lose all rings if you get hit — recover them before they disappear!"
+      - title: "Sonic Dash — 108 Levels"
+        content: "Gotta go fast — through 108 levels of the Eggman Empire! Defeat Dr. Eggman at the end of every stage; high-speed Spin Dash takes off half his HP. Eggman blocks every 88s and spawns two helper robots. Loop-de-loops, ramps, level select map (M), and 12 friends to rescue with their own AI helpers — Tails flies and shoots a laser every 8s, Knuckles, Amy, Cream, Big, Espio, Charmy, Vector, Silver, Blaze, Rouge — and finally Shadow on the last level."
         image: "/images/games/sonic.svg"
         badges:
           - "HTML5"
           - "Canvas"
           - "Platformer"
+          - "108 Levels"
           - "Sonic"
         featured:
           name: Play Game
