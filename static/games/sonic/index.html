@@ -18,6 +18,12 @@
          font-weight: 800; text-shadow: 2px 2px 0 #000, -1px -1px 0 #000; letter-spacing: 1px; }
   .hud-block { background: rgba(0,0,0,.35); padding: 6px 12px; border-radius: 8px;
                backdrop-filter: blur(6px); display: flex; gap: 6px; align-items: center; font-size: 18px; }
+  #pauseBtn { pointer-events: auto; background: rgba(0,0,0,.45); border: 2px solid rgba(255,255,255,.25);
+              color: #fff; width: 38px; height: 38px; padding: 0; border-radius: 8px; cursor: pointer;
+              font-size: 16px; font-weight: 900; line-height: 1; box-shadow: none; letter-spacing: 0;
+              display: flex; align-items: center; justify-content: center; }
+  #pauseBtn:hover { background: rgba(0,0,0,.65); transform: none; }
+  #pauseBtn:active { transform: scale(.95); box-shadow: none; }
   .ring-icon { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle, #fff8b0 0%, var(--ring-gold) 60%, #b8860b 100%);
                box-shadow: 0 0 8px var(--ring-gold), inset -2px -2px 0 rgba(0,0,0,.25); }
   .heart { color: #ff4060; font-size: 20px; }
@@ -63,6 +69,7 @@
     <div class="hud-block">SCORE <span id="score">0</span></div>
     <div class="hud-block">TIME <span id="time">0:00</span></div>
     <div class="hud-block"><span class="heart">♥</span> <span id="lives">3</span></div>
+    <button id="pauseBtn" title="Pause (P)" aria-label="Pause" style="display:none;">II</button>
   </div>
   <div id="overlay">
     <h1>SONIC DASH</h1>
@@ -102,6 +109,7 @@ const ui = {
   lives: document.getElementById('lives'),
   overlay: document.getElementById('overlay'),
   startBtn: document.getElementById('startBtn'),
+  pauseBtn: document.getElementById('pauseBtn'),
 };
 
 // ---------- Audio (WebAudio synth) ----------
@@ -138,7 +146,7 @@ window.addEventListener('keydown', e => {
   if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' ','Space'].includes(e.key)) e.preventDefault();
   if (!keys[e.code]) pressed[e.code] = true;
   keys[e.code] = true;
-  if (e.key === 'p' || e.key === 'P') game.paused = !game.paused;
+  if ((e.key === 'p' || e.key === 'P') && game.state === 'playing') togglePause();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 function isLeft()  { return keys['ArrowLeft'] || keys['KeyA']; }
@@ -1105,9 +1113,25 @@ function formatTime(s) {
   return `${m}:${sec.toString().padStart(2,'0')}`;
 }
 
+// ---------- Pause ----------
+function togglePause() {
+  if (game.state !== 'playing') return;
+  game.paused = !game.paused;
+  if (game.paused) {
+    game.pauseStart = performance.now();
+  } else if (game.pauseStart) {
+    game.startTime += performance.now() - game.pauseStart;
+    game.pauseStart = 0;
+  }
+  ui.pauseBtn.textContent = game.paused ? '▶' : 'II';
+  ui.pauseBtn.title = game.paused ? 'Resume (P)' : 'Pause (P)';
+}
+ui.pauseBtn.addEventListener('click', togglePause);
+
 // ---------- Overlay management ----------
 function showOverlay(won) {
   ui.overlay.classList.remove('hidden');
+  ui.pauseBtn.style.display = 'none';
   ui.overlay.innerHTML = '';
   const h = document.createElement('h1');
   h.textContent = won ? 'YOU WIN!' : 'GAME OVER';
@@ -1161,10 +1185,14 @@ function startGame() {
   game.state = 'playing';
   game.cameraX = 0;
   game.paused = false;
+  game.pauseStart = 0;
   game.goalReached = false;
   game.startTime = performance.now();
   game.shake = 0;
 
+  ui.pauseBtn.textContent = 'II';
+  ui.pauseBtn.title = 'Pause (P)';
+  ui.pauseBtn.style.display = 'flex';
   ui.overlay.classList.add('hidden');
 
   // Resume audio
