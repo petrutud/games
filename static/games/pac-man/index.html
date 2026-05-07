@@ -120,6 +120,54 @@
     color: #888; font-size: 10px; margin-top: 8px;
     letter-spacing: 1px;
   }
+  canvas { touch-action: none; }
+  #touchControls {
+    display: none;
+    width: 100%; max-width: 360px;
+    margin-top: 14px;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+  #dpad {
+    position: relative;
+    width: 200px; height: 200px;
+    margin: 0 auto;
+  }
+  .dpad-btn {
+    position: absolute;
+    width: 64px; height: 64px;
+    background: #1a1d4a;
+    border: 2px solid #3a3aff;
+    color: #ffe066;
+    font-size: 28px; font-weight: bold;
+    border-radius: 12px;
+    box-shadow: 0 4px 0 #0a0a2a, 0 0 12px rgba(50,80,200,0.4);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+  }
+  .dpad-btn:active, .dpad-btn.active {
+    background: #ffe066; color: #000;
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #0a0a2a;
+  }
+  #dpad-up    { top: 0;    left: 50%; transform: translateX(-50%); }
+  #dpad-down  { bottom: 0; left: 50%; transform: translateX(-50%); }
+  #dpad-left  { left: 0;   top: 50%; transform: translateY(-50%); }
+  #dpad-right { right: 0;  top: 50%; transform: translateY(-50%); }
+  #dpad-up.active, #dpad-down.active { transform: translateX(-50%) translateY(2px); }
+  #dpad-left.active, #dpad-right.active { transform: translateY(-50%) translateY(2px); }
+  @media (hover: none) and (pointer: coarse), (max-width: 720px) {
+    #touchControls { display: block; }
+    .hint { display: none; }
+    #wrap { padding: 6px; justify-content: flex-start; padding-top: 8px; }
+    #hud { font-size: 11px; }
+    #hud .val { font-size: 13px; }
+    #hud .lbl { font-size: 9px; }
+    canvas { max-height: calc(100vh - 320px); }
+  }
 </style>
 </head>
 <body>
@@ -139,7 +187,15 @@
     <canvas id="game" width="560" height="620"></canvas>
     <div id="ready">READY!</div>
   </div>
-  <div class="hint">Arrow keys / WASD &nbsp;·&nbsp; P to pause</div>
+  <div class="hint">Arrow keys / WASD &nbsp;·&nbsp; P to pause &nbsp;·&nbsp; Swipe on the maze on mobile</div>
+  <div id="touchControls">
+    <div id="dpad">
+      <button id="dpad-up" class="dpad-btn" type="button" aria-label="Up">▲</button>
+      <button id="dpad-left" class="dpad-btn" type="button" aria-label="Left">◀</button>
+      <button id="dpad-right" class="dpad-btn" type="button" aria-label="Right">▶</button>
+      <button id="dpad-down" class="dpad-btn" type="button" aria-label="Down">▼</button>
+    </div>
+  </div>
 </div>
 
 <div id="overlay" class="show">
@@ -436,6 +492,62 @@ document.getElementById("pauseBtn").addEventListener("click", () => {
   document.activeElement && document.activeElement.blur();
 });
 window.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+
+// ---- Touch input (mobile D-pad + canvas swipe) ----
+function setNextDir(d) {
+  if (state === "playing" || state === "ready") {
+    pac.next = d;
+  }
+}
+function bindDpad(id, dir) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  const on = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    btn.classList.add('active');
+    setNextDir(dir);
+  };
+  const off = (e) => {
+    e.preventDefault();
+    btn.classList.remove('active');
+  };
+  btn.addEventListener('touchstart', on, { passive: false });
+  btn.addEventListener('touchend',   off, { passive: false });
+  btn.addEventListener('touchcancel',off, { passive: false });
+  btn.addEventListener('mousedown',  on);
+  btn.addEventListener('mouseup',    off);
+  btn.addEventListener('mouseleave', off);
+}
+bindDpad('dpad-up',    'up');
+bindDpad('dpad-down',  'down');
+bindDpad('dpad-left',  'left');
+bindDpad('dpad-right', 'right');
+
+// Swipe on canvas
+let touchStart = null;
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length !== 1) return;
+  const t = e.touches[0];
+  touchStart = { x: t.clientX, y: t.clientY, time: performance.now() };
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  if (!touchStart || e.touches.length !== 1) return;
+  const t = e.touches[0];
+  const dx = t.clientX - touchStart.x;
+  const dy = t.clientY - touchStart.y;
+  const threshold = 24;
+  if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
+  if (Math.abs(dx) > Math.abs(dy)) setNextDir(dx > 0 ? 'right' : 'left');
+  else setNextDir(dy > 0 ? 'down' : 'up');
+  touchStart = { x: t.clientX, y: t.clientY, time: performance.now() };
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchend', e => {
+  // Tap-to-start when overlay's hidden but state is ready
+  touchStart = null;
+}, { passive: false });
 
 // ---- Movement helpers ----
 function isAtTileCenter(e) {

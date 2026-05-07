@@ -89,14 +89,28 @@
                  font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
   .friend-pill.locked { opacity: .35; }
   .friend-pill .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); }
-  #mobile { display: none; position: absolute; bottom: 12px; left: 0; right: 0;
-            justify-content: space-between; padding: 0 16px; pointer-events: none; z-index: 5; }
-  #mobile button { pointer-events: auto; padding: 16px 18px; font-size: 13px;
-                   box-shadow: 0 4px 0 #401000; border-radius: 50%; opacity: .85; }
-  .pad { display: flex; gap: 8px; }
-  @media (max-width: 720px) {
+  #mobile { display: none; position: absolute; bottom: 14px; left: 0; right: 0;
+            justify-content: space-between; padding: 0 14px; pointer-events: none; z-index: 5;
+            align-items: flex-end; }
+  #mobile button { pointer-events: auto; padding: 0; width: 64px; height: 64px;
+                   font-size: 22px; font-weight: 900; letter-spacing: 0;
+                   background: rgba(0,0,0,.55); border: 2px solid rgba(255,255,255,.3);
+                   color: #fff; box-shadow: 0 4px 0 rgba(0,0,0,.5);
+                   border-radius: 50%; opacity: .9;
+                   -webkit-tap-highlight-color: transparent; touch-action: none; }
+  #mobile button:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,.5); background: rgba(255,107,48,.7); }
+  #mobile #btnJ { width: 76px; height: 76px; font-size: 26px;
+                  background: linear-gradient(180deg, #ff6b30, #d04018);
+                  border-color: rgba(255,200,150,.5); box-shadow: 0 5px 0 #802000; }
+  .pad { display: flex; gap: 12px; align-items: flex-end; }
+  canvas { touch-action: none; }
+  @media (hover: none) and (pointer: coarse), (max-width: 720px) {
     #mobile { display: flex; }
     #levelGrid { grid-template-columns: repeat(8, 1fr); }
+    .hud-block { font-size: 12px; padding: 4px 8px; }
+    #pauseBtn, #mapBtn { width: 44px; height: 44px; font-size: 16px; }
+    #bossBar { top: 50px; font-size: 11px; }
+    #stage { aspect-ratio: auto; height: calc(100vh - 24px); max-height: none; }
   }
 </style>
 </head>
@@ -471,9 +485,9 @@ function generateLevel(n) {
     };
   }
 
-  // ----- Boss config: stronger as levels progress -----
+  // ----- Boss config: scales gently with level (nerfed for fairness) -----
   boss.active = true;
-  boss.maxHp = 5 + Math.floor(n / 6);
+  boss.maxHp = 3 + Math.floor(n / 10);
   boss.hp = boss.maxHp;
   boss.x = game.bossArenaX + 800;
   boss.baseY = 220;
@@ -482,8 +496,8 @@ function generateLevel(n) {
   boss.blockTimer = BOSS_BLOCK_INTERVAL_FRAMES;
   boss.blocking = false;
   boss.blockDuration = 0;
-  boss.spawnTimer = 5 * 60;
-  boss.attackTimer = 4 * 60;
+  boss.spawnTimer = 8 * 60;
+  boss.attackTimer = 6 * 60;
   boss.state = 'hover';
   boss.invuln = 0;
   boss.flash = 0;
@@ -729,7 +743,7 @@ function updateBoss() {
     boss.y += (boss.baseY - boss.y) * 0.06;
     if (Math.abs(boss.y - boss.baseY) < 6) {
       boss.state = 'hover';
-      boss.attackTimer = 180 + Math.floor(Math.random() * 120);
+      boss.attackTimer = 280 + Math.floor(Math.random() * 180);
       boss.vy = 0;
     }
   }
@@ -739,7 +753,7 @@ function updateBoss() {
   const aliveRobots = bossRobots.filter(r => r.alive).length;
   if (boss.spawnTimer <= 0 && aliveRobots < 2) {
     spawnBossRobot();
-    boss.spawnTimer = 360 + Math.floor(Math.random() * 240);
+    boss.spawnTimer = 540 + Math.floor(Math.random() * 300);
   }
 
   if (boss.invuln > 0) boss.invuln--;

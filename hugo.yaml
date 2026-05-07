@@ -96,18 +96,20 @@ params:
           - "Platformer"
           - "108 Levels"
           - "Sonic"
+          - "Mobile"
         featured:
           name: Play Game
           link: /games/sonic/
 
       - title: "Pac-Man"
-        content: "The arcade classic! Eat all the pellets and dodge four ghosts — Blinky, Pinky, Inky, and Clyde — each with their own personality. Power pellets let you turn the tables and chomp ghosts for big points. 28x31 maze, side tunnels, lives, and high score saved."
+        content: "The arcade classic! Eat all the pellets and dodge four ghosts — Blinky, Pinky, Inky, and Clyde — each with their own personality. Power pellets let you turn the tables and chomp ghosts for big points. 28x31 maze, side tunnels, lives, and high score saved. Phone-friendly: D-pad and swipe-on-the-maze controls included."
         image: "/images/games/pac-man.svg"
         badges:
           - "HTML5"
           - "Canvas"
           - "Arcade"
           - "Classic"
+          - "Mobile"
         featured:
           name: Play Game
           link: /games/pac-man/
