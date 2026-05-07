@@ -87,6 +87,18 @@ params:
           name: Open StreamFlix
           link: /games/streamflix/
 
+      - title: "Pac-Man"
+        content: "The arcade classic! Eat all the pellets and dodge four ghosts — Blinky, Pinky, Inky, and Clyde — each with their own personality. Power pellets let you turn the tables and chomp ghosts for big points. 28x31 maze, side tunnels, lives, and high score saved."
+        image: "/images/games/pac-man.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Arcade"
+          - "Classic"
+        featured:
+          name: Play Game
+          link: /games/pac-man/
+
       - title: "Flappy Birds"
         content: "The classic one-tap game! Flap through pipes, chase the high score. 6 unique bird skins — Classic, Blue Jay, Red Robin, Toxic, Purple, and Phoenix. Particle effects and starry night sky."
         image: "/images/games/flappy-birds.svg"

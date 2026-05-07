@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 225" width="400" height="225">
+  <rect width="400" height="225" fill="#000022"/>
+  <!-- maze walls -->
+  <g fill="none" stroke="#2222ff" stroke-width="2">
+    <rect x="40" y="30" width="320" height="165" rx="4"/>
+    <rect x="60" y="50" width="50" height="30" rx="3"/>
+    <rect x="130" y="50" width="50" height="30" rx="3"/>
+    <rect x="220" y="50" width="50" height="30" rx="3"/>
+    <rect x="290" y="50" width="50" height="30" rx="3"/>
+    <rect x="60" y="100" width="80" height="20" rx="3"/>
+    <rect x="260" y="100" width="80" height="20" rx="3"/>
+    <rect x="170" y="95" width="60" height="40" rx="4"/>
+    <rect x="60" y="145" width="50" height="30" rx="3"/>
+    <rect x="290" y="145" width="50" height="30" rx="3"/>
+  </g>
+  <!-- pellets row -->
+  <g fill="#ffd9a8">
+    <circle cx="50" cy="92" r="2"/><circle cx="65" cy="92" r="2"/>
+    <circle cx="80" cy="92" r="2"/><circle cx="95" cy="92" r="2"/>
+    <circle cx="110" cy="92" r="2"/><circle cx="125" cy="92" r="2"/>
+    <circle cx="275" cy="92" r="2"/><circle cx="290" cy="92" r="2"/>
+    <circle cx="305" cy="92" r="2"/><circle cx="320" cy="92" r="2"/>
+    <circle cx="335" cy="92" r="2"/><circle cx="350" cy="92" r="2"/>
+    <!-- power pellet -->
+    <circle cx="55" cy="160" r="5"/>
+    <circle cx="345" cy="160" r="5"/>
+  </g>
+  <!-- Pac-Man -->
+  <g transform="translate(150 160)">
+    <path d="M 0 0 L 22 -8 A 24 24 0 1 0 22 8 Z" fill="#ffea00"/>
+  </g>
+  <!-- Ghosts -->
+  <g transform="translate(200 155)">
+    <path d="M -14 0 A 14 14 0 0 1 14 0 L 14 12 L 10 16 L 6 12 L 2 16 L -2 12 L -6 16 L -10 12 L -14 16 Z" fill="#ff0000"/>
+    <circle cx="-5" cy="-2" r="3.5" fill="#fff"/><circle cx="5" cy="-2" r="3.5" fill="#fff"/>
+    <circle cx="-4" cy="-2" r="1.6" fill="#0040ff"/><circle cx="6" cy="-2" r="1.6" fill="#0040ff"/>
+  </g>
+  <g transform="translate(240 155)">
+    <path d="M -14 0 A 14 14 0 0 1 14 0 L 14 12 L 10 16 L 6 12 L 2 16 L -2 12 L -6 16 L -10 12 L -14 16 Z" fill="#ffb8de"/>
+    <circle cx="-5" cy="-2" r="3.5" fill="#fff"/><circle cx="5" cy="-2" r="3.5" fill="#fff"/>
+    <circle cx="-5" cy="-2" r="1.6" fill="#0040ff"/><circle cx="5" cy="-2" r="1.6" fill="#0040ff"/>
+  </g>
+  <g transform="translate(280 155)">
+    <path d="M -14 0 A 14 14 0 0 1 14 0 L 14 12 L 10 16 L 6 12 L 2 16 L -2 12 L -6 16 L -10 12 L -14 16 Z" fill="#00ffff"/>
+    <circle cx="-5" cy="-2" r="3.5" fill="#fff"/><circle cx="5" cy="-2" r="3.5" fill="#fff"/>
+    <circle cx="-4" cy="-2" r="1.6" fill="#0040ff"/><circle cx="6" cy="-2" r="1.6" fill="#0040ff"/>
+  </g>
+  <text x="200" y="215" text-anchor="middle" fill="#ffe066" font-family="monospace" font-size="14" font-weight="bold" letter-spacing="3">PAC-MAN</text>
+</svg>
