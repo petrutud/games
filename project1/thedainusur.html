@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Dainusur</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at top, #2b5b46 0%, #111 55%); color: #f6f6f6; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; }
+    a { color: #cce7c6; text-decoration: none; }
+    a:hover { color: #fff; }
+    nav { width: 100%; padding: 16px 24px; display: flex; justify-content: flex-start; }
+    .page-wrap { width: min(920px, 100%); padding: 0 24px 32px; }
+    header { text-align: center; margin-bottom: 16px; }
+    h1 { margin: 0 0 8px; font-size: clamp(2.2rem, 3.2vw, 3.8rem); letter-spacing: -0.05em; }
+    p { margin: 0; color: #c4d3c2; max-width: 720px; line-height: 1.6; }
+    #hud { margin: 18px auto 10px; display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; font-size: 1rem; color: #dfe8db; }
+    #hud span { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 999px; padding: 10px 16px; }
+    #game { width: 100%; max-width: 800px; background: #121a11; border: 3px solid rgba(255,255,255,0.12); border-radius: 20px; box-shadow: 0 28px 60px rgba(0,0,0,0.35); display: block; }
+    .footnote { margin-top: 10px; font-size: 0.95rem; color: #b3c6ab; text-align: center; }
+    .footnote strong { color: #fff; }
+  </style>
+</head>
+<body>
+  <nav><a href="/#projects">← Back to Games</a></nav>
+  <div class="page-wrap">
+    <header>
+      <h1>The Dainusur</h1>
+      <p>Run as the dinosaur and jump over cactuses. Use Space, ↑, or click the canvas to leap and survive for the highest score.</p>
+    </header>
+
+    <div id="hud"><span id="scoreLabel">Score: 0</span><span id="statusLabel">Press Space / ↑ or click to jump</span></div>
+    <canvas id="game" width="800" height="220"></canvas>
+    <div class="footnote">The dinosaur runs automatically. Avoid every cactus to keep the run alive.</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const scoreLabel = document.getElementById('scoreLabel');
+    const statusLabel = document.getElementById('statusLabel');
+
+    const dino = { x: 72, y: 152, w: 44, h: 44, vy: 0, gravity: 0.9, jumpPower: 16, ground: 152 };
+    let obstacles = [];
+    let speed = 6;
+    let frame = 0;
+    let score = 0;
+    let gameOver = false;
+    let spawnCooldown = 0;
+
+    function resetGame() {
+      obstacles = [];
+      speed = 6;
+      frame = 0;
+      score = 0;
+      gameOver = false;
+      dino.y = dino.ground;
+      dino.vy = 0;
+      statusLabel.textContent = 'Press Space / ↑ or click to jump';
+      scoreLabel.textContent = 'Score: 0';
+    }
+
+    function jump() {
+      if (gameOver) {
+        resetGame();
+        return;
+      }
+      if (dino.y === dino.ground) {
+        dino.vy = -dino.jumpPower;
+        statusLabel.textContent = 'Jumped! Stay sharp.';
+      }
+    }
+
+    function spawnObstacle() {
+      const width = 20 + Math.floor(Math.random() * 18);
+      const height = 30 + Math.floor(Math.random() * 30);
+      obstacles.push({ x: canvas.width + 10, y: dino.ground + 2, w: width, h: height, color: '#8bd56f' });
+      spawnCooldown = 90 - Math.min(45, Math.floor(score / 10));
+    }
+
+    function update() {
+      if (gameOver) return;
+
+      dino.vy += dino.gravity;
+      dino.y += dino.vy;
+      if (dino.y > dino.ground) {
+        dino.y = dino.ground;
+        dino.vy = 0;
+      }
+
+      if (spawnCooldown <= 0) {
+        spawnObstacle();
+      } else {
+        spawnCooldown -= 1;
+      }
+
+      obstacles = obstacles.filter(obstacle => {
+        obstacle.x -= speed;
+        return obstacle.x + obstacle.w > -20;
+      });
+
+      obstacles.forEach(obstacle => {
+        if (
+          dino.x < obstacle.x + obstacle.w &&
+          dino.x + dino.w > obstacle.x &&
+          dino.y < obstacle.y + obstacle.h &&
+          dino.y + dino.h > obstacle.y
+        ) {
+          gameOver = true;
+          statusLabel.textContent = 'Game Over — press Space or click to restart';
+        }
+      });
+
+      score += 0.15;
+      const displayScore = Math.floor(score);
+      scoreLabel.textContent = 'Score: ' + displayScore;
+      speed = 6 + Math.floor(displayScore / 40);
+      frame += 1;
+    }
+
+    function drawDino() {
+      ctx.fillStyle = '#eef5d7';
+      ctx.fillRect(dino.x, dino.y, dino.w, dino.h);
+      ctx.fillStyle = '#1a2d1b';
+      ctx.fillRect(dino.x + 6, dino.y + 10, 8, 8);
+      ctx.fillRect(dino.x + 26, dino.y + 10, 8, 8);
+      ctx.fillRect(dino.x + 30, dino.y + 18, 8, 6);
+      ctx.fillRect(dino.x + 4, dino.y + 16, 6, 10);
+      ctx.fillRect(dino.x + 40, dino.y + 18, 4, 6);
+    }
+
+    function draw() {
+      ctx.fillStyle = '#111912';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = '#263626';
+      ctx.fillRect(0, dino.ground + dino.h + 4, canvas.width, 42);
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([8, 10]);
+      ctx.beginPath();
+      ctx.moveTo(0, dino.ground + dino.h + 4 + 22);
+      ctx.lineTo(canvas.width, dino.ground + dino.h + 4 + 22);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      drawDino();
+
+      obstacles.forEach(obstacle => {
+        ctx.fillStyle = obstacle.color;
+        ctx.fillRect(obstacle.x, obstacle.y, obstacle.w, obstacle.h);
+      });
+
+      if (gameOver) {
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#f5f5f3';
+        ctx.font = 'bold 28px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Game Over', canvas.width / 2, 110);
+      }
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    window.addEventListener('keydown', event => {
+      if (event.code === 'Space' || event.code === 'ArrowUp' || event.code === 'KeyW') {
+        event.preventDefault();
+        jump();
+      }
+    });
+
+    canvas.addEventListener('mousedown', () => jump());
+    canvas.addEventListener('touchstart', event => { event.preventDefault(); jump(); });
+
+    resetGame();
+    loop();
+  </script>
+</body>
+</html>
