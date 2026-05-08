@@ -3,236 +3,54 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dinosaur Jump — Browser Game</title>
+<title>Dinosaur Jump</title>
 <style>
-  :root { --dino-color: #2d2d2d; --cactus-color: #6b8e23; --bg-color: #f7f7f7; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; background: var(--bg-color); font-family: Arial, sans-serif; overflow: hidden; }
-  #wrap { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px; }
-  #gameContainer { position: relative; width: 100%; max-width: 1200px; height: 400px; border: 3px solid #000; background: #fff; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
-  canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
-  #hud { position: absolute; top: 10px; right: 20px; font-size: 18px; font-weight: bold; text-shadow: 1px 1px 0 #fff; z-index: 10; }
-  #score { margin-right: 40px; }
-  #overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: rgba(255,255,255,0.95); text-align: center; z-index: 20; }
-  #overlay.hidden { display: none; }
-  #overlay h1 { font-size: 48px; color: #2d2d2d; }
-  #overlay p { font-size: 18px; color: #666; max-width: 400px; }
-  #overlay .controls { font-size: 16px; color: #666; margin: 10px 0; }
-  button { background: #2d2d2d; color: #fff; padding: 12px 30px; font-size: 18px; border: none; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: transform 0.1s; }
-  button:hover { transform: translateY(-2px); }
-  button:active { transform: translateY(1px); }
-  .back { position: absolute; top: 12px; left: 12px; background: rgba(0,0,0,0.5); color: #fff; text-decoration: none; padding: 5px 11px; border-radius: 6px; font-size: 12px; z-index: 20; }
+  body { background: #f7f7f7; font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  #wrap { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  canvas { border: 3px solid #000; background: #fff; box-shadow: 0 4px 16px rgba(0,0,0,0.2); display: block; }
+  #info { font-size: 18px; font-weight: bold; text-align: center; }
+  .back { position: absolute; top: 12px; left: 12px; background: rgba(0,0,0,0.5); color: #fff; text-decoration: none; padding: 8px 14px; border-radius: 6px; font-size: 14px; }
   .back:hover { background: rgba(0,0,0,0.7); }
   @media (max-width: 720px) {
-    #gameContainer { height: 300px; }
-    #overlay h1 { font-size: 36px; }
-    button { padding: 10px 20px; font-size: 16px; }
+    canvas { max-width: 100%; height: auto; }
   }
 </style>
 </head>
 <body>
 <a href="/" class="back">← Back</a>
 <div id="wrap">
-  <div id="gameContainer">
-    <canvas id="gameCanvas"></canvas>
-    <div id="hud">
-      <span id="score">0</span>
-      <span id="highScore" style="color: #999;">HI: 0</span>
-    </div>
-    <div id="overlay">
-      <h1>DINOSAUR JUMP</h1>
-      <p>Help the dinosaur avoid cacti!</p>
-      <div class="controls">Press <strong>SPACE</strong> or tap screen to jump</div>
-      <button id="startBtn">START GAME</button>
-    </div>
+  <canvas id="gameCanvas" width="1200" height="400"></canvas>
+  <div id="info">
+    <div>SCORE: <span id="score">0</span> | HIGH: <span id="hiScore">0</span></div>
+    <div style="font-size: 14px; margin-top: 8px; color: #666;">Press SPACE or TAP to jump</div>
   </div>
 </div>
 
 <script>
-"use strict";
-
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const overlay = document.getElementById('overlay');
-const scoreEl = document.getElementById('score');
-const highScoreEl = document.getElementById('highScore');
-
-// Canvas size
-canvas.width = 1200;
-canvas.height = 400;
 const W = canvas.width;
 const H = canvas.height;
-
-// Game state
-const game = {
-  state: 'menu', // menu, playing, gameover
-  score: 0,
-  highScore: parseInt(localStorage.getItem('dino-highscore')) || 0,
-  speed: 8,
-  maxSpeed: 16,
-};
-
-// Dinosaur
-const dino = {
-  x: 100,
-  y: 0,
-  w: 40,
-  h: 50,
-  vy: 0,
-  jumping: false,
-  grounded: false,
-};
-
-// Physics
-const GRAVITY = 0.8;
-const JUMP_POWER = -16;
 const GROUND_Y = H - 80;
 
-// Obstacles
+let score = 0;
+let hiScore = localStorage.getItem('dino-hi') || 0;
+let gameRunning = true;
+let speed = 8;
+
+const dino = { x: 100, y: GROUND_Y - 50, w: 40, h: 50, vy: 0, jumping: false };
 let cacti = [];
-let particles = [];
+let gameSpeed = 8;
 
-// Audio
-let actx = null;
-function audio() {
-  if (!actx) {
-    try { actx = new (window.AudioContext || window.webkitAudioContext)(); }
-    catch(e) { return null; }
-  }
-  return actx;
-}
-function blip(freq, dur = 0.1, type = 'sine', vol = 0.2) {
-  const a = audio();
-  if (!a) return;
-  const o = a.createOscillator(), g = a.createGain();
-  o.type = type;
-  o.frequency.value = freq;
-  g.gain.value = vol;
-  g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur);
-  o.connect(g);
-  g.connect(a.destination);
-  o.start();
-  o.stop(a.currentTime + dur);
-}
-const sfx = {
-  jump: () => blip(600, 0.15, 'sine', 0.2),
-  hit: () => { blip(200, 0.3, 'sawtooth', 0.25); setTimeout(() => blip(100, 0.3, 'sawtooth', 0.25), 100); },
-  score: () => blip(800, 0.08, 'sine', 0.15),
-};
+document.getElementById('hiScore').textContent = hiScore;
 
-// Input
-const keys = {};
-window.addEventListener('keydown', (e) => {
-  if (e.code === 'Space') {
-    e.preventDefault();
-    if (game.state === 'menu') startGame();
-    else if (game.state === 'playing' && dino.grounded) jump();
-  }
-});
-canvas.addEventListener('click', () => {
-  if (game.state === 'menu') startGame();
-  else if (game.state === 'playing' && dino.grounded) jump();
-});
-canvas.addEventListener('touchstart', (e) => {
-  e.preventDefault();
-  if (game.state === 'menu') startGame();
-  else if (game.state === 'playing' && dino.grounded) jump();
-});
-
-function jump() {
-  if (dino.grounded) {
-    dino.vy = JUMP_POWER;
-    dino.grounded = false;
-    sfx.jump();
-  }
-}
-
-function spawnCactus() {
-  cacti.push({
-    x: W,
-    y: GROUND_Y - 40,
-    w: 25,
-    h: 40,
-    alive: true,
-  });
-}
-
-function checkCollision(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
-
-function spawnParticle(x, y) {
-  particles.push({
-    x, y,
-    vx: (Math.random() - 0.5) * 6,
-    vy: -Math.random() * 4 - 2,
-    life: 30,
-  });
-}
-
-function update() {
-  if (game.state !== 'playing') return;
-
-  // Increase difficulty
-  game.speed = Math.min(game.maxSpeed, 8 + game.score / 1000);
-
-  // Dinosaur physics
-  dino.vy += GRAVITY;
-  if (dino.vy > 20) dino.vy = 20;
-  dino.y += dino.vy;
-
-  // Ground collision
-  if (dino.y + dino.h >= GROUND_Y) {
-    dino.y = GROUND_Y - dino.h;
-    dino.vy = 0;
-    dino.grounded = true;
-  } else {
-    dino.grounded = false;
-  }
-
-  // Spawn cacti
-  if (Math.random() < 0.02 * (1 + game.score / 5000)) {
-    spawnCactus();
-  }
-
-  // Update cacti
-  for (let i = cacti.length - 1; i >= 0; i--) {
-    const c = cacti[i];
-    c.x -= game.speed;
-
-    if (c.x + c.w < 0) {
-      cacti.splice(i, 1);
-      game.score += 10;
-      scoreEl.textContent = game.score;
-      if (game.score % 100 === 0) sfx.score();
-      continue;
-    }
-
-    // Collision
-    if (checkCollision(dino, c)) {
-      gameOver();
-      for (let j = 0; j < 12; j++) spawnParticle(dino.x + dino.w / 2, dino.y + dino.h / 2);
-      sfx.hit();
-    }
-  }
-
-  // Update particles
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vy += 0.3;
-    p.life--;
-    if (p.life <= 0) particles.splice(i, 1);
-  }
-}
-
-function render() {
+function draw() {
   // Background
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, W, H);
 
-  // Ground line
+  // Ground
   ctx.strokeStyle = '#999';
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -240,17 +58,26 @@ function render() {
   ctx.lineTo(W, GROUND_Y);
   ctx.stroke();
 
-  // Dashes on ground
+  // Ground pattern
   ctx.strokeStyle = '#ddd';
   ctx.lineWidth = 2;
-  for (let x = (game.score / 2) % 30; x < W; x += 30) {
+  for (let x = (score / 2) % 30; x < W; x += 30) {
     ctx.beginPath();
     ctx.moveTo(x, GROUND_Y);
     ctx.lineTo(x + 15, GROUND_Y);
     ctx.stroke();
   }
 
-  // Dinosaur (simple T-Rex)
+  // Draw dinosaur
+  drawDino();
+
+  // Draw cacti
+  for (let c of cacti) {
+    drawCactus(c.x, c.y);
+  }
+}
+
+function drawDino() {
   ctx.fillStyle = '#2d2d2d';
   // Body
   ctx.fillRect(dino.x + 8, dino.y + 15, 24, 28);
@@ -270,76 +97,112 @@ function render() {
   // Arms
   ctx.fillRect(dino.x + 8, dino.y + 23, 4, 10);
   ctx.fillRect(dino.x + 30, dino.y + 23, 4, 10);
+}
 
-  // Cacti
-  for (const c of cacti) {
-    ctx.fillStyle = '#6b8e23';
-    // Main stem
-    ctx.fillRect(c.x + 8, c.y, 9, c.h);
-    // Left arm
-    ctx.fillRect(c.x + 2, c.y + 10, 8, 5);
-    // Right arm
-    ctx.fillRect(c.x + 15, c.y + 10, 8, 5);
-    // Second left arm
-    ctx.fillRect(c.x + 1, c.y + 25, 7, 4);
-    // Spikes
-    ctx.fillStyle = '#4a6b1a';
-    for (let j = 0; j < 4; j++) {
-      ctx.fillRect(c.x + 7, c.y + j * 10, 11, 2);
+function drawCactus(x, y) {
+  ctx.fillStyle = '#6b8e23';
+  ctx.fillRect(x + 8, y, 9, 40);
+  ctx.fillRect(x + 2, y + 10, 8, 5);
+  ctx.fillRect(x + 15, y + 10, 8, 5);
+  ctx.fillRect(x + 1, y + 25, 7, 4);
+  ctx.fillStyle = '#4a6b1a';
+  for (let j = 0; j < 4; j++) {
+    ctx.fillRect(x + 7, y + j * 10, 11, 2);
+  }
+}
+
+function update() {
+  // Physics
+  dino.vy += 0.8;
+  if (dino.vy > 20) dino.vy = 20;
+  dino.y += dino.vy;
+
+  // Ground collision
+  if (dino.y + dino.h >= GROUND_Y) {
+    dino.y = GROUND_Y - dino.h;
+    dino.vy = 0;
+    dino.jumping = false;
+  }
+
+  // Spawn cacti
+  if (Math.random() < 0.02) {
+    cacti.push({ x: W, y: GROUND_Y - 40, w: 25, h: 40 });
+  }
+
+  // Update cacti
+  for (let i = cacti.length - 1; i >= 0; i--) {
+    cacti[i].x -= gameSpeed;
+
+    // Passed obstacle
+    if (cacti[i].x + 25 < 0) {
+      cacti.splice(i, 1);
+      score += 10;
+      document.getElementById('score').textContent = score;
+      gameSpeed = Math.min(16, 8 + score / 1000);
+      continue;
+    }
+
+    // Collision
+    if (hitTest(dino, cacti[i])) {
+      gameRunning = false;
+      if (score > hiScore) {
+        hiScore = score;
+        localStorage.setItem('dino-hi', hiScore);
+        document.getElementById('hiScore').textContent = hiScore;
+      }
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 48px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('GAME OVER', W / 2, H / 2);
+      ctx.font = 'bold 32px Arial';
+      ctx.fillText('Score: ' + score, W / 2, H / 2 + 60);
+      ctx.font = '18px Arial';
+      ctx.fillText('Reload page to play again', W / 2, H / 2 + 110);
+      return false;
     }
   }
 
-  // Particles
-  ctx.fillStyle = '#6b8e23';
-  for (const p of particles) {
-    ctx.globalAlpha = p.life / 30;
-    ctx.fillRect(p.x - 3, p.y - 3, 6, 6);
-  }
-  ctx.globalAlpha = 1;
+  return true;
+}
+
+function hitTest(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
 function gameLoop() {
-  update();
-  render();
-  requestAnimationFrame(gameLoop);
-}
-
-function startGame() {
-  game.state = 'playing';
-  game.score = 0;
-  overlay.classList.add('hidden');
-  scoreEl.textContent = '0';
-
-  dino.y = GROUND_Y - dino.h;
-  dino.vy = 0;
-  dino.grounded = true;
-
-  cacti = [];
-  particles = [];
-
-  audio();
-}
-
-function gameOver() {
-  game.state = 'gameover';
-  if (game.score > game.highScore) {
-    game.highScore = game.score;
-    localStorage.setItem('dino-highscore', game.highScore);
-    highScoreEl.textContent = 'HI: ' + game.highScore;
+  draw();
+  if (gameRunning) {
+    if (update()) {
+      requestAnimationFrame(gameLoop);
+    }
   }
-
-  overlay.classList.remove('hidden');
-  overlay.innerHTML = `
-    <h1>GAME OVER!</h1>
-    <p style="font-size: 32px; color: #2d2d2d; margin: 10px 0;">Score: ${game.score}</p>
-    <p style="color: #999;">High Score: ${game.highScore}</p>
-    <button id="restartBtn">PLAY AGAIN</button>
-  `;
-  document.getElementById('restartBtn').addEventListener('click', startGame);
 }
 
-document.getElementById('startBtn').addEventListener('click', startGame);
-highScoreEl.textContent = 'HI: ' + game.highScore;
+// Jump on space or click
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && gameRunning && !dino.jumping) {
+    e.preventDefault();
+    dino.vy = -16;
+    dino.jumping = true;
+  }
+});
+
+canvas.addEventListener('click', () => {
+  if (gameRunning && !dino.jumping) {
+    dino.vy = -16;
+    dino.jumping = true;
+  }
+});
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (gameRunning && !dino.jumping) {
+    dino.vy = -16;
+    dino.jumping = true;
+  }
+});
 
 gameLoop();
 </script>
