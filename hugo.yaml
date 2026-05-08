@@ -88,7 +88,7 @@ params:
           link: /games/streamflix/
 
       - title: "Sonic Dash — 108 Levels"
-        content: "Gotta go fast — through 108 longer, harder levels of the Eggman Empire! Levels stretch from ~3,000 px on stage 1 to ~8,400 px on stage 108, with denser, faster badniks, more loop-de-loops, and more ramps the further you go. Defeat Dr. Eggman at the end of every stage; high-speed Spin Dash takes off half his HP. Eggman blocks every 88s and spawns two helper robots. Level-select map (M), and 12 friends to rescue with their own AI helpers — Tails flies and shoots a laser every 8s, Knuckles, Amy, Cream, Big, Espio, Charmy, Vector, Silver, Blaze, Rouge — and finally Shadow on the last level."
+        content: "Gotta go fast — through 108 much longer and harder levels of the Eggman Empire! Levels now stretch from ~5,100 px on stage 1 to ~15,800 px on stage 108 (3x longer!), with denser, faster badniks, more loop-de-loops, and more ramps the further you go. Defeat Dr. Eggman at the end of every stage; high-speed Spin Dash takes off half his HP. Eggman blocks every 88s and spawns two helper robots. Level-select map (M), and 12 friends to rescue with their own AI helpers — Tails flies and shoots a laser every 8s, Knuckles, Amy, Cream, Big, Espio, Charmy, Vector, Silver, Blaze, Rouge — and finally Shadow on the last level."
         image: "/images/games/sonic.svg"
         badges:
           - "HTML5"

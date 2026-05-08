@@ -410,7 +410,7 @@ function generateLevel(n) {
 
   // ----- Plain ground with sparse pits -----
   // Levels are longer (and a bit more pit-y) at higher numbers, but pits stay small
-  const length = 3000 + Math.floor(n * 50); // L1 ≈ 3050 px, L108 ≈ 8400 px
+  const length = 5000 + Math.floor(n * 100); // L1 ≈ 5100 px, L108 ≈ 15800 px
   const pitChance = 0.18 + Math.min(0.12, n * 0.0015); // up to ~0.30 at L108
   let cursor = 0;
   while (cursor < length - 800) {
