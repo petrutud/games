@@ -101,6 +101,18 @@ params:
           name: Play Game
           link: /games/sonic/
 
+      - title: "Dinosaur Jump"
+        content: "Help a T-Rex avoid cacti! Jump over obstacles as the game gets faster. Simple one-button gameplay — press Space or tap to jump. Chase high scores and compete against your personal best. Pixel-perfect collision detection and smooth physics!"
+        image: "/images/games/dinosaur.svg"
+        badges:
+          - "HTML5"
+          - "Canvas"
+          - "Arcade"
+          - "Endless"
+        featured:
+          name: Play Game
+          link: /games/dinosaur/
+
       - title: "Pac-Man"
         content: "The arcade classic! Eat all the pellets and dodge four ghosts — Blinky, Pinky, Inky, and Clyde — each with their own personality. Power pellets let you turn the tables and chomp ghosts for big points. 28x31 maze, side tunnels, lives, and high score saved. Phone-friendly: D-pad and swipe-on-the-maze controls included."
         image: "/images/games/pac-man.svg"
