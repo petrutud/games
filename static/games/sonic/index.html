@@ -409,15 +409,16 @@ function generateLevel(n) {
   const cliffColor = ['#7d5a2e', '#5a4030', '#406070', '#503040', '#306050', '#403020'][zone];
 
   // ----- Plain ground with sparse pits -----
-  const length = 2400 + Math.floor(n * 24); // grows modestly with level
+  // Levels are longer (and a bit more pit-y) at higher numbers, but pits stay small
+  const length = 3000 + Math.floor(n * 50); // L1 ≈ 3050 px, L108 ≈ 8400 px
+  const pitChance = 0.18 + Math.min(0.12, n * 0.0015); // up to ~0.30 at L108
   let cursor = 0;
   while (cursor < length - 800) {
-    const segLen = 700 + Math.floor(rand() * 600);
+    const segLen = 600 + Math.floor(rand() * 600);
     platforms.push({ x: cursor, y: 500, w: segLen, h: 80, color: groundColor });
     cursor += segLen;
-    // Sparse small pits — far less than before
-    if (rand() < 0.18 && cursor < length - 1200) {
-      cursor += 60 + Math.floor(rand() * 40);
+    if (rand() < pitChance && cursor < length - 1200) {
+      cursor += 60 + Math.floor(rand() * 50);
     }
   }
 
@@ -426,23 +427,23 @@ function generateLevel(n) {
   platforms.push({ x: cursor, y: 500, w: 1200, h: 80, color: '#5a3a8c' });
   game.levelEnd = cursor + 1200;
 
-  // ----- Sparse floating platforms (much fewer than original) -----
-  const numFloats = Math.min(5, 1 + Math.floor(n / 15));
+  // ----- Floating platforms (more variety as you progress) -----
+  const numFloats = Math.min(8, 2 + Math.floor(n / 10));
   for (let i = 0; i < numFloats; i++) {
-    const fx = 700 + (i + 0.4) * (length / (numFloats + 1)) + Math.floor(rand() * 120);
-    const fy = 320 + Math.floor(rand() * 90);
-    platforms.push({ x: fx, y: fy, w: 130 + Math.floor(rand() * 80), h: 24, color: cliffColor });
+    const fx = 700 + (i + 0.4) * (length / (numFloats + 1)) + Math.floor(rand() * 140);
+    const fy = 320 + Math.floor(rand() * 110);
+    platforms.push({ x: fx, y: fy, w: 120 + Math.floor(rand() * 80), h: 24, color: cliffColor });
   }
 
-  // ----- Loops (the iconic loop-de-loops) -----
-  const numLoops = 1 + Math.min(3, Math.floor(n / 22));
+  // ----- Loops (more frequent on later levels) -----
+  const numLoops = 1 + Math.min(4, Math.floor(n / 15));
   for (let i = 0; i < numLoops; i++) {
     const lx = 700 + (i + 1) * (length / (numLoops + 1)) - 200 + Math.floor(rand() * 160);
     loops.push({ x: lx, y: 500 - 90, r: 90, used: 0 });
   }
 
   // ----- Ramps -----
-  const numRamps = 2 + Math.min(3, Math.floor(n / 20));
+  const numRamps = 3 + Math.min(4, Math.floor(n / 12));
   for (let i = 0; i < numRamps; i++) {
     const rx = 450 + (i + 0.6) * (length / (numRamps + 1)) + Math.floor(rand() * 140);
     ramps.push({ x: rx, y: 500, w: 100, h: 50, dir: rand() < 0.85 ? 1 : -1 });
@@ -466,12 +467,15 @@ function generateLevel(n) {
     rings.push(...makeRingArc(ax, 380, 6, 70 + Math.floor(rand() * 30), Math.PI*1.1, Math.PI*1.9));
   }
 
-  // ----- Enemies -----
-  const numEnemies = 3 + Math.floor(n / 12);
+  // ----- Enemies (denser & faster as levels progress) -----
+  const numEnemies = 5 + Math.floor(n / 6); // L1=5, L108=23
+  const speedBoost = Math.min(2.4, n * 0.018);
   for (let i = 0; i < numEnemies; i++) {
     const ex = 500 + (i + 0.5) * ((length - 800) / numEnemies);
-    const type = rand() < 0.6 ? 'motobug' : 'crab';
-    enemies.push(makeBadnik(ex, 470, 140 + Math.floor(rand() * 120), type));
+    const type = rand() < 0.5 ? 'motobug' : 'crab';
+    const e = makeBadnik(ex, 470, 140 + Math.floor(rand() * 140), type);
+    e.vx = (e.vx < 0 ? -1 : 1) * (Math.abs(e.vx) + speedBoost);
+    enemies.push(e);
   }
 
   // ----- Friend rescue NPC (locked in a cage, freed by spin-dash) -----
