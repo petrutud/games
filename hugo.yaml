@@ -138,6 +138,18 @@ params:
           name: Play Game
           link: /games/flappy-birds/
 
+      - title: "Acros Math"
+        content: "Solve fast arithmetic problems in four modes: easy, medium, hard, and expert. Build your streak by answering quickly and accurately."
+        image: "/images/games/acros-math.svg"
+        badges:
+          - "HTML5"
+          - "Math"
+          - "Puzzle"
+          - "4 Difficulties"
+        featured:
+          name: Play Game
+          link: /games/acros-math/
+
       - title: "Endless Runner"
         content: "Run infinitely! Jump over obstacles, collect coins, and chase the highest score. Simple one-button controls and increasingly challenging terrain."
         image: "/images/games/endless-runner.svg"

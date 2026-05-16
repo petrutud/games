@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acros Math</title>
+<style>
+:root {
+  --bg: #0e1320;
+  --surface: #161f34;
+  --surface-strong: #1d2a45;
+  --text: #f7fafc;
+  --muted: #9bb1c6;
+  --accent: #7c9cff;
+  --accent-soft: #4b6fbd;
+  --success: #60d68b;
+  --danger: #f36b6b;
+  --radius: 16px;
+  --shadow: 0 18px 45px rgba(0,0,0,0.25);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Inter, system-ui, sans-serif; background: radial-gradient(circle at top, #1c2b54 0%, var(--bg) 80%); color: var(--text); min-height: 100vh; }
+.page { max-width: 960px; margin: 0 auto; padding: 1.5rem; }
+nav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+a.back { color: var(--accent); text-decoration: none; font-weight: 600; }
+.hero { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow); }
+.hero h1 { margin: 0 0 0.7rem; font-size: clamp(2rem, 4vw, 3rem); }
+.hero p { margin: 0; color: var(--muted); line-height: 1.75; }
+.card { margin-top: 1.5rem; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow); }
+.levels { display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap: 0.9rem; margin: 1rem 0 1.5rem; }
+.level-btn { border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: var(--text); padding: 0.95rem 1rem; border-radius: 14px; cursor: pointer; transition: transform 0.15s, border-color 0.2s, background 0.2s; }
+.level-btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+.level-btn.active { background: rgba(124,156,255,0.16); border-color: var(--accent); }
+.status-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 1rem; margin: 1.25rem 0; }
+.stat { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 1rem; text-align: center; }
+.stat strong { display: block; font-size: 1.5rem; margin-bottom: 0.35rem; }
+.stat span { color: var(--muted); font-size: 0.9rem; }
+.problem-box { margin: 1rem 0; display: grid; gap: 1rem; }
+.problem { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.4rem; text-align: center; font-size: 2rem; font-weight: 700; }
+.input-row { display: grid; grid-template-columns: 1fr auto; gap: 0.9rem; align-items: center; }
+.answer-input { width: 100%; padding: 1rem 1.1rem; border-radius: 14px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: var(--text); font-size: 1rem; outline: none; }
+.answer-input:focus { border-color: var(--accent); }
+.btn-row { display: flex; flex-wrap: wrap; gap: 0.9rem; }
+.button { border: none; border-radius: 14px; padding: 1rem 1.25rem; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.15s, background 0.2s; }
+.button.primary { background: var(--accent); color: #fff; }
+.button.secondary { background: rgba(255,255,255,0.06); color: var(--text); }
+.button:hover { transform: translateY(-1px); }
+.message { min-height: 1.2rem; color: var(--text); font-weight: 600; }
+.message.success { color: var(--success); }
+.message.error { color: var(--danger); }
+.help { color: var(--muted); font-size: 0.95rem; margin-top: 0.75rem; }
+@media (max-width: 600px) {
+  .level-btn { font-size: 0.95rem; }
+  .problem { font-size: 1.75rem; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <nav>
+    <a href="index.html" class="back">← Back to Games</a>
+    <span style="color:var(--muted);">Acros Math</span>
+  </nav>
+  <section class="hero">
+    <h1>Acros Math</h1>
+    <p>Solve fast arithmetic problems with four difficulty modes. Pick easy, medium, hard, or expert and see how many correct answers you can string together.</p>
+  </section>
+
+  <section class="card">
+    <div class="levels">
+      <button class="level-btn active" data-diff="easy">Easy</button>
+      <button class="level-btn" data-diff="medium">Medium</button>
+      <button class="level-btn" data-diff="hard">Hard</button>
+      <button class="level-btn" data-diff="expert">Expert</button>
+    </div>
+
+    <div class="status-grid">
+      <div class="stat"><strong id="score">0</strong><span>Score</span></div>
+      <div class="stat"><strong id="streak">0</strong><span>Streak</span></div>
+      <div class="stat"><strong id="time">60</strong><span>Seconds left</span></div>
+      <div class="stat"><strong id="level">Easy</strong><span>Difficulty</span></div>
+    </div>
+
+    <div class="problem-box">
+      <div class="problem" id="problem">Ready?</div>
+      <div class="input-row">
+        <input id="answer" class="answer-input" type="number" inputmode="numeric" autocomplete="off" placeholder="Your answer">
+        <button class="button primary" id="submitBtn">Check</button>
+      </div>
+      <div class="button secondary btn-row">
+        <button class="button secondary" id="startBtn">Start</button>
+        <button class="button secondary" id="skipBtn">Skip</button>
+      </div>
+      <div id="message" class="message"></div>
+      <p class="help">Use the keyboard or buttons to answer. The timer starts when you press Start.</p>
+    </div>
+  </section>
+</div>
+<script>
+const levelButtons = document.querySelectorAll('.level-btn');
+const problemEl = document.getElementById('problem');
+const answerInput = document.getElementById('answer');
+const scoreEl = document.getElementById('score');
+const streakEl = document.getElementById('streak');
+const timeEl = document.getElementById('time');
+const levelEl = document.getElementById('level');
+const messageEl = document.getElementById('message');
+const startBtn = document.getElementById('startBtn');
+const skipBtn = document.getElementById('skipBtn');
+const submitBtn = document.getElementById('submitBtn');
+
+let difficulty = 'easy';
+let score = 0;
+let streak = 0;
+let remaining = 60;
+let currentAnswer = null;
+let timer = null;
+let playing = false;
+
+const config = {
+  easy: { ops: ['+','-'], min: 1, max: 20 },
+  medium: { ops: ['+','-','*'], min: 2, max: 50 },
+  hard: { ops: ['+','-','*','/'], min: 5, max: 99 },
+  expert: { ops: ['+','-','*','/'], min: 10, max: 199 }
+};
+
+function chooseLevel(level) {
+  difficulty = level;
+  levelButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.diff === level));
+  levelEl.textContent = level[0].toUpperCase() + level.slice(1);
+  if (!playing) {
+    problemEl.textContent = 'Ready?';
+    messageEl.textContent = 'Press Start to begin.';
+  }
+}
+
+function randomBetween(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function roundAnswer(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function makeProblem() {
+  const { ops, min, max } = config[difficulty];
+  let a = randomBetween(min, max);
+  let b = randomBetween(min, max);
+  let op = ops[Math.floor(Math.random() * ops.length)];
+
+  if (difficulty === 'hard' || difficulty === 'expert') {
+    if (op === '/' && b === 0) b = 1;
+    if (op === '/' && a % b !== 0) {
+      a = a * b;
+    }
+    if (difficulty === 'expert' && Math.random() > 0.5) {
+      const c = randomBetween(min, max);
+      const nextOp = ops[Math.floor(Math.random() * ops.length)];
+      currentAnswer = roundAnswer(eval(`${a} ${op} ${b} ${nextOp} ${c}`));
+      problemEl.textContent = `${a} ${op} ${b} ${nextOp} ${c}`;
+      return;
+    }
+  }
+
+  switch(op) {
+    case '+': currentAnswer = a + b; break;
+    case '-': currentAnswer = a - b; break;
+    case '*': currentAnswer = a * b; break;
+    case '/': currentAnswer = roundAnswer(a / b); break;
+  }
+  problemEl.textContent = `${a} ${op} ${b}`;
+}
+
+function updateStats() {
+  scoreEl.textContent = score;
+  streakEl.textContent = streak;
+  timeEl.textContent = remaining;
+}
+
+function endGame() {
+  clearInterval(timer);
+  playing = false;
+  messageEl.textContent = `Time's up! Final score: ${score}`;
+  messageEl.className = 'message';
+  startBtn.textContent = 'Restart';
+}
+
+function resetGame() {
+  score = 0;
+  streak = 0;
+  remaining = 60;
+  updateStats();
+  answerInput.value = '';
+  messageEl.textContent = 'Solve as many as you can. Good luck!';
+  messageEl.className = 'message';
+  makeProblem();
+}
+
+function startGame() {
+  if (playing) return;
+  playing = true;
+  startBtn.textContent = 'Restart';
+  resetGame();
+  timer = setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) {
+      remaining = 0;
+      updateStats();
+      endGame();
+      return;
+    }
+    updateStats();
+  }, 1000);
+}
+
+function checkAnswer() {
+  if (!playing) {
+    messageEl.textContent = 'Press Start first.';
+    return;
+  }
+  const answerValue = parseFloat(answerInput.value.trim());
+  if (Number.isNaN(answerValue)) {
+    messageEl.textContent = 'Enter a number to answer.';
+    messageEl.className = 'message error';
+    return;
+  }
+  const correct = Math.abs(answerValue - currentAnswer) < 0.001;
+  if (correct) {
+    score += difficulty === 'expert' ? 30 : difficulty === 'hard' ? 20 : difficulty === 'medium' ? 12 : 8;
+    streak += 1;
+    remaining = Math.min(remaining + 2, 60);
+    messageEl.textContent = 'Correct! Keep going.';
+    messageEl.className = 'message success';
+  } else {
+    streak = 0;
+    remaining = Math.max(remaining - 3, 0);
+    messageEl.textContent = `Wrong — the answer was ${currentAnswer}.`;
+    messageEl.className = 'message error';
+  }
+  updateStats();
+  answerInput.value = '';
+  makeProblem();
+}
+
+startBtn.addEventListener('click', () => {
+  if (playing) {
+    clearInterval(timer);
+    playing = false;
+  }
+  startGame();
+  answerInput.focus();
+});
+
+submitBtn.addEventListener('click', checkAnswer);
+skipBtn.addEventListener('click', () => {
+  if (!playing) return;
+  streak = 0;
+  remaining = Math.max(remaining - 5, 0);
+  messageEl.textContent = `Skipped. Answer was ${currentAnswer}.`;
+  messageEl.className = 'message error';
+  updateStats();
+  answerInput.value = '';
+  makeProblem();
+});
+answerInput.addEventListener('keyup', (event) => {
+  if (event.key === 'Enter') checkAnswer();
+});
+levelButtons.forEach(btn => btn.addEventListener('click', () => {
+  chooseLevel(btn.dataset.diff);
+  if (playing) {
+    makeProblem();
+    answerInput.focus();
+  }
+}));
+
+chooseLevel('easy');
+problemEl.textContent = 'Press Start to begin!';
+messageEl.textContent = 'Select a difficulty and press Start.';
+</script>
+</body>
+</html>
